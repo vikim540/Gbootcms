@@ -23,11 +23,11 @@ coverage.out
 # (vendor/ 在使用 modules 時不需要,但若引入仍應忽略)
 vendor/
 
-# ===== 數據庫 / Database (含種子管理員密碼,絕不入庫) =====
-data/
-*.db
-*.db-shm
-*.db-wal
+# ===== 數據庫 / Database =====
+# data/pbootcms.db 納入版本庫(本地開發用,密碼統一為 admin)
+# 仍排除 SQLite WAL 副作用文件,避免每次運行都產生噪音 diff
+data/*.db-shm
+data/*.db-wal
 *.sqlite
 *.sqlite3
 *.sql-journal
