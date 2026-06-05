@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{sort:name} - {pboot:sitetitle}</title>
+    <meta name="keywords" content="{sort:keywords}">
+    <meta name="description" content="{sort:description}">
+</head>
+<body>
+    {include file=head.html}
+
+    <div class="breadcrumb">{pboot:position separator=/}</div>
+
+    <h1>{sort:name}</h1>
+
+    <div class="content-list">
+        {pboot:list scode={sort:scode} num=15 order=date page=1}
+        <div class="list-item">
+            <a href="[list:link]">
+                {pboot:if('[list:ico]'!='')}
+                <img src="[list:ico]" alt="[list:title]">
+                {/pboot:if}
+                <h3>[list:title]</h3>
+                <span>[list:date style=Y-m-d]</span>
+            </a>
+        </div>
+        {/pboot:list}
+    </div>
+
+    <div class="pagination">
+        <a href="{page:index}">首页</a>
+        <a href="{page:pre}">上一页</a>
+        <span>{page:current}/{page:count}</span>
+        <a href="{page:next}">下一页</a>
+        <a href="{page:last}">末页</a>
+    </div>
+
+    {include file=foot.html}
+</body>
+</html>

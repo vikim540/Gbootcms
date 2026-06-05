@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{content:title} - {pboot:sitetitle}</title>
+    <meta name="keywords" content="{content:keywords}">
+    <meta name="description" content="{content:description}">
+</head>
+<body>
+    {include file=head.html}
+
+    <div class="breadcrumb">{pboot:position separator=/}</div>
+
+    <article class="content-detail">
+        <h1>{content:title}</h1>
+        <div class="meta">
+            <span>作者：{content:author}</span>
+            <span>时间：{content:date style=Y-m-d}</span>
+            <span>浏览：{content:visits}</span>
+        </div>
+        <div class="content-body">
+            {content:content}
+        </div>
+    </article>
+
+    {include file=foot.html}
+</body>
+</html>

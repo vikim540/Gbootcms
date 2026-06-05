@@ -1,0 +1,87 @@
+# =============================================================================
+# pbootcms-go .gitignore
+# 標準化配置 / Standard ignore rules
+# 目的:排除編譯產物、運行時緩存、敏感文件、IDE 殘留、SQLite 副作用
+# =============================================================================
+
+# ===== 編譯產物 / Build artifacts =====
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# ===== 測試覆蓋 / Test coverage =====
+coverage.out
+*.coverprofile
+*.cover
+
+# ===== Go 工具鏈 =====
+# (vendor/ 在使用 modules 時不需要,但若引入仍應忽略)
+vendor/
+
+# ===== 數據庫 / Database (含種子管理員密碼,絕不入庫) =====
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sql-journal
+
+# ===== 運行時緩存與會話 / Runtime cache & session =====
+# 與 PbootCMS PHP 版一致,緩存全部由應用程序重生成
+runtime/
+*.cache
+
+# ===== 開發工具 / IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== 調試與測試遺留物 / Debug & test artifacts =====
+tmp/
+runtime/pongo2_debug_*.html
+runtime/01_*.png
+runtime/data/*.php
+debug.html
+debug.log
+
+# ===== 敏感文件 / Sensitive files (cookie / 會話 / 抓取數據) =====
+ck.txt
+cookies.txt
+test_cookies*.txt
+test_out.txt
+test_ux.txt
+test_*.html
+test_*.ps1
+ux_check.html
+db_check.html
+
+# ===== 本地覆蓋配置 / Local overrides =====
+# 配置文件(config/config.json) 入庫;本地開發覆蓋不入庫
+config/config.local.json
+config/config.local.yaml
+.env
+.env.*
+!.env.example
+
+# ===== 日誌 / Logs =====
+*.log
+logs/
+
+# ===== OS 臨時文件 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# ===== PowerShell 環境驗證腳本(workspace 級,不入庫) =====
+verify-pwsh.ps1
+setup-pwsh-junction.ps1

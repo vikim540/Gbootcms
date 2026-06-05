@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>搜索 - {pboot:sitetitle}</title>
+    <meta name="keywords" content="{pboot:sitekeywords}">
+    <meta name="description" content="{pboot:sitedescription}">
+</head>
+<body>
+    {include file=head.html}
+
+    <div class="content-area">
+        <h1>搜索结果</h1>
+        <form action="/search" method="get">
+            <input type="text" name="keyword" value="{pboot:keyword}" placeholder="请输入关键词">
+            <button type="submit">搜索</button>
+        </form>
+
+        <div class="search-results">
+            {pboot:search num=10 order=date}
+            <div class="list-item">
+                <h3><a href="[search:link]">[search:title mark=1]</a></h3>
+                <span class="date">[search:date style=Y-m-d]</span>
+                <p>[search:description len=120 more=... mark=1]</p>
+            </div>
+            {/pboot:search}
+        </div>
+    </div>
+
+    {include file=foot.html}
+</body>
+</html>

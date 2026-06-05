@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>标签云 - {pboot:sitetitle}</title>
+    <meta name="keywords" content="{pboot:sitekeywords}">
+    <meta name="description" content="{pboot:sitedescription}">
+</head>
+<body>
+    {include file=head.html}
+
+    <div class="content-area">
+        <h1>标签云</h1>
+        <div class="tags-cloud">
+            {pboot:tags num=50}
+            <a href="[tags:link]" class="tag-item">[tags:text]</a>
+            {/pboot:tags}
+        </div>
+    </div>
+
+    {include file=foot.html}
+</body>
+</html>

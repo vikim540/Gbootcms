@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>在线留言 - {pboot:sitetitle}</title>
+    <meta name="keywords" content="{pboot:sitekeywords}">
+    <meta name="description" content="{pboot:sitedescription}">
+</head>
+<body>
+    {include file=head.html}
+
+    <div class="content-area">
+        <h1>在线留言</h1>
+        <form action="/message" method="post" class="message-form">
+            <div class="form-group">
+                <label>联系人：</label>
+                <input type="text" name="contacts" required>
+            </div>
+            <div class="form-group">
+                <label>手机号：</label>
+                <input type="text" name="mobile">
+            </div>
+            <div class="form-group">
+                <label>留言内容：</label>
+                <textarea name="content" rows="5" required></textarea>
+            </div>
+            <div class="form-group">
+                <button type="submit">提交留言</button>
+            </div>
+        </form>
+
+        <h2>历史留言</h2>
+        <div class="message-list">
+            {pboot:message num=10}
+            <div class="message-item">
+                <strong>[message:nickname]</strong>
+                <span class="date">[message:askdate style=Y-m-d]</span>
+                <p>[message:content]</p>
+                {pboot:if('[message:replycontent]'!='')}
+                <div class="reply">回复：[message:replycontent]</div>
+                {/pboot:if}
+            </div>
+            {/pboot:message}
+        </div>
+    </div>
+
+    {include file=foot.html}
+</body>
+</html>

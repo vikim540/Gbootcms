@@ -1,0 +1,24 @@
+{
+  "app": {
+    "debug": true,
+    "port": 8080,
+    "template_dir": "templates",
+    "static_dir": "static",
+    "runtime_dir": "runtime",
+    "url_suffix": ".html",
+    "page_size": 15,
+    "page_num": 5,
+    "admin_path": "admin",
+    "cache_enabled": false,
+    "cache_time": 900
+  },
+  "database": {
+    "type": "sqlite",
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "root",
+    "passwd": "",
+    "dbname": "data/pbootcms.db",
+    "prefix": "ay_"
+  }
+}

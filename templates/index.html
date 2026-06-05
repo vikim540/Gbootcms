@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{pboot:sitetitle}</title>
+    <meta name="keywords" content="{pboot:sitekeywords}">
+    <meta name="description" content="{pboot:sitedescription}">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    {include file=head.html}
+
+    <div class="banner">
+        {pboot:slide gid=1 num=5}
+        <div class="slide-item">
+            <img src="[slide:src]" alt="[slide:title]">
+            <a href="[slide:link]">[slide:title]</a>
+        </div>
+        {/pboot:slide}
+    </div>
+
+    <nav class="main-nav">
+        {pboot:nav num=8}
+        <a href="[nav:link]" class="nav-item">[nav:name]</a>
+        {/pboot:nav}
+    </nav>
+
+    <div class="content-area">
+        {pboot:list scode=1 num=10 order=date}
+        <div class="list-item">
+            <h3><a href="[list:link]">[list:title len=50 more=...]</a></h3>
+            <span class="date">[list:date style=Y-m-d]</span>
+            <p>[list:description len=120 more=...]</p>
+        </div>
+        {/pboot:list}
+    </div>
+
+    {pboot:if('[nav:i]'=='1')}
+    <div class="first-item">第一个导航项特殊样式</div>
+    {else}
+    <div class="normal-item">普通导航项</div>
+    {/pboot:if}
+
+    <div class="footer">
+        <p>Copyright &copy; {pboot:companyname} | {pboot:companyicp}</p>
+        <p>联系电话：{pboot:companyphone} | 邮箱：{pboot:companyemail}</p>
+    </div>
+
+    {include file=foot.html}
+</body>
+</html>

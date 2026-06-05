@@ -1,0 +1,86 @@
+package main
+
+import (
+	"fmt"
+	"log"
+
+	home "pbootcms-go/apps/home/controller"
+	"pbootcms-go/apps/admin/model"
+	"pbootcms-go/apps/admin/model/content"
+	"pbootcms-go/apps/admin/model/member"
+	"pbootcms-go/apps/admin/model/system"
+	"pbootcms-go/apps/admin/seed"
+	"pbootcms-go/apps/common/middleware"
+	"pbootcms-go/apps/common/parser"
+	"pbootcms-go/apps/route"
+	"pbootcms-go/config"
+	"pbootcms-go/core/basic"
+
+	"github.com/gin-gonic/gin"
+)
+
+func main() {
+	cfg := config.Load("config/config.json")
+
+	if err := model.InitDB(cfg); err != nil {
+		log.Fatalf("Database init failed: %v", err)
+	}
+	defer model.CloseDB()
+
+	// AutoMigrate all models: system + content + member
+	system.AutoMigrate()
+	content.AutoMigrate()
+	member.AutoMigrate()
+
+	// Seed initial data (admin user, menus, configs, etc.)
+	seed.Init()
+
+	basic.InitViewEngine(cfg.App.TemplateDir)
+
+	tagParser := parser.New()
+	store, err := parser.NewTemplateStore(cfg.App.TemplateDir, tagParser)
+	if err != nil {
+		log.Fatalf("Template engine init failed: %v", err)
+	}
+	defer store.Close()
+
+	if !cfg.App.Debug {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	r := gin.Default()
+
+	r.Static("/static", cfg.App.StaticDir)
+
+	route.SetupAdminRoutes(r)
+
+	fc := home.NewFrontController(store)
+
+	r.GET("/", fc.Index)
+	r.GET("/search", fc.Search)
+	r.GET("/tags", fc.Tags)
+	r.GET("/message", fc.Message)
+	r.POST("/message", fc.Message)
+	r.GET("/api/visits", fc.Visits)
+
+	r.NoRoute(func(c *gin.Context) {
+		// 先尝试 PbootCMS 原版 URL → Go 版路径重写，重写后用 HandleContext 重新分发
+		original := c.Request.URL.Path
+		newPath := middleware.RewriteAdminPath(original)
+		if newPath != original {
+			c.Request.Header.Set("X-Original-Path", original) // 用请求头保存原始 URL（HandleContext 会清空 c.Keys）
+			c.Request.URL.Path = newPath
+			r.HandleContext(c)
+			return
+		}
+		// 不匹配 admin 路径，走前台内容页
+		fc.ContentPage(c)
+	})
+
+	addr := fmt.Sprintf(":%d", cfg.App.Port)
+	log.Printf("PbootCMS-Go started at http://localhost%s", addr)
+	log.Printf("Admin panel: http://localhost%s/admin", addr)
+	if err := r.Run(addr); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
+}
