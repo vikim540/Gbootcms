@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type DataProvider func(tagName string, params map[string]string, inner string) string
@@ -121,6 +122,8 @@ func (p *TagParser) Render(content string) string {
 		content = p.processInclude(content, re)
 	}
 
+	// Pre-resolve single tags inside pair tag params (e.g. {pboot:list scode={sort:scode}})
+	content = p.preResolveSingleInPairParams(content)
 	content = p.processPairTags(content)
 	content = p.processIfTags(content)
 	content = p.processSingleTags(content)
@@ -149,6 +152,8 @@ func (p *TagParser) RenderWithoutInclude(content string) string {
 	}
 
 	// Skip include tags
+	// Pre-resolve single tags inside pair tag params (e.g. {pboot:list scode={sort:scode}})
+	content = p.preResolveSingleInPairParams(content)
 	content = p.processPairTags(content)
 	content = p.processIfTags(content)
 	content = p.processSingleTags(content)
@@ -408,7 +413,153 @@ func AdjustValue(val string, params map[string]string) string {
 }
 
 func FormatDate(val string, style string) string {
-	return val
+	if val == "" || style == "" {
+		return val
+	}
+	// Try to parse val as a time
+	var t time.Time
+	var err error
+	for _, layout := range []string{
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+		time.RFC3339,
+		"2006/01/02 15:04:05",
+		"2006/01/02",
+	} {
+		t, err = time.Parse(layout, val)
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return val
+	}
+	// Convert PHP date format to Go format
+	goFmt := phpToGoFormat(style)
+	return t.Format(goFmt)
+}
+
+// phpToGoFormat converts PHP date format chars to Go reference time
+// Y=2006, y=06, m=01, n=1, d=02, j=2, H=15, i=04, s=05
+func phpToGoFormat(php string) string {
+	var sb strings.Builder
+	for i := 0; i < len(php); i++ {
+		switch php[i] {
+		case 'Y':
+			sb.WriteString("2006")
+		case 'y':
+			sb.WriteString("06")
+		case 'm':
+			sb.WriteString("01")
+		case 'n':
+			sb.WriteString("1")
+		case 'd':
+			sb.WriteString("02")
+		case 'j':
+			sb.WriteString("2")
+		case 'H':
+			sb.WriteString("15")
+		case 'i':
+			sb.WriteString("04")
+		case 's':
+			sb.WriteString("05")
+		default:
+			sb.WriteByte(php[i])
+		}
+	}
+	return sb.String()
+}
+
+// preResolveSingleInPairParams resolves single tags ({sort:xxx}, {content:xxx}, etc.)
+// that appear inside pair tag parameter sections.
+// e.g. {pboot:list scode={sort:scode} num=15} → {pboot:list scode=5 num=15}
+func (p *TagParser) preResolveSingleInPairParams(content string) string {
+	// Match pair tag openings and capture the params section
+	pairNames := []string{
+		"list", "nav", "sort_loop", "search", "message", "tags",
+		"slide", "link", "pics", "checkbox", "formlist", "comment",
+		"commentsub", "mycomment", "loop", "select",
+	}
+	for _, name := range pairNames {
+		// Match opening like {pboot:NAME ...params...}
+		// The params end at the first } that closes the opening tag
+		pattern := regexp.MustCompile(`\{pboot:` + name + `\s+([^}]+)\}`)
+		content = pattern.ReplaceAllStringFunc(content, func(match string) string {
+			subs := pattern.FindStringSubmatch(match)
+			if len(subs) < 2 {
+				return match
+			}
+			paramStr := subs[1]
+			// Resolve single tags within the params
+			resolved := p.resolveSingleTagsInString(paramStr)
+			if resolved != paramStr {
+				return "{pboot:" + name + " " + resolved + "}"
+			}
+			return match
+		})
+	}
+	return content
+}
+
+// resolveSingleTagsInString resolves single tag patterns within a given string
+func (p *TagParser) resolveSingleTagsInString(s string) string {
+	// {sort:xxx} patterns
+	reSort := regexp.MustCompile(`\{sort:(\w+)\}`)
+	s = reSort.ReplaceAllStringFunc(s, func(match string) string {
+		subs := reSort.FindStringSubmatch(match)
+		if len(subs) < 2 {
+			return match
+		}
+		pr, ok := p.provider("sort")
+		if !ok {
+			return match
+		}
+		return providerCall(pr, "sort", map[string]string{"_field": subs[1]}, "")
+	})
+
+	// {content:xxx} patterns
+	reContent := regexp.MustCompile(`\{content:(\w+)\}`)
+	s = reContent.ReplaceAllStringFunc(s, func(match string) string {
+		subs := reContent.FindStringSubmatch(match)
+		if len(subs) < 2 {
+			return match
+		}
+		pr, ok := p.provider("content")
+		if !ok {
+			return match
+		}
+		return providerCall(pr, "content", map[string]string{"_field": subs[1]}, "")
+	})
+
+	// {site:xxx} patterns
+	reSite := regexp.MustCompile(`\{site:(\w+)\}`)
+	s = reSite.ReplaceAllStringFunc(s, func(match string) string {
+		subs := reSite.FindStringSubmatch(match)
+		if len(subs) < 2 {
+			return match
+		}
+		pr, ok := p.provider("site")
+		if !ok {
+			return match
+		}
+		return providerCall(pr, "site", map[string]string{"_field": subs[1]}, "")
+	})
+
+	// {label:xxx} patterns
+	reLabel := regexp.MustCompile(`\{label:(\w+)\}`)
+	s = reLabel.ReplaceAllStringFunc(s, func(match string) string {
+		subs := reLabel.FindStringSubmatch(match)
+		if len(subs) < 2 {
+			return match
+		}
+		pr, ok := p.provider("label")
+		if !ok {
+			return match
+		}
+		return providerCall(pr, "label", map[string]string{"_field": subs[1]}, "")
+	})
+
+	return s
 }
 
 func ValToStr(v interface{}) string {

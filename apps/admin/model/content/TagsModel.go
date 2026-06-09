@@ -1,1 +1,9 @@
-package content// Tags 標籤模型type Tags struct {	ID      uint   `gorm:"primaryKey" json:"id"`	Name    string `gorm:"column:name" json:"name"`	Link    string `gorm:"column:link" json:"link"`	Sorting int    `gorm:"column:sorting" json:"sorting"`}}
+package content
+
+// Tags 標籤模型
+type Tags struct {
+	ID      uint   `gorm:"primaryKey" json:"id"`
+	Name    string `gorm:"column:name" json:"name"`
+	Link    string `gorm:"column:link" json:"link"`
+	Sorting int    `gorm:"column:sorting" json:"sorting"`
+}

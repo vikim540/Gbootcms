@@ -1,7 +1,10 @@
 package content
 
 import (
+	"fmt"
+	"pbootcms-go/apps/admin/helper"
 	"pbootcms-go/apps/admin/model"
+	svc "pbootcms-go/apps/admin/service/content"
 	"pbootcms-go/apps/common"
 	"strconv"
 	"strings"
@@ -11,54 +14,68 @@ import (
 )
 
 // ContentController - Content Management Controller
-// Corresponds to PHP: apps/admin/controller/ContentController.php
 type ContentController struct {
 	common.BaseController
+	svc svc.ContentService
+}
+
+// contentTemplateData returns common template data for content views.
+func (cc *ContentController) contentTemplateData(mcode string, sorts []model.ContentSort) gin.H {
+	return gin.H{
+		"model_name":     helper.GetModelNameByMcode(mcode),
+		"sorts":          sorts,
+		"sort_select":    helper.BuildSearchSelectHTML(sorts, mcode),
+		"search_select":  helper.BuildSearchSelectHTML(sorts, mcode),
+		"subsort_select": helper.BuildSearchSelectHTML(sorts, mcode),
+		"extfield":       helper.GetExtFieldsByMcode(mcode),
+		"groups":         helper.BuildGroupsData(),
+	}
 }
 
 // Index - Content list
 func (cc *ContentController) Index(c *gin.Context) {
+	mcode := c.Query("mcode")
 	scode := c.Query("scode")
-	pageStr := c.Query("page")
-	page, _ := strconv.Atoi(pageStr)
-	if page < 1 {
-		page = 1
-	}
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize := 15
-
-	var total int64
-	query := model.DB.Model(&model.Content{}).Where("status >= 0")
-	if scode != "" {
-		query = query.Where("scode = ? OR subscode = ?", scode, scode)
+	if ps := c.Query("pagesize"); ps != "" {
+		if v, err := strconv.Atoi(ps); err == nil && v > 0 {
+			pageSize = v
+		}
 	}
-	query.Count(&total)
 
-	var contents []model.Content
-	query.Order("date DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&contents)
+	contents, total, _ := cc.svc.ListContents(scode, page, pageSize)
+	sorts, _ := cc.svc.GetAllSorts()
 
-	var sorts []model.ContentSort
-	model.DB.Where("status = 1").Order("sorting ASC").Find(&sorts)
+	data := cc.contentTemplateData(mcode, sorts)
+	data["contents"] = helper.AddSortName(contents, sorts)
+	data["list"] = true
+	data["scode"] = scode
+	data["total"] = total
+	data["page"] = page
+	data["pagesize"] = pageSize
 
-	common.Render(c, "content/content.html", gin.H{
-		"contents": contents,
-		"sorts":    sorts,
-		"scode":    scode,
-		"total":    total,
-		"page":     page,
-		"pagesize": pageSize,
-	})
+	// Build pagination
+	baseURL := fmt.Sprintf("/admin/content/index?mcode=%s", mcode)
+	if scode != "" {
+		baseURL += "&scode=" + scode
+	}
+	data["pagebar"] = helper.BuildPagebarHTML(total, page, pageSize, baseURL)
+
+	common.Render(c, "content/content.html", data)
 }
 
 // Add - Add new content
 func (cc *ContentController) Add(c *gin.Context) {
-	if c.Request.Method == "POST" {
-		title := c.PostForm("title")
-		scode := c.PostForm("scode")
-		content := c.PostForm("content")
+	mcode := c.Query("mcode")
+	if mcode == "" {
+		mcode = c.Param("mcode")
+	}
 
-		if title == "" || scode == "" {
-			cc.JSONFail(c, "Title and sort cannot be empty")
-			return
+	if c.Request.Method == "POST" {
+		mcode = c.PostForm("mcode")
+		if mcode == "" {
+			mcode = c.Query("mcode")
 		}
 
 		dateStr := c.PostForm("date")
@@ -73,14 +90,22 @@ func (cc *ContentController) Add(c *gin.Context) {
 		isrecommend, _ := strconv.Atoi(c.DefaultPostForm("isrecommend", "0"))
 		isheadline, _ := strconv.Atoi(c.DefaultPostForm("isheadline", "0"))
 
+		// Read filename with urlname fallback
+		urlname := c.PostForm("filename")
+		if urlname == "" {
+			urlname = c.PostForm("urlname")
+		}
+
 		doc := model.Content{
-			Scode:       scode,
-			Title:       title,
+			Scode:       c.PostForm("scode"),
+			Subscode:    c.PostForm("subscode"),
+			Title:       c.PostForm("title"),
 			Subtitle:    c.PostForm("subtitle"),
 			Keywords:    c.PostForm("keywords"),
 			Description: c.PostForm("description"),
-			Content:     content,
+			Content:     c.PostForm("content"),
 			Ico:         c.PostForm("ico"),
+			Pics:        c.PostForm("pics"),
 			Source:      c.PostForm("source"),
 			Author:      c.PostForm("author"),
 			Visits:      visits,
@@ -89,40 +114,71 @@ func (cc *ContentController) Add(c *gin.Context) {
 			IsHeadline:  isheadline,
 			Date:        pubDate,
 			Sorting:     sorting,
-			Status:      1,
-			URLName:     c.PostForm("urlname"),
+			Status:      helper.ParseInt(c.DefaultPostForm("status", "1")),
+			URLName:     urlname,
+			Outlink:     c.PostForm("outlink"),
+			Tags:        c.PostForm("tags"),
+			TitleColor:  c.PostForm("titlecolor"),
+			Enclosure:   c.PostForm("enclosure"),
+			Gid:         c.PostForm("gid"),
+			GType:       c.PostForm("gtype"),
+			Gnote:       c.PostForm("gnote"),
 		}
-		model.DB.Create(&doc)
+		if err := cc.svc.CreateContent(&doc); err != nil {
+			cc.JSONFail(c, err.Error())
+			return
+		}
 		cc.JSONOKMsg(c, "Added successfully")
 		return
 	}
 
-	var sorts []model.ContentSort
-	model.DB.Where("status = 1").Order("sorting ASC").Find(&sorts)
-	common.Render(c, "content/content.html", gin.H{
-		"sorts":  sorts,
-		"action": "add",
-	})
+	sorts, _ := cc.svc.GetAllSorts()
+	data := cc.contentTemplateData(mcode, sorts)
+	data["list"] = true
+	common.Render(c, "content/content.html", data)
 }
 
 // Mod - Modify content
 func (cc *ContentController) Mod(c *gin.Context) {
-	idStr := c.Param("id")
+	// Parse wildcard action param: /mcode/1/id/123 or /id/123/field/status/value/0 or /123
+	params := helper.ParseWildcardAction(c.Param("action"))
+
+	idStr := params["id"]
 	if idStr == "" {
 		idStr = c.Query("id")
 	}
 	id, _ := strconv.Atoi(idStr)
+
+	mcode := params["mcode"]
+	if mcode == "" {
+		mcode = c.Query("mcode")
+	}
+
+	// Handle single field update via URL path or query params
+	field := params["field"]
+	if field == "" {
+		field = c.Query("field")
+	}
+	value := params["value"]
+	if value == "" {
+		value = c.Query("value")
+	}
 
 	submit := c.PostForm("submit")
 
 	if submit == "sorting" {
 		idList := c.PostFormArray("id")
 		sortingList := c.PostFormArray("sorting")
+		idSortingMap := map[string]int{}
 		for i, sid := range idList {
 			if i < len(sortingList) {
 				s, _ := strconv.Atoi(sortingList[i])
-				model.DB.Model(&model.Content{}).Where("id = ?", sid).Update("sorting", s)
+				idSortingMap[sid] = s
 			}
+		}
+		if err := cc.svc.UpdateSorting(idSortingMap); err != nil {
+			cc.JSONFail(c, err.Error())
+			return
 		}
 		cc.JSONOKMsg(c, "Sort order modified successfully")
 		return
@@ -131,54 +187,38 @@ func (cc *ContentController) Mod(c *gin.Context) {
 	if submit == "field" {
 		field := c.PostForm("field")
 		value := c.PostForm("value")
-		model.DB.Model(&model.Content{}).Where("id = ?", id).Update(field, value)
+		if err := cc.svc.UpdateSingleField(id, field, value); err != nil {
+			cc.JSONFail(c, err.Error())
+			return
+		}
+		cc.JSONOKMsg(c, "Modified successfully")
+		return
+	}
+
+	// Handle single field update via query params (already parsed from wildcard)
+	if field != "" {
+		if err := cc.svc.UpdateSingleField(id, field, value); err != nil {
+			cc.JSONFail(c, err.Error())
+			return
+		}
 		cc.JSONOKMsg(c, "Modified successfully")
 		return
 	}
 
 	if submit == "copy" {
-		targetScode := c.PostForm("scode")
-		if targetScode == "" {
-			cc.JSONFail(c, "Target sort cannot be empty")
+		if err := cc.svc.CopyContent(id, c.PostForm("scode")); err != nil {
+			cc.JSONFail(c, err.Error())
 			return
 		}
-		var src model.Content
-		if err := model.DB.First(&src, id).Error; err != nil {
-			cc.JSONFail(c, "Content does not exist")
-			return
-		}
-		copyDoc := model.Content{
-			Scode:       targetScode,
-			Subscode:    src.Subscode,
-			Title:       src.Title,
-			Subtitle:    src.Subtitle,
-			Keywords:    src.Keywords,
-			Description: src.Description,
-			Content:     src.Content,
-			Ico:         src.Ico,
-			Pics:        src.Pics,
-			Source:      src.Source,
-			Author:      src.Author,
-			Visits:      0,
-			IsTop:       src.IsTop,
-			IsRecommend: src.IsRecommend,
-			IsHeadline:  src.IsHeadline,
-			Date:        time.Now(),
-			Sorting:     src.Sorting,
-			Status:      1,
-		}
-		model.DB.Create(&copyDoc)
 		cc.JSONOKMsg(c, "Copied successfully")
 		return
 	}
 
 	if submit == "move" {
-		targetScode := c.PostForm("scode")
-		if targetScode == "" {
-			cc.JSONFail(c, "Target sort cannot be empty")
+		if err := cc.svc.MoveContent(id, c.PostForm("scode")); err != nil {
+			cc.JSONFail(c, err.Error())
 			return
 		}
-		model.DB.Model(&model.Content{}).Where("id = ?", id).Update("scode", targetScode)
 		cc.JSONOKMsg(c, "Moved successfully")
 		return
 	}
@@ -195,6 +235,12 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			return
 		}
 
+		// Read filename with urlname fallback
+		urlname := c.PostForm("filename")
+		if urlname == "" {
+			urlname = c.PostForm("urlname")
+		}
+
 		updates := map[string]interface{}{
 			"title":       title,
 			"subtitle":    c.PostForm("subtitle"),
@@ -207,9 +253,12 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			"pics":        c.PostForm("pics"),
 			"source":      c.PostForm("source"),
 			"author":      c.PostForm("author"),
-			"urlname":     c.PostForm("urlname"),
+			"urlname":     urlname,
 			"outlink":     c.PostForm("outlink"),
 			"enclosure":   c.PostForm("enclosure"),
+			"tags":        c.PostForm("tags"),
+			"titlecolor":  c.PostForm("titlecolor"),
+			"gnote":       c.PostForm("gnote"),
 		}
 
 		if v, err := strconv.Atoi(c.DefaultPostForm("visits", "0")); err == nil {
@@ -226,6 +275,9 @@ func (cc *ContentController) Mod(c *gin.Context) {
 		}
 		if v, err := strconv.Atoi(c.DefaultPostForm("isheadline", "0")); err == nil {
 			updates["isheadline"] = v
+		}
+		if v := c.PostForm("status"); v != "" {
+			updates["status"] = helper.ParseInt(v)
 		}
 
 		dateStr := c.PostForm("date")
@@ -244,33 +296,60 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			updates["gtype"] = stype
 		}
 
-		model.DB.Model(&model.Content{}).Where("id = ?", id).Updates(updates)
+		if err := cc.svc.UpdateContent(id, updates); err != nil {
+			cc.JSONFail(c, err.Error())
+			return
+		}
 		cc.JSONOKMsg(c, "Modified successfully")
 		return
 	}
 
-	var doc model.Content
-	if err := model.DB.First(&doc, id).Error; err != nil {
-		cc.JSONFail(c, "Content does not exist")
+	doc, err := cc.svc.GetContent(id)
+	if err != nil {
+		cc.JSONFail(c, err.Error())
 		return
 	}
 
-	var sorts []model.ContentSort
-	model.DB.Where("status = 1").Order("sorting ASC").Find(&sorts)
+	// Get mcode from content's sort if not in query
+	if mcode == "" {
+		var sort model.ContentSort
+		if model.DB.Where("scode = ?", doc.Scode).First(&sort).Error == nil {
+			mcode = sort.Mcode
+		}
+	}
 
-	common.Render(c, "content/content.html", gin.H{
-		"content": doc,
-		"sorts":   sorts,
-		"action":  "mod",
-	})
+	sorts, _ := cc.svc.GetAllSorts()
+	data := cc.contentTemplateData(mcode, sorts)
+	data["content"] = doc
+	data["sort_select"] = helper.BuildSortSelectWithSelected(sorts, mcode, doc.Scode)
+	data["mod"] = true
+	common.Render(c, "content/content.html", data)
 }
 
 // Del - Delete content
 func (cc *ContentController) Del(c *gin.Context) {
 	idStr := c.Query("id")
+	if idStr == "" {
+		// Try POST form array for batch delete
+		ids := c.PostFormArray("list[]")
+		if len(ids) == 0 {
+			ids = c.PostFormArray("list")
+		}
+		if len(ids) > 0 {
+			if err := cc.svc.DeleteContent(ids); err != nil {
+				cc.JSONFail(c, err.Error())
+				return
+			}
+			cc.JSONOKMsg(c, "Deleted successfully")
+			return
+		}
+		cc.JSONFail(c, "No items selected")
+		return
+	}
 	ids := strings.Split(idStr, ",")
-	for _, id := range ids {
-		model.DB.Delete(&model.Content{}, id)
+	if err := cc.svc.DeleteContent(ids); err != nil {
+		cc.JSONFail(c, err.Error())
+		return
 	}
 	cc.JSONOKMsg(c, "Deleted successfully")
 }

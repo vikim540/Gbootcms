@@ -21,7 +21,7 @@
 
     <nav class="main-nav">
         {pboot:nav num=8}
-        <a href="[nav:link]" class="nav-item">[nav:name]</a>
+        <a href="[nav:link]" class="nav-item{pboot:if('[nav:i]'=='1')} active{/pboot:if}">[nav:name]</a>
         {/pboot:nav}
     </nav>
 
@@ -34,12 +34,6 @@
         </div>
         {/pboot:list}
     </div>
-
-    {pboot:if('[nav:i]'=='1')}
-    <div class="first-item">第一个导航项特殊样式</div>
-    {else}
-    <div class="normal-item">普通导航项</div>
-    {/pboot:if}
 
     <div class="footer">
         <p>Copyright &copy; {pboot:companyname} | {pboot:companyicp}</p>

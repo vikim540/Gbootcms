@@ -1,1 +1,71 @@
-package contentimport (	"pbootcms-go/core/db"	"time")type Model struct {	ID         uint   `gorm:"primaryKey" json:"id"`	Mcode      string `gorm:"column:mcode" json:"mcode"`	Name       string `gorm:"column:name" json:"name"`	Type       int    `gorm:"column:type" json:"type"`	Urlname    string `gorm:"column:urlname" json:"urlname"`	Status     int    `gorm:"column:status" json:"status"`	Issystem   int    `gorm:"column:issystem" json:"issystem"`	CreateUser string `gorm:"column:create_user" json:"create_user"`	UpdateUser string `gorm:"column:update_user" json:"update_user"`	CreateTime string `gorm:"column:create_time" json:"create_time"`	UpdateTime string `gorm:"column:update_time" json:"update_time"`}}func modelNow() string {	return time.Now().Format("2006-01-02 15:04:05")}func GetAllModels() []Model {	var list []Model	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(type,1) AS type, COALESCE(urlname,'') AS urlname, COALESCE(status,1) AS status, COALESCE(issystem,0) AS issystem, COALESCE(create_user,'') AS create_user, COALESCE(update_user,'') AS update_user, COALESCE(create_time,'') AS create_time, COALESCE(update_time,'') AS update_time FROM ay_model ORDER BY id ASC").Scan(&list)	return list}func GetModelById(id int) Model {	var m Model	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(type,1) AS type, COALESCE(urlname,'') AS urlname, COALESCE(status,1) AS status, COALESCE(issystem,0) AS issystem, COALESCE(create_user,'') AS create_user, COALESCE(update_user,'') AS update_user, COALESCE(create_time,'') AS create_time, COALESCE(update_time,'') AS update_time FROM ay_model WHERE id = ?", id).Scan(&m)	return m}func AddModel(mcode, name, urlname, updateUser string, typ, status int) error {	now := modelNow()	return db.DB.Exec("INSERT INTO ay_model (mcode, name, type, urlname, status, issystem, create_user, update_user, create_time, update_time) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)", mcode, name, typ, urlname, status, updateUser, updateUser, now, now).Error}func UpdateModel(id int, mcode, name, urlname, updateUser string) error {	return db.DB.Exec("UPDATE ay_model SET mcode=?, name=?, urlname=?, update_user=?, update_time=? WHERE id=?", mcode, name, urlname, updateUser, modelNow(), id).Error}func UpdateModelSingleField(id int, field, value string, updateUser string) error {	return db.DB.Exec("UPDATE ay_model SET "+field+" = ?, update_user=?, update_time=? WHERE id=?", value, updateUser, modelNow(), id).Error}func DeleteModel(id int) error {	// 系统模型（issystem=1）禁止删除	return db.DB.Exec("DELETE FROM ay_model WHERE id=? AND issystem=0", id).Error}func GetNextMcode() string {	var last struct{ Mcode string }	db.DB.Raw("SELECT mcode FROM ay_model ORDER BY id DESC LIMIT 1").Scan(&last)	if last.Mcode == "" {		return "1"	}	return last.Mcode}
+package content
+
+import (
+	"pbootcms-go/core/db"
+	"time"
+)
+
+type Model struct {
+	ID         uint   `gorm:"primaryKey" json:"id"`
+	Mcode      string `gorm:"column:mcode" json:"mcode"`
+	Name       string `gorm:"column:name" json:"name"`
+	Type       int    `gorm:"column:type" json:"type"`
+	Urlname    string `gorm:"column:urlname" json:"urlname"`
+	ListTpl    string `gorm:"column:listtpl;default:''" json:"listtpl"`
+	ContentTpl string `gorm:"column:contenttpl;default:''" json:"contenttpl"`
+	Status     int    `gorm:"column:status" json:"status"`
+	Issystem   int    `gorm:"column:issystem" json:"issystem"`
+	CreateUser string `gorm:"column:create_user" json:"create_user"`
+	UpdateUser string `gorm:"column:update_user" json:"update_user"`
+	CreateTime string `gorm:"column:create_time" json:"create_time"`
+	UpdateTime string `gorm:"column:update_time" json:"update_time"`
+}
+
+func modelNow() string {
+	return time.Now().Format("2006-01-02 15:04:05")
+}
+
+func GetAllModels() []Model {
+	var list []Model
+	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(type,1) AS type, COALESCE(urlname,'') AS urlname, COALESCE(listtpl,'') AS listtpl, COALESCE(contenttpl,'') AS contenttpl, COALESCE(status,1) AS status, COALESCE(issystem,0) AS issystem, COALESCE(create_user,'') AS create_user, COALESCE(update_user,'') AS update_user, COALESCE(create_time,'') AS create_time, COALESCE(update_time,'') AS update_time FROM ay_model ORDER BY id ASC").Scan(&list)
+	return list
+}
+
+func GetModelById(id int) Model {
+	var m Model
+	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(type,1) AS type, COALESCE(urlname,'') AS urlname, COALESCE(listtpl,'') AS listtpl, COALESCE(contenttpl,'') AS contenttpl, COALESCE(status,1) AS status, COALESCE(issystem,0) AS issystem, COALESCE(create_user,'') AS create_user, COALESCE(update_user,'') AS update_user, COALESCE(create_time,'') AS create_time, COALESCE(update_time,'') AS update_time FROM ay_model WHERE id = ?", id).Scan(&m)
+	return m
+}
+
+func GetModelByMcode(mcode string) Model {
+	var m Model
+	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(type,1) AS type, COALESCE(urlname,'') AS urlname, COALESCE(listtpl,'') AS listtpl, COALESCE(contenttpl,'') AS contenttpl, COALESCE(status,1) AS status, COALESCE(issystem,0) AS issystem, COALESCE(create_user,'') AS create_user, COALESCE(update_user,'') AS update_user, COALESCE(create_time,'') AS create_time, COALESCE(update_time,'') AS update_time FROM ay_model WHERE mcode = ?", mcode).Scan(&m)
+	return m
+}
+
+func AddModel(mcode, name, urlname, updateUser string, typ, status int) error {
+	now := modelNow()
+	return db.DB.Exec("INSERT INTO ay_model (mcode, name, type, urlname, status, issystem, create_user, update_user, create_time, update_time) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)", mcode, name, typ, urlname, status, updateUser, updateUser, now, now).Error
+}
+
+func UpdateModel(id int, mcode, name, urlname, updateUser string) error {
+	return db.DB.Exec("UPDATE ay_model SET mcode=?, name=?, urlname=?, update_user=?, update_time=? WHERE id=?", mcode, name, urlname, updateUser, modelNow(), id).Error
+}
+
+func UpdateModelSingleField(id int, field, value string, updateUser string) error {
+	return db.DB.Exec("UPDATE ay_model SET "+field+" = ?, update_user=?, update_time=? WHERE id=?", value, updateUser, modelNow(), id).Error
+}
+
+func DeleteModel(id int) error {
+	// 系统模型（issystem=1）禁止删除
+	return db.DB.Exec("DELETE FROM ay_model WHERE id=? AND issystem=0", id).Error
+}
+
+func GetNextMcode() string {
+	var last struct{ Mcode string }
+	db.DB.Raw("SELECT mcode FROM ay_model ORDER BY id DESC LIMIT 1").Scan(&last)
+	if last.Mcode == "" {
+		return "1"
+	}
+	return last.Mcode
+}

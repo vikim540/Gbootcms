@@ -1,27 +1,40 @@
 package content
 
 import (
-	"fmt"
+	"pbootcms-go/apps/admin/helper"
 	"pbootcms-go/apps/admin/model"
+	svc "pbootcms-go/apps/admin/service/content"
 	"pbootcms-go/apps/common"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 // ContentSortController - Content Sort Management Controller
-// Corresponds to PHP: apps/admin/controller/content/ContentSortController.php
 type ContentSortController struct {
 	common.BaseController
+	svc svc.ContentSortService
+}
+
+// sortTemplateData returns the common template data needed by all sort views.
+func (csc *ContentSortController) sortTemplateData(sorts []model.ContentSort) gin.H {
+	return gin.H{
+		"allmodels":   helper.GetAllModelsData(),
+		"models":      helper.GetAllModelsData(),
+		"tpls":        helper.GetTemplateFiles(),
+		"groups":      helper.BuildGroupsData(),
+		"sort_select": helper.BuildSortSelectHTML(sorts, ""),
+	}
 }
 
 // Index - Sort list
 func (csc *ContentSortController) Index(c *gin.Context) {
-	var sorts []model.ContentSort
-	model.DB.Order("sorting ASC, id ASC").Find(&sorts)
-	common.Render(c, "content/contentsort.html", gin.H{"sorts": sorts})
+	sorts, _ := csc.svc.ListSorts()
+	data := csc.sortTemplateData(sorts)
+	data["sorts"] = helper.AddSonField(sorts)
+	data["list"] = true
+	common.Render(c, "content/contentsort.html", data)
 }
 
 // Add - Add new sort
@@ -29,119 +42,142 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		multiplename := c.PostForm("multiplename")
 		if multiplename != "" {
-			names := strings.Split(multiplename, ",")
-			var lastSort model.ContentSort
-			model.DB.Order("id DESC").First(&lastSort)
-			lastCodeNum := 0
-			fmt.Sscanf(lastSort.Scode, "%d", &lastCodeNum)
-
-			for _, name := range names {
-				name = strings.TrimSpace(name)
-				if name == "" {
-					continue
-				}
-				lastCodeNum++
-				newScode := fmt.Sprintf("%d", lastCodeNum)
-				model.DB.Create(&model.ContentSort{
-					Scode:  newScode,
-					Pcode:  c.PostForm("pcode"),
-					Name:   name,
-					Type:   1,
-					Sort:   lastCodeNum,
-					Status: 1,
-				})
+			if err := csc.svc.BatchAddSorts(multiplename, c.PostForm("pcode")); err != nil {
+				csc.JSONFail(c, err.Error())
+				return
 			}
 			csc.JSONOKMsg(c, "Batch added successfully")
 			return
 		}
 
-		name := c.PostForm("name")
-		scode := c.PostForm("scode")
-		if name == "" || scode == "" {
-			csc.JSONFail(c, "Name and code cannot be empty")
-			return
-		}
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
 		stype, _ := strconv.Atoi(c.DefaultPostForm("type", "1"))
 
-		sort := model.ContentSort{
-			Scode:        scode,
-			Pcode:        c.PostForm("pcode"),
-			Name:         name,
-			Subname:      c.PostForm("subname"),
-			Type:         stype,
-			ListTpl:      c.PostForm("listtpl"),
-			ContentTpl:   c.PostForm("contenttpl"),
-			Ico:          c.PostForm("ico"),
-			Pic:          c.PostForm("pic"),
-			Keywords:     c.PostForm("keywords"),
-			Description:  c.PostForm("description"),
-			Sort:         sorting,
-			URLName:      c.PostForm("urlname"),
-			Outlink:      c.PostForm("outlink"),
-			Status:       1,
+		// Read filename (template uses name="filename") with urlname fallback
+		urlname := c.PostForm("filename")
+		if urlname == "" {
+			urlname = c.PostForm("urlname")
 		}
-		model.DB.Create(&sort)
 
-		if stype == 1 && c.PostForm("outlink") == "" {
-			model.DB.Create(&model.Content{
-				Scode:  scode,
-				Title:  name,
-				Status: 1,
-				Date:   time.Now(),
-			})
+		sort := model.ContentSort{
+			Scode:       c.PostForm("scode"),
+			Pcode:       c.PostForm("pcode"),
+			Name:        c.PostForm("name"),
+			Subname:     c.PostForm("subname"),
+			Mcode:       c.PostForm("mcode"),
+			Type:        stype,
+			ListTpl:     c.PostForm("listtpl"),
+			ContentTpl:  c.PostForm("contenttpl"),
+			Ico:         c.PostForm("ico"),
+			Pic:         c.PostForm("pic"),
+			Keywords:    c.PostForm("keywords"),
+			Description: c.PostForm("description"),
+			Sort:        sorting,
+			URLName:     urlname,
+			Outlink:     c.PostForm("outlink"),
+			Gid:         c.PostForm("gid"),
+			GType:       c.PostForm("gtype"),
+			Gnote:       c.PostForm("gnote"),
+			Def1:        c.PostForm("def1"),
+			Def2:        c.PostForm("def2"),
+			Def3:        c.PostForm("def3"),
+			Title:       c.PostForm("title"),
+			Status:      helper.ParseInt(c.DefaultPostForm("status", "1")),
+		}
+		if err := csc.svc.CreateSort(&sort); err != nil {
+			csc.JSONFail(c, err.Error())
+			return
 		}
 		csc.JSONOKMsg(c, "Added successfully")
 		return
 	}
 
-	var sorts []model.ContentSort
-	model.DB.Order("sorting ASC").Find(&sorts)
-	common.Render(c, "content/contentsort.html", gin.H{
-		"sorts":  sorts,
-		"action": "add",
-	})
+	sorts, _ := csc.svc.ListSorts()
+	data := csc.sortTemplateData(sorts)
+	data["sorts"] = helper.AddSonField(sorts)
+	data["list"] = true
+	common.Render(c, "content/contentsort.html", data)
 }
 
 // Mod - Modify sort
 func (csc *ContentSortController) Mod(c *gin.Context) {
-	idStr := c.Param("id")
+	// Parse wildcard action param: /scode/123/field/status/value/0 or /123
+	params := helper.ParseWildcardAction(c.Param("action"))
+
+	idStr := params["id"]
 	if idStr == "" {
 		idStr = c.Query("id")
 	}
-	id, _ := strconv.Atoi(idStr)
+	scode := params["scode"]
+	if scode == "" {
+		scode = c.Query("scode")
+	}
+	field := params["field"]
+	if field == "" {
+		field = c.Query("field")
+	}
+	value := params["value"]
+	if value == "" {
+		value = c.Query("value")
+	}
+	mcode := params["mcode"]
+	if mcode == "" {
+		mcode = c.Query("mcode")
+	}
+	if field != "" {
+		// Try scode-based lookup first, then id-based
+		if scode != "" {
+			if err := csc.svc.UpdateSortByScodeField(scode, field, value); err != nil {
+				csc.JSONFail(c, err.Error())
+				return
+			}
+		} else {
+			id, _ := strconv.Atoi(idStr)
+			if err := csc.svc.UpdateSortSingleField(id, field, value); err != nil {
+				csc.JSONFail(c, err.Error())
+				return
+			}
+		}
+		csc.JSONOKMsg(c, "Modified successfully")
+		return
+	}
 
 	submit := c.PostForm("submit")
 	if submit == "sorting" {
 		idList := c.PostFormArray("id")
 		sortingList := c.PostFormArray("sorting")
+		idSortingMap := map[string]int{}
 		for i, sid := range idList {
 			if i < len(sortingList) {
 				s, _ := strconv.Atoi(sortingList[i])
-				model.DB.Model(&model.ContentSort{}).Where("id = ?", sid).Update("sorting", s)
+				idSortingMap[sid] = s
 			}
 		}
+		if err := csc.svc.UpdateSortSorting(idSortingMap); err != nil {
+			csc.JSONFail(c, err.Error())
+			return
+		}
 		csc.JSONOKMsg(c, "Sort order modified successfully")
-		return
-	}
-
-	field := c.Query("field")
-	value := c.Query("value")
-	if field != "" {
-		model.DB.Model(&model.ContentSort{}).Where("id = ?", id).Update(field, value)
-		csc.JSONOKMsg(c, "Modified successfully")
 		return
 	}
 
 	if c.Request.Method == "POST" {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
 		stype, _ := strconv.Atoi(c.DefaultPostForm("type", "1"))
+		postScode := c.PostForm("scode")
 
-		model.DB.Model(&model.ContentSort{}).Where("id = ?", id).Updates(map[string]interface{}{
-			"scode":       c.PostForm("scode"),
+		// Read filename with urlname fallback
+		urlname := c.PostForm("filename")
+		if urlname == "" {
+			urlname = c.PostForm("urlname")
+		}
+
+		updates := map[string]interface{}{
+			"scode":       postScode,
 			"pcode":       c.PostForm("pcode"),
 			"name":        c.PostForm("name"),
 			"subname":     c.PostForm("subname"),
+			"mcode":       c.PostForm("mcode"),
 			"type":        stype,
 			"listtpl":     c.PostForm("listtpl"),
 			"contenttpl":  c.PostForm("contenttpl"),
@@ -150,16 +186,38 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 			"keywords":    c.PostForm("keywords"),
 			"description": c.PostForm("description"),
 			"sorting":     sorting,
-			"urlname":     c.PostForm("urlname"),
+			"urlname":     urlname,
 			"outlink":     c.PostForm("outlink"),
-		})
+			"gid":         c.PostForm("gid"),
+			"gtype":       c.PostForm("gtype"),
+			"gnote":       c.PostForm("gnote"),
+			"def1":        c.PostForm("def1"),
+			"def2":        c.PostForm("def2"),
+			"def3":        c.PostForm("def3"),
+			"title":       c.PostForm("title"),
+			"status":      helper.ParseInt(c.DefaultPostForm("status", "1")),
+		}
 
+		// Try scode-based update, then id-based
+		var err error
+		if scode != "" {
+			err = csc.svc.UpdateSortByScode(scode, updates)
+		} else {
+			id, _ := strconv.Atoi(idStr)
+			err = csc.svc.UpdateSort(id, updates)
+		}
+		if err != nil {
+			csc.JSONFail(c, err.Error())
+			return
+		}
+
+		// If type=1 (list), create initial content if not exists
 		if stype == 1 {
 			var existing model.Content
-			result := model.DB.Where("scode = ?", c.PostForm("scode")).First(&existing)
+			result := model.DB.Where("scode = ?", postScode).First(&existing)
 			if result.Error != nil && c.PostForm("outlink") == "" {
 				model.DB.Create(&model.Content{
-					Scode:  c.PostForm("scode"),
+					Scode:  postScode,
 					Title:  c.PostForm("name"),
 					Status: 1,
 					Date:   time.Now(),
@@ -171,20 +229,47 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 		return
 	}
 
-	var sort model.ContentSort
-	model.DB.First(&sort, id)
-	var sorts []model.ContentSort
-	model.DB.Order("sorting ASC").Find(&sorts)
-	common.Render(c, "content/contentsort.html", gin.H{
-		"sort":   sort,
-		"sorts":  sorts,
-		"action": "mod",
-	})
+	// GET: render mod form
+	var sort *model.ContentSort
+	var err error
+	if scode != "" {
+		sort, err = csc.svc.GetSortByScode(scode)
+	} else {
+		id, _ := strconv.Atoi(idStr)
+		sort, err = csc.svc.GetSort(id)
+	}
+	if err != nil {
+		csc.JSONFail(c, err.Error())
+		return
+	}
+
+	sorts, _ := csc.svc.ListSorts()
+	data := csc.sortTemplateData(sorts)
+	data["sort"] = sort
+	data["sorts"] = helper.AddSonField(sorts)
+	data["sort_select"] = helper.BuildSortSelectHTML(sorts, sort.Pcode)
+	data["mod"] = true
+	common.Render(c, "content/contentsort.html", data)
 }
 
 // Del - Delete sort
 func (csc *ContentSortController) Del(c *gin.Context) {
 	idStr := c.Query("id")
-	model.DB.Delete(&model.ContentSort{}, idStr)
+	if idStr == "" {
+		// Try POST form array for batch delete
+		ids := c.PostFormArray("list[]")
+		if len(ids) == 0 {
+			ids = c.PostFormArray("list")
+		}
+		for _, scode := range ids {
+			csc.svc.DeleteSortByScode(scode)
+		}
+		csc.JSONOKMsg(c, "Deleted successfully")
+		return
+	}
+	if err := csc.svc.DeleteSort(idStr); err != nil {
+		csc.JSONFail(c, err.Error())
+		return
+	}
 	csc.JSONOKMsg(c, "Deleted successfully")
 }

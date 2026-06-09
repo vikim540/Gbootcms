@@ -839,3 +839,58 @@ func buildModelCounts() gin.H {
 		"Content": total,
 	}
 }
+
+// Upload - File upload endpoint for layui upload component
+func (ic *IndexController) Upload(c *gin.Context) {
+	file, err := c.FormFile("upload")
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "未接收到上传文件"})
+		return
+	}
+
+	// Validate file extension
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	allowedExts := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
+		".bmp": true, ".webp": true, ".ico": true,
+		".doc": true, ".docx": true, ".pdf": true,
+		".xls": true, ".xlsx": true, ".ppt": true, ".pptx": true,
+		".rar": true, ".zip": true, ".7z": true,
+		".mp3": true, ".mp4": true, ".avi": true, ".flv": true,
+		".txt": true, ".csv": true,
+	}
+	if !allowedExts[ext] {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "不支持的文件类型：" + ext})
+		return
+	}
+
+	// Validate file size (50MB)
+	if file.Size > 50*1024*1024 {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "文件大小超过50MB限制"})
+		return
+	}
+
+	// Create upload directory: static/upload/YYYYMM/
+	dateDir := time.Now().Format("200601")
+	uploadDir := filepath.Join("static", "upload", dateDir)
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "创建上传目录失败"})
+		return
+	}
+
+	// Generate unique filename
+	ts := time.Now().Format("20060102150405")
+	randStr := fmt.Sprintf("%04d", rand.Intn(10000))
+	newFilename := ts + "_" + randStr + ext
+	savePath := filepath.Join(uploadDir, newFilename)
+
+	// Save file
+	if err := c.SaveUploadedFile(file, savePath); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "文件保存失败：" + err.Error()})
+		return
+	}
+
+	// Return path relative to project root (layui expects this format)
+	relPath := filepath.ToSlash(savePath)
+	c.JSON(http.StatusOK, gin.H{"code": 1, "data": []string{relPath}})
+}

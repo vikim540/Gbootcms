@@ -27,27 +27,26 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.POST("/index/clearCache", ic.ClearCache)
 		adminGroup.POST("/index/area", ic.Area)
 		adminGroup.GET("/index/checkCode", ic.CheckCode)
+		adminGroup.POST("/index/upload", ic.Upload)
+		adminGroup.POST("/index/upload/watermark/:flag", ic.Upload)
 
 		cc := &content.ContentController{}
 		adminGroup.GET("/content/index", cc.Index)
 		adminGroup.GET("/content/add", cc.Add)
 		adminGroup.POST("/content/add", cc.Add)
-		adminGroup.GET("/content/mod/:id", cc.Mod)
-		adminGroup.POST("/content/mod/:id", cc.Mod)
+		adminGroup.Any("/content/mod/*action", cc.Mod)
 		adminGroup.POST("/content/del", cc.Del)
 
 		csc := &content.ContentSortController{}
 		adminGroup.GET("/content/sort/index", csc.Index)
 		adminGroup.GET("/content/sort/add", csc.Add)
 		adminGroup.POST("/content/sort/add", csc.Add)
-		adminGroup.GET("/content/sort/mod/:id", csc.Mod)
-		adminGroup.POST("/content/sort/mod/:id", csc.Mod)
+		adminGroup.Any("/content/sort/mod/*action", csc.Mod)
 		adminGroup.POST("/content/sort/del", csc.Del)
 
 		sg := &content.SingleController{}
 		adminGroup.GET("/content/single/index", sg.Index)
-		adminGroup.GET("/content/single/mod/:id", sg.Mod)
-		adminGroup.POST("/content/single/mod/:id", sg.Mod)
+		adminGroup.Any("/content/single/mod/*action", sg.Mod)
 		adminGroup.POST("/content/single/del", sg.Del)
 
 		co := &content.CompanyController{}

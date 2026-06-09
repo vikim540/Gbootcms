@@ -2,18 +2,21 @@ package parser
 
 import (
 	"fmt"
+	"html"
 	"pbootcms-go/apps/admin/model"
 	"strconv"
 	"strings"
 )
 
 type Context struct {
-	Sort    *model.ContentSort
-	Content *model.Content
-	Site    *model.Site
-	Company *model.Company
-	Page    map[string]interface{}
-	Member  *model.Member
+	Sort        *model.ContentSort
+	Content     *model.Content
+	Site        *model.Site
+	Company     *model.Company
+	Page        map[string]interface{}
+	Member      *model.Member
+	Keyword     string
+	CurrentPage int
 }
 
 func RegisterAllProviders(p *TagParser, ctx *Context) {
@@ -203,6 +206,10 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		return "/search"
 	})
 
+	p.Register("keyword", func(tagName string, params map[string]string, inner string) string {
+		return html.EscapeString(ctx.Keyword)
+	})
+
 	p.Register("commentaction", func(tagName string, params map[string]string, inner string) string {
 		return "/comment/add"
 	})
@@ -224,7 +231,6 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			order = "date"
 		}
 
-		var contents []model.Content
 		query := model.DB.Where("status = 1")
 		if scode != "" {
 			query = query.Where("scode = ? OR subscode = ?", scode, scode)
@@ -245,7 +251,56 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		default:
 			query = query.Order("date DESC")
 		}
-		query.Limit(num).Find(&contents)
+
+		// Pagination support
+		pageEnabled := params["page"] == "1"
+		var total int64
+		currentPage := 1
+
+		if pageEnabled {
+			query.Count(&total)
+			if ctx.CurrentPage > 0 {
+				currentPage = ctx.CurrentPage
+			}
+		}
+
+		var contents []model.Content
+		if pageEnabled {
+			offset := (currentPage - 1) * num
+			query.Offset(offset).Limit(num).Find(&contents)
+
+			// Fill page data
+			totalPages := int(total) / num
+			if int(total)%num > 0 {
+				totalPages++
+			}
+			if totalPages < 1 {
+				totalPages = 1
+			}
+
+			basePath := "?"
+			if ctx.Sort != nil && ctx.Sort.URLName != "" {
+				basePath = "/" + ctx.Sort.URLName + ".html?"
+			}
+
+			ctx.Page["current"] = currentPage
+			ctx.Page["count"] = totalPages
+			ctx.Page["rows"] = int(total)
+			ctx.Page["index"] = basePath + "page=1"
+			if currentPage > 1 {
+				ctx.Page["pre"] = fmt.Sprintf("%spage=%d", basePath, currentPage-1)
+			} else {
+				ctx.Page["pre"] = ""
+			}
+			if currentPage < totalPages {
+				ctx.Page["next"] = fmt.Sprintf("%spage=%d", basePath, currentPage+1)
+			} else {
+				ctx.Page["next"] = ""
+			}
+			ctx.Page["last"] = fmt.Sprintf("%spage=%d", basePath, totalPages)
+		} else {
+			query.Limit(num).Find(&contents)
+		}
 
 		var sb strings.Builder
 		for i, c := range contents {
@@ -401,19 +456,111 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 	})
 
 	p.Register("tags", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		num := 0
+		if n, err := strconv.Atoi(params["num"]); err == nil && n > 0 {
+			num = n
+		}
+		var contents []model.Content
+		model.DB.Where("status = 1 AND keywords != ''").Find(&contents)
+		tagSet := map[string]bool{}
+		var tagList []string
+		for _, c := range contents {
+			for _, kw := range strings.Split(c.Keywords, ",") {
+				kw = strings.TrimSpace(kw)
+				if kw != "" && !tagSet[kw] {
+					tagSet[kw] = true
+					tagList = append(tagList, kw)
+				}
+			}
+		}
+		if num > 0 && num < len(tagList) {
+			tagList = tagList[:num]
+		}
+		var sb strings.Builder
+		for i, tag := range tagList {
+			data := map[string]interface{}{
+				"n":    i,
+				"i":    i + 1,
+				"tag":  tag,
+				"text": tag,
+				"link": "/search?keyword=" + tag,
+			}
+			row := ReplaceInnerTags(inner, "tags", data)
+			sb.WriteString(row)
+		}
+		return sb.String()
 	})
 
 	p.Register("pics", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		if ctx.Content == nil || ctx.Content.Pics == "" {
+			return ""
+		}
+		picList := strings.Split(ctx.Content.Pics, ",")
+		var sb strings.Builder
+		for i, pic := range picList {
+			pic = strings.TrimSpace(pic)
+			if pic == "" {
+				continue
+			}
+			data := map[string]interface{}{
+				"n":   i,
+				"i":   i + 1,
+				"src": pic,
+			}
+			row := ReplaceInnerTags(inner, "pics", data)
+			sb.WriteString(row)
+		}
+		return sb.String()
 	})
 
 	p.Register("checkbox", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		name := params["name"]
+		value := params["value"]
+		if name == "" || value == "" {
+			return ""
+		}
+		checked := ""
+		if ctx.Content != nil {
+			// Get field value by name from content
+			fieldVal := getContentField(ctx, name, nil)
+			if fieldVal != "" {
+				for _, v := range strings.Split(fieldVal, ",") {
+					if strings.TrimSpace(v) == value {
+						checked = " checked"
+						break
+					}
+				}
+			}
+		}
+		return fmt.Sprintf(`<input type="checkbox" name="%s" value="%s"%s>`, name, value, checked)
 	})
 
 	p.Register("message", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		num := 10
+		if n, err := strconv.Atoi(params["num"]); err == nil && n > 0 {
+			num = n
+		}
+		var messages []model.Message
+		model.DB.Where("status >= 0").Order("id DESC").Limit(num).Find(&messages)
+		var sb strings.Builder
+		for i, m := range messages {
+			data := map[string]interface{}{
+				"n":             i,
+				"i":             i + 1,
+				"contacts":      m.Contacts,
+				"mobile":        m.Mobile,
+				"content":       m.Content,
+				"askdate":       m.AskDate.Format("2006-01-02"),
+				"status":        m.Status,
+				"nickname":      m.Nickname,
+				"headpic":       m.HeadPic,
+				"replycontent":  m.ReplyContent,
+				"replydate":     m.ReplyDate.Format("2006-01-02"),
+			}
+			row := ReplaceInnerTags(inner, "message", data)
+			sb.WriteString(row)
+		}
+		return sb.String()
 	})
 
 	p.Register("formlist", func(tagName string, params map[string]string, inner string) string {
@@ -421,7 +568,25 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 	})
 
 	p.Register("search", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		keyword := ctx.Keyword
+		if keyword == "" {
+			return ""
+		}
+		num := 10
+		if n, err := strconv.Atoi(params["num"]); err == nil && n > 0 {
+			num = n
+		}
+		var contents []model.Content
+		like := "%" + keyword + "%"
+		model.DB.Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like).
+			Order("date DESC").Limit(num).Find(&contents)
+		var sb strings.Builder
+		for i, c := range contents {
+			data := contentToMap(&c, i)
+			row := ReplaceInnerTags(inner, "search", data)
+			sb.WriteString(row)
+		}
+		return sb.String()
 	})
 
 	p.Register("comment", func(tagName string, params map[string]string, inner string) string {
@@ -534,7 +699,7 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 		return strconv.Itoa(c.Likes)
 	case "date":
 		if style, ok := params["style"]; ok {
-			return c.Date.Format(style)
+			return c.Date.Format(phpToGoFormat(style))
 		}
 		return c.Date.Format("2006-01-02")
 	case "id":
@@ -561,6 +726,10 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 }
 
 func contentToMap(c *model.Content, index int) map[string]interface{} {
+	link := "/" + c.URLName + ".html"
+	if c.Outlink != "" {
+		link = c.Outlink
+	}
 	return map[string]interface{}{
 		"n":           index,
 		"i":           index + 1,
@@ -571,6 +740,7 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 		"keywords":    c.Keywords,
 		"description": c.Description,
 		"ico":         c.Ico,
+		"pics":        c.Pics,
 		"source":      c.Source,
 		"author":      c.Author,
 		"visits":      c.Visits,
@@ -579,7 +749,7 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 		"istop":       c.IsTop,
 		"isrecommend": c.IsRecommend,
 		"isheadline":  c.IsHeadline,
-		"link":        "/" + c.URLName + ".html",
+		"link":        link,
 	}
 }
 

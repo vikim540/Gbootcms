@@ -1,1 +1,12 @@
-package member// MemberField 會員字段模型type MemberField struct {	ID       uint   `gorm:"primaryKey" json:"id"`	Name     string `gorm:"column:name" json:"name"`	Field    string `gorm:"column:field" json:"field"`	Type     string `gorm:"column:type" json:"type"`	Required int    `gorm:"column:required" json:"required"`	Sorting  int    `gorm:"column:sorting" json:"sorting"`	Status   int    `gorm:"column:status" json:"status"`}// TableName 返回會員字段表名}
+package member
+
+// MemberField 會員字段模型
+type MemberField struct {
+	ID       uint   `gorm:"primaryKey" json:"id"`
+	Name     string `gorm:"column:name" json:"name"`
+	Field    string `gorm:"column:field" json:"field"`
+	Type     string `gorm:"column:type" json:"type"`
+	Required int    `gorm:"column:required" json:"required"`
+	Sorting  int    `gorm:"column:sorting" json:"sorting"`
+	Status   int    `gorm:"column:status" json:"status"`
+}

@@ -1,1 +1,25 @@
-package systemimport "time"// Role - Role Model (aligned with PbootCMS ay_role schema)type Role struct {	ID          uint      `gorm:"primaryKey" json:"id"`	Code        string    `gorm:"column:code" json:"code"`	Rcode       string    `gorm:"column:rcode" json:"rcode"`	Name        string    `gorm:"column:name" json:"name"`	Description string    `gorm:"column:description;default:''" json:"description"`	Levels      string    `gorm:"column:levels" json:"levels"`	Status      int       `gorm:"column:status" json:"status"`	CreateUser  string    `gorm:"column:create_user;default:''" json:"create_user"`	UpdateUser  string    `gorm:"column:update_user;default:''" json:"update_user"`	CreateTime  time.Time `gorm:"column:create_time" json:"create_time"`	UpdateTime  time.Time `gorm:"column:update_time" json:"update_time"`}// TableName - Returns table name}// RoleLevel - Role Permission Level Modeltype RoleLevel struct {	ID    uint   `gorm:"primaryKey" json:"id"`	Rcode string `gorm:"column:rcode" json:"rcode"`	URL   string `gorm:"column:url" json:"url"`}// TableName - Returns table name}
+package system
+
+import "time"
+
+// Role - Role Model (aligned with PbootCMS ay_role schema)
+type Role struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Code        string    `gorm:"column:code" json:"code"`
+	Rcode       string    `gorm:"column:rcode" json:"rcode"`
+	Name        string    `gorm:"column:name" json:"name"`
+	Description string    `gorm:"column:description;default:''" json:"description"`
+	Levels      string    `gorm:"column:levels" json:"levels"`
+	Status      int       `gorm:"column:status" json:"status"`
+	CreateUser  string    `gorm:"column:create_user;default:''" json:"create_user"`
+	UpdateUser  string    `gorm:"column:update_user;default:''" json:"update_user"`
+	CreateTime  time.Time `gorm:"column:create_time" json:"create_time"`
+	UpdateTime  time.Time `gorm:"column:update_time" json:"update_time"`
+}
+
+// RoleLevel - Role Permission Level Model
+type RoleLevel struct {
+	ID    uint   `gorm:"primaryKey" json:"id"`
+	Rcode string `gorm:"column:rcode" json:"rcode"`
+	URL   string `gorm:"column:url" json:"url"`
+}

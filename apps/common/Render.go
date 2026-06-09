@@ -1,7 +1,10 @@
 package common
 
 import (
+	"fmt"
+	"html"
 	"strings"
+	"time"
 
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/core/basic"
@@ -43,6 +46,33 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 
 	// Load config from DB into nested Config map
 	loadConfigToData(data)
+
+	// Inject GET query parameters for template access (e.g. {$get.mcode} → Get_mcode after flatten)
+	for key, values := range c.Request.URL.Query() {
+		data["get_"+key] = values[0]
+	}
+
+	// Inject backurl / pathinfo / btnqs (used by PbootCMS mod-form action URLs)
+	qParams := c.Request.URL.Query()
+	var backParts, btnParts []string
+	var pathinfoBuilder strings.Builder
+	for key, values := range qParams {
+		v := values[0]
+		backParts = append(backParts, key+"="+v)
+		btnParts = append(btnParts, key+"="+v)
+		pathinfoBuilder.WriteString(fmt.Sprintf(`<input type="hidden" name="%s" value="%s">`, key, html.EscapeString(v)))
+	}
+	if len(backParts) > 0 {
+		data["backurl"] = "&" + strings.Join(backParts, "&")
+		data["btnqs"] = "?" + strings.Join(btnParts, "&")
+	} else {
+		data["backurl"] = ""
+		data["btnqs"] = ""
+	}
+	data["pathinfo"] = pongo2.AsSafeValue(pathinfoBuilder.String())
+
+	// Inject current datetime for {fun=date(...)} replacements
+	data["now"] = time.Now().Format("2006-01-02 15:04:05")
 
 	// Flatten struct fields for template access
 	data = flattenData(data)
