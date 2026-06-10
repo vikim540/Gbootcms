@@ -90,12 +90,12 @@ layui.use(['element','upload','laydate','form'], function(){
         data: formData,
         success: function(res) {
             if (res.code == 1) {
-                // 非阻塞 toast — 右上角弹出，不影响操作
-                layer.msg('<i class="fa fa-check-circle" style="color:#5FB878;margin-right:6px"></i>' + (res.msg || '操作成功'), {
-                    icon: 0,
+                // 左下角轻量 toast，不阻塞操作
+                layer.msg('<i class="fa fa-rocket" style="color:#5FB878;font-size:15px;margin-right:8px"></i>' + (res.msg || '操作成功'), {
                     time: 1500,
                     shade: 0,
-                    offset: 'rt'
+                    offset: 'lb',
+                    anim: 2
                 });
                 // 1.5秒后自动跳转回列表页（如果有 returnto 参数）
                 var returnto = form.find('input[name="returnto"]').val();
@@ -103,16 +103,21 @@ layui.use(['element','upload','laydate','form'], function(){
                     setTimeout(function(){ window.location.href = returnto; }, 1500);
                 }
             } else {
-                layer.msg('<i class="fa fa-times-circle" style="color:#FF5722;margin-right:6px"></i>' + (res.data || res.msg || '操作失败'), {
-                    icon: 0,
+                layer.msg('<i class="fa fa-exclamation-circle" style="color:#FF5722;font-size:15px;margin-right:8px"></i>' + (res.data || res.msg || '操作失败'), {
                     time: 3000,
                     shade: 0,
-                    offset: 'rt'
+                    offset: 'lb',
+                    anim: 2
                 });
             }
         },
         error: function() {
-            layer.msg('请求发生错误！', {icon: 5, offset: 'rt', shade: 0});
+            layer.msg('<i class="fa fa-exclamation-triangle" style="color:#FF5722;font-size:15px;margin-right:8px"></i>请求发生错误', {
+                time: 3000,
+                shade: 0,
+                offset: 'lb',
+                anim: 2
+            });
         }
     });
     return false;

@@ -80,8 +80,7 @@ func (sg *SingleController) Mod(c *gin.Context) {
 			return
 		}
 		model.DB.Model(&model.Content{}).Where("id = ?", id).Update(field, value)
-		// Redirect back to list after status toggle
-		c.Redirect(302, "/admin/Single/index?mcode="+mcode)
+		sg.JSONOKMsg(c, "Modified successfully")
 		return
 	}
 
@@ -125,8 +124,6 @@ func (sg *SingleController) Mod(c *gin.Context) {
 	common.Render(c, "content/single.html", gin.H{
 		"content":    doc,
 		"mod":        true,
-		"mcode":      mcode,
-		"formcheck":  "1",
 		"model_name": "单页",
 		"extfield":   helper.GetExtFieldsByMcode(mcode),
 	})
