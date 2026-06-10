@@ -119,7 +119,7 @@ func seedMenus(now time.Time) {
 		{Mcode: "M129", Pcode: "M110", Name: "内容栏目", URL: "/admin/ContentSort/index", Ico: "fa-bars", Sorting: 303, Status: 1, Shortcut: 1, Type: 1},
 
 		// ============ 文章内容 子菜单 (M130) ============
-		{Mcode: "M131", Pcode: "M130", Name: "单页内容", URL: "/admin/Single/index", Ico: "fa-file-o", Sorting: 401, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M131", Pcode: "M130", Name: "栏目内容", URL: "/admin/Single/index", Ico: "fa-file-o", Sorting: 401, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M132", Pcode: "M130", Name: "列表内容", URL: "/admin/Content/index", Ico: "fa-file-text-o", Sorting: 402, Status: 1, Shortcut: 1, Type: 1},
 
 		// ============ 扩展内容 子菜单 (M157) ============

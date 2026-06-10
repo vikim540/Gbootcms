@@ -19,18 +19,32 @@ func (sg *SingleController) Index(c *gin.Context) {
 	if mcode == "" {
 		mcode = c.Param("mcode")
 	}
+	if mcode == "" {
+		mcode = "1" // 默認單頁模型 mcode (對應 ay_model 中 type=1 的記錄)
+	}
 
+	// 通過 mcode 查詢屬於單頁模型的欄目
 	var sorts []model.ContentSort
-	model.DB.Where("type = 2 AND status = 1").Order("sorting ASC").Find(&sorts)
+	model.DB.Where("mcode = ? AND status = 1", mcode).Order("sorting ASC").Find(&sorts)
 
+	// 查詢每個欄目下的最新一條內容(單頁每個欄目只有一條)
 	var contents []model.Content
-	model.DB.Where("scode IN (SELECT scode FROM ay_content_sort WHERE type = 2)").Order("date DESC").Find(&contents)
+	if len(sorts) > 0 {
+		var scodes []string
+		for _, s := range sorts {
+			scodes = append(scodes, s.Scode)
+		}
+		model.DB.Where("scode IN (?)", scodes).
+			Where("id IN (SELECT MAX(id) FROM ay_content WHERE scode IN (?) GROUP BY scode)", scodes).
+			Order("scode ASC").Find(&contents)
+	}
 
 	common.Render(c, "content/single.html", gin.H{
 		"sorts":      sorts,
 		"contents":   helper.AddSortName(contents, sorts),
 		"list":       true,
-		"model_name": "单页",
+		"mcode":      mcode,
+		"model_name": "栏目内容",
 	})
 }
 

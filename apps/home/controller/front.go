@@ -213,18 +213,29 @@ func (fc *FrontController) renderSortPage(c *gin.Context, sort *model.ContentSor
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
 
-	// 根據欄目類型選擇模板
-	// type=0: 單頁 → 用 ContentTpl (如 about.html)
-	// type=1: 列表 → 用 ListTpl (如 list.html)
+	// 通過 mcode 查 ay_model 獲取 type
 	var tpl string
-	if sort.Type == 0 {
-		tpl = sort.ContentTpl
+	var contentModel model.ContentModel
+	if sort.Mcode != "" && model.DB.Where("mcode = ?", sort.Mcode).First(&contentModel).Error == nil {
+		if contentModel.Type == 1 {
+			// 單頁模型 → 用 ContentTpl (如 about.html)
+			tpl = sort.ContentTpl
+			// 單頁需要加載內容數據
+			var content model.Content
+			if model.DB.Where("scode = ? AND status = 1", sort.Scode).Order("id DESC").First(&content).Error == nil {
+				ctx.Content = &content
+			}
+		} else {
+			// 列表模型 → 用 ListTpl
+			tpl = sort.ListTpl
+		}
 	} else {
 		tpl = sort.ListTpl
 	}
 	if tpl == "" {
 		tpl = "list.html"
 	}
+
 	content := fc.Store.Render(tpl)
 	content = p.Render(content)
 	c.Header("Content-Type", "text/html; charset=utf-8")
