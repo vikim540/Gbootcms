@@ -212,7 +212,16 @@ func (fc *FrontController) renderSortPage(c *gin.Context, sort *model.ContentSor
 	}
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
-	tpl := sort.ListTpl
+
+	// 根據欄目類型選擇模板
+	// type=0: 單頁 → 用 ContentTpl (如 about.html)
+	// type=1: 列表 → 用 ListTpl (如 list.html)
+	var tpl string
+	if sort.Type == 0 {
+		tpl = sort.ContentTpl
+	} else {
+		tpl = sort.ListTpl
+	}
 	if tpl == "" {
 		tpl = "list.html"
 	}

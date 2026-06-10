@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{sort:name} - {pboot:sitetitle}</title>
+    <meta name="keywords" content="{sort:keywords}">
+    <meta name="description" content="{sort:description}">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    {include file=head.html}
+
+    <div class="breadcrumb">{pboot:position separator=/}</div>
+
+    <main class="main-content">
+        <h1>{sort:name}</h1>
+        <div class="content-body">
+            {sort:content}
+        </div>
+    </main>
+
+    {include file=foot.html}
