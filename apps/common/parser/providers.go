@@ -153,7 +153,12 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		}
 		parts := []string{fmt.Sprintf(`<a href="/">%s</a>`, idxText)}
 		if ctx.Sort != nil && ctx.Sort.Name != "" {
-			parts = append(parts, fmt.Sprintf(`<a href="/%s.html">%s</a>`, ctx.Sort.URLName, ctx.Sort.Name))
+			// 動態URL: 與 sortToMap 保持一致
+			link := "/" + ctx.Sort.URLName + ".html"
+			if ctx.Sort.URLName == "" {
+				link = fmt.Sprintf("/sort/%s", ctx.Sort.Scode)
+			}
+			parts = append(parts, fmt.Sprintf(`<a href="%s">%s</a>`, link, ctx.Sort.Name))
 		}
 		return strings.Join(parts, sep)
 	})
@@ -727,6 +732,10 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 
 func contentToMap(c *model.Content, index int) map[string]interface{} {
 	link := "/" + c.URLName + ".html"
+	if c.URLName == "" {
+		// 動態URL: PbootCMS 慣例是 /content/{id} (對應 router Sort 動態分派)
+		link = fmt.Sprintf("/content/%d", c.ID)
+	}
 	if c.Outlink != "" {
 		link = c.Outlink
 	}
@@ -754,6 +763,11 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 }
 
 func sortToMap(s *model.ContentSort, index int) map[string]interface{} {
+	link := "/" + s.URLName + ".html"
+	if s.URLName == "" {
+		// 動態URL: PbootCMS 慣例是 /sort/{scode} (scode 比 id 更具語義,不會隨資料遷移而改變)
+		link = fmt.Sprintf("/sort/%s", s.Scode)
+	}
 	return map[string]interface{}{
 		"n":      index,
 		"i":      index + 1,
@@ -762,6 +776,6 @@ func sortToMap(s *model.ContentSort, index int) map[string]interface{} {
 		"subname": s.Subname,
 		"ico":    s.Ico,
 		"pic":    s.Pic,
-		"link":   "/" + s.URLName + ".html",
+		"link":   link,
 	}
 }

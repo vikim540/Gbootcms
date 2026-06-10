@@ -230,6 +230,12 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 	}
 
 	// GET: render mod form
+	// If the wildcard marker says "lookup by scode" (e.g. URL ".../123,scode"),
+	// promote idStr → scode so we use the scode-based lookup below.
+	if params["_lookup_by"] == "scode" && scode == "" {
+		scode = idStr
+		idStr = ""
+	}
 	var sort *model.ContentSort
 	var err error
 	if scode != "" {

@@ -305,9 +305,14 @@ func ParseInt(s string) int {
 }
 
 // ParseWildcardAction parses a gin wildcard param (*action) into a map.
-// e.g. "/scode/123/field/status/value/0" → map[scode:123 field:status value:0]
-// e.g. "/123" → map[id:123]
-// e.g. "/mcode/1/id/456" → map[mcode:1 id:456]
+// Supports two URL conventions produced by PbootCMS PHP templates:
+//   e.g. "/scode/123/field/status/value/0" → map[scode:123 field:status value:0]
+//   e.g. "/mcode/1/id/456"                  → map[mcode:1 id:456]
+//   e.g. "/123"                            → map[id:123]  (single ID segment)
+//   e.g. "/123,scode"                      → map[id:123 scode_marker:""]
+//        (the ",scode" suffix is a PbootCMS PHP template artifact — it tells
+//         the controller the *previous* segment should be looked up by scode,
+//         not by primary key. We preserve the marker so the caller can decide.)
 func ParseWildcardAction(action string) map[string]string {
 	result := map[string]string{}
 	action = strings.TrimPrefix(action, "/")
@@ -316,8 +321,20 @@ func ParseWildcardAction(action string) map[string]string {
 	}
 	parts := strings.Split(action, "/")
 	if len(parts) == 1 {
-		// Single segment: treat as ID
-		result["id"] = parts[0]
+		// Single segment: may be "123" or "123,scode" or "123,id"
+		seg := parts[0]
+		if i := strings.Index(seg, ","); i >= 0 {
+			// "123,scode" → id=123, scode_marker present
+			result["id"] = seg[:i]
+			marker := seg[i+1:]
+			if marker == "scode" || marker == "id" {
+				// Marker indicates the controller should treat 'id' as a scode lookup
+				result["_lookup_by"] = marker
+			}
+			return result
+		}
+		// Pure ID
+		result["id"] = seg
 		return result
 	}
 	// Key-value pairs
