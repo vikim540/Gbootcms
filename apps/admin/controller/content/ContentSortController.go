@@ -173,7 +173,6 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 		}
 
 		updates := map[string]interface{}{
-			"scode":       postScode,
 			"pcode":       c.PostForm("pcode"),
 			"name":        c.PostForm("name"),
 			"subname":     c.PostForm("subname"),
@@ -197,6 +196,11 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 			"title":       c.PostForm("title"),
 			"status":      helper.ParseInt(c.DefaultPostForm("status", "1")),
 		}
+		// Only include scode in updates if it was explicitly provided in the form
+		// (otherwise we would overwrite the existing scode with an empty string)
+		if postScode != "" {
+			updates["scode"] = postScode
+		}
 
 		// Try scode-based update, then id-based
 		var err error
@@ -212,12 +216,17 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 		}
 
 		// If type=1 (list), create initial content if not exists
-		if stype == 1 {
+		// Use the URL scode param as fallback when postScode is empty
+		contentScode := postScode
+		if contentScode == "" {
+			contentScode = scode
+		}
+		if stype == 1 && contentScode != "" {
 			var existing model.Content
-			result := model.DB.Where("scode = ?", postScode).First(&existing)
+			result := model.DB.Where("scode = ?", contentScode).First(&existing)
 			if result.Error != nil && c.PostForm("outlink") == "" {
 				model.DB.Create(&model.Content{
-					Scode:  postScode,
+					Scode:  contentScode,
 					Title:  c.PostForm("name"),
 					Status: 1,
 					Date:   time.Now(),

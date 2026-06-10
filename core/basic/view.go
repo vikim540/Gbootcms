@@ -447,23 +447,50 @@ func processPongo2Fun(html string) string {
 	html = reBtnBack.ReplaceAllString(html, `<a href="javascript:history.back();" class="layui-btn layui-btn-primary">返回</a>`)
 
 	// get_btn_del($var->field) or get_btn_del($var->field,'fieldname') → delete link
+	// PbootCMS 慣例: 第二個參數 'fieldname' 是類型標記,生成的 URL 為
+	//   /mod/{fieldname}/{value}/field/status/value/0
+	// 而不是 /mod/{value},{fieldname}/field/status/value/0
 	reBtnDel := regexp.MustCompile(`\{fun=get_btn_del\(([^)]+)\)\}`)
 	html = reBtnDel.ReplaceAllStringFunc(html, func(match string) string {
 		subs := reBtnDel.FindStringSubmatch(match)
 		if len(subs) < 2 {
 			return match
 		}
-		return `<a href="{url./admin/{{ C }}/mod/` + subs[1] + `/field/status/value/0}" class="layui-btn layui-btn-xs layui-btn-danger" onclick="return confirm('确定删除?');">删除</a>`
+		args := strings.SplitN(subs[1], ",", 2)
+		valExpr := strings.TrimSpace(args[0])
+		fieldName := "id" // 默認按 id 查
+		if len(args) >= 2 {
+			fieldName = strings.Trim(strings.TrimSpace(args[1]), "'\"")
+		}
+		// 生成 /admin/C/mod/{fieldName}/{valExpr}/field/status/value/0
+		inner := "/admin/{{ C }}/mod/" + fieldName + "/" + valExpr + "/field/status/value/0"
+		return `<a href="{url.` + inner + `}" class="layui-btn layui-btn-xs layui-btn-danger" onclick="return confirm('确定删除?');">删除</a>`
 	})
 
-	// get_btn_mod($var->field) or get_btn_mod($var->field,'fieldname') → edit link
+	// get_btn_mod($var->field) or get_btn_mod($var->field,'fieldname'[, 'btntext']) → edit link
+	// PbootCMS 慣例: 第二個參數 'fieldname' 是類型標記,生成的 URL 為
+	//   /mod/{fieldname}/{value}
+	// 例如 get_btn_mod($value->scode,'scode') → /mod/scode/{scode}
 	reBtnMod := regexp.MustCompile(`\{fun=get_btn_mod\(([^)]+)\)\}`)
 	html = reBtnMod.ReplaceAllStringFunc(html, func(match string) string {
 		subs := reBtnMod.FindStringSubmatch(match)
 		if len(subs) < 2 {
 			return match
 		}
-		return `<a href="{url./admin/{{ C }}/mod/` + subs[1] + `}?` + `{{ Btnqs }}" class="layui-btn layui-btn-xs">修改</a>`
+		// 解析最多 3 個逗號分隔的參數
+		parts := strings.Split(subs[1], ",")
+		valExpr := strings.TrimSpace(parts[0])
+		fieldName := "id"
+		btnText := "修改"
+		if len(parts) >= 2 {
+			fieldName = strings.Trim(strings.TrimSpace(parts[1]), "'\"")
+		}
+		if len(parts) >= 3 {
+			btnText = strings.Trim(strings.TrimSpace(parts[2]), "'\"")
+		}
+		// 生成 /admin/C/mod/{fieldName}/{valExpr}
+		inner := "/admin/{{ C }}/mod/" + fieldName + "/" + valExpr
+		return `<a href="{url.` + inner + `}?` + `{{ Btnqs }}" class="layui-btn layui-btn-xs">` + btnText + `</a>`
 	})
 
 	// check_level('xxx') → true (skip permission check for now)
