@@ -80,6 +80,7 @@
 	  		<form action="/admin/Single/mod/id/{{ Content.ID }}" method="post" class="layui-form" id="edit">
 	  			<input type="hidden" name="formcheck" value="{{ Formcheck }}">
 	  			<input type="hidden" name="mcode" value="{{ Mcode }}">
+	  			<input type="hidden" name="returnto" value="/admin/Single/index?mcode={{ Mcode }}">
 	  			<div class="layui-tab">
 					  <ul class="layui-tab-title">
 					    <li class="layui-this">基本内容</li>
