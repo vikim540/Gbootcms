@@ -179,7 +179,7 @@ func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[stri
 	result := make([]map[string]interface{}, len(contents))
 	for i, c := range contents {
 		m := StructToMap(c)
-		m["SortName"] = sortMap[c.Scode]
+		m["Sortname"] = sortMap[c.Scode]
 		// Format date for display
 		if !c.Date.IsZero() {
 			m["Date"] = c.Date.Format("2006-01-02")

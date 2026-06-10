@@ -90,9 +90,69 @@ layui.use(['element','upload','laydate','form'], function(){
         data: formData,
         success: function(res) {
             if (res.code == 1) {
-                layer.msg(res.msg || '操作成功', {icon: 1, time: 2000});
+                layer.open({
+                    type: 1,
+                    area: 'auto',
+                    shade: 0.45,
+                    shadeClose: false,
+                    anim: 0,
+                    time: 2200,
+                    title: false,
+                    closeBtn: 0,
+                    content: '<div class="tst">' +
+                        '<div class="tst-c tst-s">' +
+                        '<i class="fa fa-check-circle tst-i"></i>' +
+                        '<div class="tst-t">' + (res.msg || '操作成功') + '</div>' +
+                        '<div class="tst-bar tst-bar-s"></div>' +
+                        '</div>' +
+                        '</div>' +
+                        '<style>' +
+                        '.tst{display:flex;align-items:center;justify-content:center;min-height:180px;}' +
+                        '.tst-c{text-align:center;padding:36px 56px 32px;}' +
+                        '.tst-i{font-size:52px!important;display:block;margin-bottom:14px;animation:tstBounce .5s cubic-bezier(.68,-.55,.27,1.55);}' +
+                        '.tst-s .tst-i{color:#5FB878;}' +
+                        '.tst-e .tst-i{color:#FF5722;}' +
+                        '.tst-t{font-size:15px;color:#333;font-weight:500;letter-spacing:.3px;animation:tstFade .4s .1s both;}' +
+                        '.tst-bar{height:3px;border-radius:2px;margin-top:18px;animation:tstBar 2.2s linear forwards;}' +
+                        '.tst-bar-s{background:linear-gradient(90deg,#5FB878,#2d8c50);}' +
+                        '.tst-bar-e{background:linear-gradient(90deg,#FF5722,#c0391a);}' +
+                        '@keyframes tstBounce{0%{transform:scale(0);opacity:0}50%{transform:scale(1.25)}70%{transform:scale(.9)}100%{transform:scale(1);opacity:1}}' +
+                        '@keyframes tstFade{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}' +
+                        '@keyframes tstBar{0%{width:100%}100%{width:0%}}' +
+                        '</style>'
+                });
             } else {
-                layer.msg(res.data || res.msg || '操作失败', {icon: 5, time: 3000});
+                layer.open({
+                    type: 1,
+                    area: 'auto',
+                    shade: 0.45,
+                    shadeClose: false,
+                    anim: 0,
+                    time: 3000,
+                    title: false,
+                    closeBtn: 0,
+                    content: '<div class="tst">' +
+                        '<div class="tst-c tst-e">' +
+                        '<i class="fa fa-times-circle tst-i"></i>' +
+                        '<div class="tst-t">' + (res.data || res.msg || '操作失败') + '</div>' +
+                        '<div class="tst-bar tst-bar-e"></div>' +
+                        '</div>' +
+                        '</div>' +
+                        '<style>' +
+                        '.tst{display:flex;align-items:center;justify-content:center;min-height:180px;}' +
+                        '.tst-c{text-align:center;padding:36px 56px 32px;}' +
+                        '.tst-i{font-size:52px!important;display:block;margin-bottom:14px;animation:tstBounce .5s cubic-bezier(.68,-.55,.27,1.55);}' +
+                        '.tst-s .tst-i{color:#5FB878;}' +
+                        '.tst-e .tst-i{color:#FF5722;}' +
+                        '.tst-t{font-size:15px;color:#333;font-weight:500;letter-spacing:.3px;animation:tstFade .4s .1s both;}' +
+                        '.tst-bar{height:3px;border-radius:2px;margin-top:18px;animation:tstBar 2.2s linear forwards;}' +
+                        '.tst-bar-s{background:linear-gradient(90deg,#5FB878,#2d8c50);}' +
+                        '.tst-bar-e{background:linear-gradient(90deg,#FF5722,#c0391a);}' +
+                        '@keyframes tstBounce{0%{transform:scale(0);opacity:0}50%{transform:scale(1.25)}70%{transform:scale(.9)}100%{transform:scale(1);opacity:1}}' +
+                        '@keyframes tstFade{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}' +
+                        '@keyframes tstBar{0%{width:100%}100%{width:0%}}' +
+                        '</style>'
+                });
             }
         },
         error: function() {
