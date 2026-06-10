@@ -177,9 +177,23 @@ func (s *ContentSortService) DeleteSort(idStr string) error {
 	return model.DB.Delete(&model.ContentSort{}, idStr).Error
 }
 
-// DeleteSortByScode deletes a sort by scode
+// DeleteSortByScode deletes a sort record by scode, with id fallback
 func (s *ContentSortService) DeleteSortByScode(scode string) error {
-	return model.DB.Where("scode = ?", scode).Delete(&model.ContentSort{}).Error
+	res := model.DB.Where("scode = ?", scode).Delete(&model.ContentSort{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		// scode not found — try id-based fallback
+		res2 := model.DB.Where("id = ?", scode).Delete(&model.ContentSort{})
+		if res2.Error != nil {
+			return res2.Error
+		}
+		if res2.RowsAffected == 0 {
+			return errors.New("sort does not exist")
+		}
+	}
+	return nil
 }
 
 func splitAndTrim(s string) []string {

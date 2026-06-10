@@ -52,6 +52,16 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 		data["get_"+key] = values[0]
 	}
 
+	// Inject path parameters for template access (e.g. /mod/scode/1 → get_scode = "1")
+	// PbootCMS PHP uses $_GET which includes both query params and path params.
+	// In Go, path params are not in c.Request.URL.Query(), so we parse them manually.
+	pathParams := parsePathParams(pageURL)
+	for k, v := range pathParams {
+		if _, exists := data["get_"+k]; !exists {
+			data["get_"+k] = v
+		}
+	}
+
 	// Inject backurl / pathinfo / btnqs (used by PbootCMS mod-form action URLs)
 	qParams := c.Request.URL.Query()
 	var backParts, btnParts []string
@@ -130,8 +140,7 @@ func loadConfigToData(data gin.H) {
 }
 
 // flattenData converts data keys from snake_case to PascalCase for pongo2 template access.
-// pongo2 handles struct field access and map access natively via dot notation,
-// so no value flattening is needed (unlike the old regex engine).
+// The transpiler generates matching PascalCase variable names.
 func flattenData(data gin.H) gin.H {
 	result := gin.H{}
 	for k, v := range data {
@@ -248,4 +257,28 @@ func extractController(path string) string {
 		return parts[0]
 	}
 	return "index"
+}
+
+// parsePathParams extracts key-value pairs from PbootCMS-style URL paths.
+// Pattern: /admin/{controller}/mod/{key1}/{val1}/{key2}/{val2}/...
+// Example: /admin/contentsort/mod/scode/1/field/status/value/0
+//   → {"scode": "1", "field": "status", "value": "0"}
+func parsePathParams(path string) map[string]string {
+	result := make(map[string]string)
+	// Find the /mod/ segment
+	modIdx := strings.Index(strings.ToLower(path), "/mod/")
+	if modIdx < 0 {
+		return result
+	}
+	afterMod := path[modIdx+5:] // skip "/mod/"
+	segments := strings.Split(afterMod, "/")
+	// Parse pairs: key/value/key/value...
+	for i := 0; i+1 < len(segments); i += 2 {
+		key := segments[i]
+		val := segments[i+1]
+		if key != "" {
+			result[key] = val
+		}
+	}
+	return result
 }

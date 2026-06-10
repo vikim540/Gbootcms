@@ -374,6 +374,17 @@ func processPongo2Foreach(html string) string {
 			})
 			depth++
 		}
+		// Replace [value] → {{ valN }} and [key] → {{ keyN }} inside foreach loops
+		if depth > 0 && len(varStack) > 0 {
+			curVar := varStack[depth-1]
+			line = strings.ReplaceAll(line, "[value]", "{{ "+curVar+" }}")
+			line = strings.ReplaceAll(line, "[key]", "{{ key }}")
+			// Replace standalone 'value' in PbootCMS conditions (e.g. {if(value!=X)}) → valN
+			// But NOT inside HTML attributes like value="..." or value='...'
+			// At this stage conditions are still {if(...)} not {% if ... %}
+			reIfValue := regexp.MustCompile(`(\{(if|elseif)\(.*?)\bvalue\b(.*?\)\})`)
+			line = reIfValue.ReplaceAllString(line, "${1}"+curVar+"${3}")
+		}
 		if strings.Contains(line, "{/foreach}") {
 			depth--
 			if depth < 0 {
@@ -792,7 +803,7 @@ func processPongo2DollarVars(html string) string {
 		if len(subs) < 2 {
 			return match
 		}
-		return fmt.Sprintf("{{ session_%s }}", subs[1])
+		return fmt.Sprintf("{{ %s }}", SnakeToPascal("session_"+subs[1]))
 	})
 
 	html = reDollarGet.ReplaceAllStringFunc(html, func(match string) string {
@@ -800,7 +811,7 @@ func processPongo2DollarVars(html string) string {
 		if len(subs) < 2 {
 			return match
 		}
-		return fmt.Sprintf("{{ get_%s }}", subs[1])
+		return fmt.Sprintf("{{ %s }}", SnakeToPascal("get_"+subs[1]))
 	})
 
 	html = reDollarVar.ReplaceAllStringFunc(html, func(match string) string {
@@ -811,9 +822,6 @@ func processPongo2DollarVars(html string) string {
 		varName := subs[1]
 		if isLoopVar(varName) {
 			return "{{ " + varName + " }}"
-		}
-		if varName == "formcheck" {
-			return "{{ formcheck }}"
 		}
 		return fmt.Sprintf("{{ %s }}", SnakeToPascal(varName))
 	})
@@ -845,11 +853,11 @@ func pongo2DataKey(s string) string {
 	}
 	if strings.HasPrefix(s, "session.") {
 		field := strings.TrimPrefix(s, "session.")
-		return "session_" + field
+		return SnakeToPascal("session_" + field)
 	}
 	if strings.HasPrefix(s, "get.") {
 		field := strings.TrimPrefix(s, "get.")
-		return "get_" + field
+		return SnakeToPascal("get_" + field)
 	}
 	return SnakeToPascal(s)
 }
