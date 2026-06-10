@@ -166,6 +166,10 @@ func convertPbootToPongo2(html string) string {
 
 	html = processDynamicVars(html)
 
+	// Pre-process bracket dynamic vars [$var1->$var2] before processPongo2Fun
+	// so that decode_string([$content->$name]) works correctly
+	html = processBracketDynamicVars(html)
+
 	html = processPongo2Url(html)
 
 	html = processPongo2Fun(html)
@@ -275,6 +279,22 @@ func processDynamicVars(html string) string {
 	})
 
 	return html
+}
+
+// processBracketDynamicVars converts [$var1->$var2] inside {fun=...} arguments to pongo2 bracket access.
+// Only converts within {fun=...} tags to avoid breaking other contexts like {if} and JS code.
+func processBracketDynamicVars(html string) string {
+	reFunBracketDyn := regexp.MustCompile(`\{fun=([^}]*?)\[\$([\w]+)->\$([\w]+)\]([^}]*?)\}`)
+	return reFunBracketDyn.ReplaceAllStringFunc(html, func(match string) string {
+		subs := reFunBracketDyn.FindStringSubmatch(match)
+		if len(subs) < 5 {
+			return match
+		}
+		objName := SnakeToPascal(subs[2])
+		keyName := SnakeToPascal(subs[3])
+		replacement := fmt.Sprintf("%s[%s]", objName, keyName)
+		return "{" + "fun=" + subs[1] + replacement + subs[4] + "}"
+	})
 }
 
 func renameReservedVars(html string) string {
@@ -465,14 +485,19 @@ func processPongo2Fun(html string) string {
 		return fmt.Sprintf("{{ %s|truncate:%s }}", arg, subs[3])
 	})
 
-	// decode_string($var) → pongo2 safe filter
-	reDecode := regexp.MustCompile(`\{fun=decode_string\(([^)]+)\)\}`)
+	// decode_string($var) or decode_string([$var1->$var2]) → pongo2 safe filter
+	reDecode := regexp.MustCompile(`\{fun=decode_string\(([\w.$\[\]>_-]+)\)\}`)
 	html = reDecode.ReplaceAllStringFunc(html, func(match string) string {
 		subs := reDecode.FindStringSubmatch(match)
 		if len(subs) < 2 {
 			return match
 		}
-		arg := convertArrowToDot(strings.TrimSpace(subs[1]))
+		arg := strings.TrimSpace(subs[1])
+		// Strip outer brackets: [$content->content] → $content->content
+		if strings.HasPrefix(arg, "[") && strings.HasSuffix(arg, "]") {
+			arg = arg[1 : len(arg)-1]
+		}
+		arg = convertArrowToDot(arg)
 		return fmt.Sprintf("{{ %s|safe }}", arg)
 	})
 
@@ -545,6 +570,9 @@ func convertPongo2Condition(cond string) string {
 	cond = strings.ReplaceAll(cond, "!isset($val2->status) || $val2->status==1", "not val2.Status or val2.Status == 1")
 	cond = strings.ReplaceAll(cond, "!isset($val2->status)", "not val2.Status")
 	cond = strings.ReplaceAll(cond, "!isset($val1->status)", "not val1.Status")
+
+	// check_level('xxx') → true (permission check placeholder)
+	cond = regexp.MustCompile(`check_level\([^)]*\)`).ReplaceAllString(cond, "true")
 
 	cond = strings.ReplaceAll(cond, "LICENSE", "License")
 	cond = strings.ReplaceAll(cond, "CMSNAME", "CmsName")
@@ -767,7 +795,7 @@ func processPongo2DollarVars(html string) string {
 }
 
 func isLoopVar(name string) bool {
-	loopVars := map[string]bool{"val": true, "val1": true, "val2": true, "val3": true, "val4": true}
+	loopVars := map[string]bool{"val": true, "val1": true, "val2": true, "val3": true, "val4": true, "value": true, "key": true, "v": true, "k": true}
 	return loopVars[name]
 }
 
@@ -855,16 +883,21 @@ func processUrlConcat(html string) string {
 		}
 		result.WriteString(html[i : i+idx])
 		start := i + idx
-		// Find closing } with brace depth tracking
+		// Find closing } with brace depth tracking (quote-aware: { } inside '...' are literal)
 		depth := 0
+		inQuote := false
 		j := start
 		for j < len(html) {
-			if html[j] == '{' {
-				depth++
-			} else if html[j] == '}' {
-				depth--
-				if depth == 0 {
-					break
+			if html[j] == '\'' {
+				inQuote = !inQuote
+			} else if !inQuote {
+				if html[j] == '{' {
+					depth++
+				} else if html[j] == '}' {
+					depth--
+					if depth == 0 {
+						break
+					}
 				}
 			}
 			j++
@@ -913,38 +946,104 @@ func processUrlConcat(html string) string {
 	return result.String()
 }
 
-// splitUrlSegments splits a URL by PHP concat dots, respecting quotes and braces
+// splitUrlSegments splits a PHP-concat URL into tokens.
+// In PHP, '.' is the string concatenation operator. So in:
+//   /admin/'.C.'/mod/id/'.$value->id.'/field/status/value/0
+// The dots between '/admin/' and 'C' are PHP concat, NOT path separators.
+// Tokens: literals, 'quoted strings', $var->field, $var, func('args')
 func splitUrlSegments(s string) []string {
 	var segments []string
-	var current strings.Builder
-	inSingleQuote := false
-	depth := 0
-	for i := 0; i < len(s); i++ {
-		ch := s[i]
-		if ch == '\'' && depth == 0 {
-			inSingleQuote = !inSingleQuote
+	i := 0
+	for i < len(s) {
+		// Skip PHP concat dots (dots between PHP tokens)
+		if s[i] == '.' {
+			i++
 			continue
 		}
-		if !inSingleQuote {
-			if ch == '{' {
-				depth++
-			} else if ch == '}' {
-				depth--
-			} else if ch == '.' && depth == 0 {
-				segments = append(segments, current.String())
-				current.Reset()
-				continue
+		// Quoted string: 'content' → extract content (PHP constant or path literal)
+		// Inside quotes, '.' is a literal character (PHP concat dots don't apply).
+		if s[i] == '\'' {
+			i++ // skip opening quote
+			start := i
+			for i < len(s) && s[i] != '\'' {
+				i++
 			}
+			quoted := s[start:i]
+			// Strip leading/trailing '.' inside quoted string (PHP concat artifacts)
+			quoted = strings.Trim(quoted, ".")
+			segments = append(segments, quoted)
+			if i < len(s) {
+				i++ // skip closing quote
+			}
+			// After closing quote, the next '.' is a PHP concat (skip it)
+			if i < len(s) && s[i] == '.' {
+				i++
+			}
+			continue
 		}
-		current.WriteByte(ch)
-	}
-	if current.Len() > 0 {
-		segments = append(segments, current.String())
+		// Variable: $var->field or $var (allow '-' and '>' for arrow operator)
+		if s[i] == '$' {
+			start := i
+			i++ // skip $
+			for i < len(s) && (isWordChar(s[i]) || s[i] == '>' || s[i] == '-') {
+				i++
+			}
+			segments = append(segments, s[start:i])
+			continue
+		}
+		// Function call: get('mcode') or get(mcode)
+		if i+4 <= len(s) && s[i:i+3] == "get" && s[i+3] == '(' {
+			start := i
+			depth := 0
+			for i < len(s) {
+				if s[i] == '(' {
+					depth++
+				} else if s[i] == ')' {
+					depth--
+					if depth == 0 {
+						i++
+						break
+					}
+				}
+				i++
+			}
+			segments = append(segments, s[start:i])
+			continue
+		}
+		// {{ ... }} pongo2 variable (from earlier processing)
+		if s[i] == '{' && i+1 < len(s) && s[i+1] == '{' {
+			start := i
+			for i < len(s) {
+				if s[i] == '}' && i+1 < len(s) && s[i+1] == '}' {
+					i += 2
+					break
+				}
+				i++
+			}
+			segments = append(segments, s[start:i])
+			continue
+		}
+		// Literal character (path segment)
+		start := i
+		for i < len(s) && s[i] != '.' && s[i] != '\'' && s[i] != '$' && s[i] != '{' {
+			// Also stop at function calls
+			if i+4 <= len(s) && s[i:i+3] == "get" && s[i+3] == '(' {
+				break
+			}
+			i++
+		}
+		if i > start {
+			segments = append(segments, s[start:i])
+		}
 	}
 	return segments
 }
 
-// convertUrlSegment converts a single URL segment to pongo2-compatible output
+func isWordChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
+}
+
+// convertUrlSegment converts a single URL segment (PHP token) to pongo2-compatible output
 func convertUrlSegment(seg string) string {
 	seg = strings.TrimSpace(seg)
 	if seg == "" {
@@ -966,11 +1065,39 @@ func convertUrlSegment(seg string) string {
 		}
 		return "{{ " + SnakeToPascal(varName) + " }}"
 	}
-	// get('mcode') or similar function call
-	if matched, _ := regexp.MatchString(`^get\(['"](\w+)['"]\)$`, seg); matched {
-		reFn := regexp.MustCompile(`get\(['"](\w+)['"]\)`)
+	// get('xxx') or get(xxx) — function call
+	if matched, _ := regexp.MatchString(`^get\(['"]?(\w+)['"]?\)$`, seg); matched {
+		reFn := regexp.MustCompile(`get\(['"]?(\w+)['"]?\)`)
 		subs := reFn.FindStringSubmatch(seg)
 		return "{{ get_" + subs[1] + " }}"
+	}
+	// [$var1->$var2] — dynamic bracket variable access
+	if matched, _ := regexp.MatchString(`^\[\$(\w+)->\$(\w+)\]$`, seg); matched {
+		reDyn := regexp.MustCompile(`^\[\$(\w+)->\$(\w+)\]$`)
+		subs := reDyn.FindStringSubmatch(seg)
+		obj := SnakeToPascal(subs[1])
+		key := SnakeToPascal(subs[2])
+		return "{{ " + obj + "[" + key + "] }}"
+	}
+	// [$var.field] — bracket dot variable
+	if matched, _ := regexp.MatchString(`^\[\$(\w+)\.(\w+)\]$`, seg); matched {
+		reBd := regexp.MustCompile(`^\[\$(\w+)\.(\w+)\]$`)
+		subs := reBd.FindStringSubmatch(seg)
+		return "{{ " + pongo2DataKey(subs[1]+"."+subs[2]) + " }}"
+	}
+	// [$var] — bare bracket variable
+	if matched, _ := regexp.MatchString(`^\[\$(\w+)\]$`, seg); matched {
+		reBv := regexp.MustCompile(`^\[\$(\w+)\]$`)
+		subs := reBv.FindStringSubmatch(seg)
+		return "{{ " + pongo2DataKey(subs[1]) + " }}"
+	}
+	// PHP constant: all uppercase letter(s) like C, URL, etc.
+	if matched, _ := regexp.MatchString(`^[A-Z][A-Z_]*$`, seg); matched {
+		// Check if it's a known PbootCMS constant
+		knownConsts := map[string]bool{"C": true, "URL": true, "SITE_DIR": true, "CORE_DIR": true, "APP_THEME_DIR": true}
+		if knownConsts[seg] {
+			return "{{ " + seg + " }}"
+		}
 	}
 	// Literal path segment
 	return seg
