@@ -139,6 +139,17 @@ function subform(obj){
   });
   return false;
 }
+
+// Markdown 代码块语言标签 + 复制按钮
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.md-content pre > code[class*="language-"]').forEach(function(code) {
+        var cls = code.className;
+        var lang = cls.replace('language-', '').trim();
+        if (lang) {
+            code.parentElement.setAttribute('data-lang', lang);
+        }
+    });
+});
 </script>
 
 {gboot:sitestatistical}

@@ -23,14 +23,96 @@
 .md-content blockquote p { margin: 0.4em 0; }
 .md-content blockquote blockquote { border-left-color: #ccc; }
 
-/* 行内代码 */
-.md-content code { background: #f0f0f0; color: #e74c3c; padding: 2px 6px; border-radius: 3px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 0.9em; }
+/* ========== 行内代码 (仅非 pre 内的 code) ========== */
+.md-content :not(pre) > code {
+    background: #f0f0f0;
+    color: #c7254e;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+    border: 1px solid #e8e8e8;
+}
 
-/* 代码块 */
-.md-content pre { margin: 1em 0; border-radius: 6px; overflow: hidden; }
-.md-content pre code { display: block; padding: 16px 20px; background: #282c34; color: #abb2bf; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.6; overflow-x: auto; border-radius: 6px; }
-.md-content pre code::-webkit-scrollbar { height: 6px; }
-.md-content pre code::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+/* ========== 代码块 ========== */
+.md-content pre {
+    margin: 1.2em 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #282c34;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+    position: relative;
+}
+
+/* marked.js 生成: <pre><code class="language-xxx"> */
+.md-content pre > code {
+    display: block;
+    padding: 18px 20px;
+    background: transparent !important;
+    color: #abb2bf;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    overflow-x: auto;
+    border: none;
+    border-radius: 0;
+    white-space: pre;
+    word-wrap: normal;
+    tab-size: 4;
+}
+
+/* UEditor 生成: <pre> 无 code 内部 */
+.md-content pre:not(:has(> code)) {
+    padding: 18px 20px;
+    color: #abb2bf;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+    word-wrap: normal;
+    tab-size: 4;
+}
+
+/* 语言标签 (由 JS 动态添加 data-lang) */
+.md-content pre[data-lang]::before {
+    content: attr(data-lang);
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 3px 12px;
+    font-size: 11px;
+    color: #777;
+    background: #21252b;
+    border-radius: 0 8px 0 6px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    z-index: 1;
+}
+.md-content pre[data-lang] > code {
+    padding-top: 28px;
+}
+
+/* 滚动条 */
+.md-content pre::-webkit-scrollbar { height: 8px; }
+.md-content pre::-webkit-scrollbar-track { background: #21252b; }
+.md-content pre::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+.md-content pre::-webkit-scrollbar-thumb:hover { background: #777; }
+.md-content pre > code::-webkit-scrollbar { height: 6px; }
+.md-content pre > code::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+/* 代码高亮 - Prism.js token 颜色 */
+.md-content pre .token.comment,
+.md-content pre .token.prolog,
+.md-content pre .token.doctype,
+.md-content pre .token.cdata { color: #5c6370; font-style: italic; }
+.md-content pre .token.keyword { color: #c678dd; }
+.md-content pre .token.string { color: #98c379; }
+.md-content pre .token.number { color: #d19a66; }
+.md-content pre .token.function { color: #61afef; }
+.md-content pre .token.operator { color: #56b6c2; }
+.md-content pre .token.punctuation { color: #abb2bf; }
 
 /* 表格 */
 .md-content table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 15px; }
@@ -55,7 +137,7 @@
 .md-content em { font-style: italic; }
 .md-content del { text-decoration: line-through; color: #999; }
 
-/* 目录 (TOC) */
+/* 目录 */
 .md-content .toc { background: #f8f9fa; border: 1px solid #e0e6ed; border-radius: 6px; padding: 16px 20px; margin: 1em 0; }
 .md-content .toc > ul { list-style: none; padding-left: 0; }
 .md-content .toc ul { margin: 0; }
