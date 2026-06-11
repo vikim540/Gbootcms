@@ -43,38 +43,38 @@ func (p *TagParser) provider(name string) (DataProvider, bool) {
 
 func (p *TagParser) initRegexes() {
 	defs := map[string]string{
-		"pre":           `(?s)\{pboot:pre\}(.*?)\{\/pboot:pre\}`,
+		"pre":           `(?s)\{gboot:pre\}(.*?)\{\/gboot:pre\}`,
 		"include":       `\{include\s+file\s?=\s?["']?([\w.\-\/@]+)["']?\s*\}`,
-		"site":          `\{pboot:site(\w+)(?:\s+([^}]+))?\}`,
-		"company":       `\{pboot:company(\w+)(?:\s+([^}]+))?\}`,
+		"site":          `\{gboot:site(\w+)(?:\s+([^}]+))?\}`,
+		"company":       `\{gboot:company(\w+)(?:\s+([^}]+))?\}`,
 		"label":         `\{label:(\w+)(?:\s+([^}]+))?\}`,
 		"user":          `\{user:(\w+)(?:\s+([^}]+))?\}`,
 		"sort_single":   `\{sort:(\w+)(?:\s+([^}]+))?\}`,
 		"content_single": `\{content:(\w+)(?:\s+([^}]+))?\}`,
 		"page":          `\{page:(\w+)\}`,
-		"pboot_single":  `\{pboot:(\w+)(?:\s+([^}]+))?\}`,
-		"position":      `\{pboot:position(?:\s+([^}]+))?\}`,
-		"selectall":     `\{pboot:selectall(?:\s+([^}]+))?\}`,
-		"qrcode":        `\{pboot:qrcode(?:\s+([^}]+))?\}`,
-		"form_single":   `\{pboot:form(?:\s+([^}]+))?\}`,
-		"nav":           `(?s)\{pboot:nav(?:\s+([^}]+))?\}(.*?)\{\/pboot:nav\}`,
-		"sort_loop":     `(?s)\{pboot:sort(?:\s+([^}]+))?\}(.*?)\{\/pboot:sort\}`,
-		"list":          `(?s)\{pboot:list(?:\s+([^}]+))?\}(.*?)\{\/pboot:list\}`,
-		"content_loop":  `(?s)\{pboot:content(?:\s+([^}]+))?\}(.*?)\{\/pboot:content\}`,
-		"pics":          `(?s)\{pboot:pics(?:\s+([^}]+))?\}(.*?)\{\/pboot:pics\}`,
-		"checkbox":      `(?s)\{pboot:checkbox(?:\s+([^}]+))?\}(.*?)\{\/pboot:checkbox\}`,
-		"tags":          `(?s)\{pboot:tags(?:\s+([^}]+))?\}(.*?)\{\/pboot:tags\}`,
-		"slide":         `(?s)\{pboot:slide(?:\s+([^}]+))?\}(.*?)\{\/pboot:slide\}`,
-		"link":          `(?s)\{pboot:link(?:\s+([^}]+))?\}(.*?)\{\/pboot:link\}`,
-		"message":       `(?s)\{pboot:message(?:\s+([^}]+))?\}(.*?)\{\/pboot:message\}`,
-		"formlist":      `(?s)\{pboot:formlist(?:\s+([^}]+))?\}(.*?)\{\/pboot:formlist\}`,
-		"search":        `(?s)\{pboot:search(?:\s+([^}]+))?\}(.*?)\{\/pboot:search\}`,
-		"comment":       `(?s)\{pboot:comment(?:\s+([^}]+))?\}(.*?)\{\/pboot:comment\}`,
-		"commentsub":    `(?s)\{pboot:commentsub(?:\s+([^}]+))?\}(.*?)\{\/pboot:commentsub\}`,
-		"mycomment":     `(?s)\{pboot:mycomment(?:\s+([^}]+))?\}(.*?)\{\/pboot:mycomment\}`,
-		"loop":          `(?s)\{pboot:loop(?:\s+([^}]+))?\}(.*?)\{\/pboot:loop\}`,
-		"select":        `(?s)\{pboot:select(?:\s+([^}]+))?\}(.*?)\{\/pboot:select\}`,
-		"pboot_if":      `(?s)\{pboot:if\(([^}]+)\)\}(.*?)(?:\{else\}(.*?))?\{\/pboot:if\}`,
+		"gboot_single":  `\{gboot:(\w+)(?:\s+([^}]+))?\}`,
+		"position":      `\{gboot:position(?:\s+([^}]+))?\}`,
+		"selectall":     `\{gboot:selectall(?:\s+([^}]+))?\}`,
+		"qrcode":        `\{gboot:qrcode(?:\s+([^}]+))?\}`,
+		"form_single":   `\{gboot:form(?:\s+([^}]+))?\}`,
+		"nav":           `(?s)\{gboot:nav(?:\s+([^}]+))?\}(.*?)\{\/gboot:nav\}`,
+		"sort_loop":     `(?s)\{gboot:sort(?:\s+([^}]+))?\}(.*?)\{\/gboot:sort\}`,
+		"list":          `(?s)\{gboot:list(?:\s+([^}]+))?\}(.*?)\{\/gboot:list\}`,
+		"content_loop":  `(?s)\{gboot:content(?:\s+([^}]+))?\}(.*?)\{\/gboot:content\}`,
+		"pics":          `(?s)\{gboot:pics(?:\s+([^}]+))?\}(.*?)\{\/gboot:pics\}`,
+		"checkbox":      `(?s)\{gboot:checkbox(?:\s+([^}]+))?\}(.*?)\{\/gboot:checkbox\}`,
+		"tags":          `(?s)\{gboot:tags(?:\s+([^}]+))?\}(.*?)\{\/gboot:tags\}`,
+		"slide":         `(?s)\{gboot:slide(?:\s+([^}]+))?\}(.*?)\{\/gboot:slide\}`,
+		"link":          `(?s)\{gboot:link(?:\s+([^}]+))?\}(.*?)\{\/gboot:link\}`,
+		"message":       `(?s)\{gboot:message(?:\s+([^}]+))?\}(.*?)\{\/gboot:message\}`,
+		"formlist":      `(?s)\{gboot:formlist(?:\s+([^}]+))?\}(.*?)\{\/gboot:formlist\}`,
+		"search":        `(?s)\{gboot:search(?:\s+([^}]+))?\}(.*?)\{\/gboot:search\}`,
+		"comment":       `(?s)\{gboot:comment(?:\s+([^}]+))?\}(.*?)\{\/gboot:comment\}`,
+		"commentsub":    `(?s)\{gboot:commentsub(?:\s+([^}]+))?\}(.*?)\{\/gboot:commentsub\}`,
+		"mycomment":     `(?s)\{gboot:mycomment(?:\s+([^}]+))?\}(.*?)\{\/gboot:mycomment\}`,
+		"loop":          `(?s)\{gboot:loop(?:\s+([^}]+))?\}(.*?)\{\/gboot:loop\}`,
+		"select":        `(?s)\{gboot:select(?:\s+([^}]+))?\}(.*?)\{\/gboot:select\}`,
+		"gboot_if":      `(?s)\{gboot:if\(([^}]+)\)\}(.*?)(?:\{else\}(.*?))?\{\/gboot:if\}`,
 	}
 	for name, pattern := range defs {
 		if re, err := regexp.Compile(pattern); err == nil {
@@ -122,11 +122,11 @@ func (p *TagParser) Render(content string) string {
 		content = p.processInclude(content, re)
 	}
 
-	// Pre-resolve single tags inside pair tag params (e.g. {pboot:list scode={sort:scode}})
+	// Pre-resolve single tags inside pair tag params (e.g. {gboot:list scode={sort:scode}})
 	content = p.preResolveSingleInPairParams(content)
-	content = p.processPairTags(content)
-	content = p.processIfTags(content)
 	content = p.processSingleTags(content)
+	content = p.processIfTags(content)
+	content = p.processPairTags(content)
 
 	for i, block := range p.preBlocks {
 		content = strings.Replace(content, fmt.Sprintf("{__PRE_%d__}", i), block, 1)
@@ -135,7 +135,7 @@ func (p *TagParser) Render(content string) string {
 	return content
 }
 
-// RenderWithoutInclude æ¸²æŸ“æ¨¡æ¿ä½†ä¸å¤„ç† include æ ‡ç­¾ï¼ˆinclude å·²ç”±ä¸Šå±‚å¤„ç†ï¼?
+// RenderWithoutInclude 渲染模板但不处理 include 标签（include 已由上层处理）
 func (p *TagParser) RenderWithoutInclude(content string) string {
 	p.preBlocks = nil
 
@@ -152,7 +152,7 @@ func (p *TagParser) RenderWithoutInclude(content string) string {
 	}
 
 	// Skip include tags
-	// Pre-resolve single tags inside pair tag params (e.g. {pboot:list scode={sort:scode}})
+	// Pre-resolve single tags inside pair tag params (e.g. {gboot:list scode={sort:scode}})
 	content = p.preResolveSingleInPairParams(content)
 	content = p.processPairTags(content)
 	content = p.processIfTags(content)
@@ -215,7 +215,7 @@ func (p *TagParser) processSingleTags(content string) string {
 		})
 	}
 
-	re := p.re("pboot_single")
+	re := p.re("gboot_single")
 	if re != nil {
 		content = re.ReplaceAllStringFunc(content, func(match string) string {
 			subs := re.FindStringSubmatch(match)
@@ -283,45 +283,63 @@ func (p *TagParser) processIfTags(content string) string {
 		return content
 	}
 
+	// 自定義解析器: 手動匹配括號深度
 	for depth := 3; depth >= 0; depth-- {
-		var re *regexp.Regexp
+		prefix := ""
 		if depth > 0 {
-			prefix := strconv.Itoa(depth)
-			pattern := fmt.Sprintf(
-				`(?s)\{pboot:%sif\(([^}]+)\)\}(.*?)(?:\{else\}(.*?))?\{\/pboot:%sif\}`,
-				prefix, prefix,
-			)
-			var err error
-			re, err = regexp.Compile(pattern)
-			if err != nil {
-				continue
-			}
-		} else {
-			re = p.re("pboot_if")
+			prefix = strconv.Itoa(depth)
 		}
-		if re == nil {
-			continue
-		}
+		openTag := fmt.Sprintf("{gboot:%sif(", prefix)
+		closeTag := fmt.Sprintf("{/gboot:%sif}", prefix)
 
-		content = re.ReplaceAllStringFunc(content, func(match string) string {
-			subs := re.FindStringSubmatch(match)
-			if len(subs) < 2 {
-				return match
+		for {
+			startIdx := strings.Index(content, openTag)
+			if startIdx == -1 {
+				break
 			}
-			cond := subs[1]
-			trueBranch := ""
+			// 找到條件結束的匹配 ')'
+			condStart := startIdx + len(openTag)
+			parenDepth := 1
+			i := condStart
+			for i < len(content) && parenDepth > 0 {
+				if content[i] == '(' {
+					parenDepth++
+				} else if content[i] == ')' {
+					parenDepth--
+				}
+				i++
+			}
+			if parenDepth != 0 {
+				break // 括號不匹配
+			}
+			condEnd := i - 1 // ')' 的位置
+			cond := content[condStart:condEnd]
+
+			// 找到 {/gboot:Xif}
+			afterCond := content[condEnd+1:]
+			closeIdx := strings.Index(afterCond, closeTag)
+			if closeIdx == -1 {
+				break
+			}
+			fullContent := afterCond[:closeIdx]
+			remainder := afterCond[closeIdx+len(closeTag):]
+
+			// 分割 true/false 分支
+			trueBranch := fullContent
 			falseBranch := ""
-			if len(subs) > 2 {
-				trueBranch = subs[2]
+			elseTag := "{else}"
+			elseIdx := strings.Index(fullContent, elseTag)
+			if elseIdx != -1 {
+				trueBranch = fullContent[:elseIdx]
+				falseBranch = fullContent[elseIdx+len(elseTag):]
 			}
-			if len(subs) > 3 {
-				falseBranch = subs[3]
-			}
+
 			params := map[string]string{
 				"condition": cond, "true": trueBranch, "false": falseBranch,
 			}
-			return providerCall(pr, "if", params, "")
-		})
+			result := providerCall(pr, "if", params, "")
+			content = content[:startIdx] + result + remainder
+		}
 	}
 
 	return content
@@ -472,7 +490,7 @@ func phpToGoFormat(php string) string {
 
 // preResolveSingleInPairParams resolves single tags ({sort:xxx}, {content:xxx}, etc.)
 // that appear inside pair tag parameter sections.
-// e.g. {pboot:list scode={sort:scode} num=15} → {pboot:list scode=5 num=15}
+// e.g. {gboot:list scode={sort:scode} num=15} → {gboot:list scode=5 num=15}
 func (p *TagParser) preResolveSingleInPairParams(content string) string {
 	// Match pair tag openings and capture the params section
 	pairNames := []string{
@@ -481,9 +499,9 @@ func (p *TagParser) preResolveSingleInPairParams(content string) string {
 		"commentsub", "mycomment", "loop", "select",
 	}
 	for _, name := range pairNames {
-		// Match opening like {pboot:NAME ...params...}
+		// Match opening like {gboot:NAME ...params...}
 		// The params end at the first } that closes the opening tag
-		pattern := regexp.MustCompile(`\{pboot:` + name + `\s+([^}]+)\}`)
+		pattern := regexp.MustCompile(`\{gboot:` + name + `\s+([^}]+)\}`)
 		content = pattern.ReplaceAllStringFunc(content, func(match string) string {
 			subs := pattern.FindStringSubmatch(match)
 			if len(subs) < 2 {
@@ -493,7 +511,7 @@ func (p *TagParser) preResolveSingleInPairParams(content string) string {
 			// Resolve single tags within the params
 			resolved := p.resolveSingleTagsInString(paramStr)
 			if resolved != paramStr {
-				return "{pboot:" + name + " " + resolved + "}"
+				return "{gboot:" + name + " " + resolved + "}"
 			}
 			return match
 		})

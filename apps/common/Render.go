@@ -30,7 +30,7 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 	data["CoreVersion"] = "1.8.1"
 	data["AppVersion"] = "3.2.12"
 	data["ReleaseTime"] = "2025-04-24"
-	data["SiteDir"] = ""
+	data["SiteDir"] = "/"
 	data["AppThemeDir"] = "/static/admin"
 	data["CoreDir"] = "/static/admin"
 	data["Formcheck"] = "1"

@@ -50,6 +50,11 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.Any("/content/single/mod/*action", sg.Mod)
 		adminGroup.POST("/content/single/del", sg.Del)
 
+		mediaCtl := &content.MediaController{}
+		adminGroup.GET("/Media/index", mediaCtl.Index)
+		adminGroup.POST("/Media/mark", mediaCtl.Mark)
+		adminGroup.POST("/Media/clean", mediaCtl.Clean)
+
 		co := &content.CompanyController{}
 		adminGroup.GET("/content/company/index", co.Index)
 		adminGroup.POST("/content/company/mod", co.Mod)

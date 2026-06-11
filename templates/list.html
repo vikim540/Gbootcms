@@ -2,29 +2,29 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>{sort:name} - {pboot:sitetitle}</title>
+    <title>{sort:name} - {gboot:sitetitle}</title>
     <meta name="keywords" content="{sort:keywords}">
     <meta name="description" content="{sort:description}">
 </head>
 <body>
     {include file=head.html}
 
-    <div class="breadcrumb">{pboot:position separator=/}</div>
+    <div class="breadcrumb">{gboot:position separator=/}</div>
 
     <h1>{sort:name}</h1>
 
     <div class="content-list">
-        {pboot:list scode={sort:scode} num=15 order=date page=1}
+        {gboot:list scode={sort:scode} num=15 order=date page=1}
         <div class="list-item">
             <a href="[list:link]">
-                {pboot:if('[list:ico]'!='')}
+                {gboot:if('[list:ico]'!='')}
                 <img src="[list:ico]" alt="[list:title]">
-                {/pboot:if}
+                {/gboot:if}
                 <h3>[list:title]</h3>
                 <span>[list:date style=Y-m-d]</span>
             </a>
         </div>
-        {/pboot:list}
+        {/gboot:list}
     </div>
 
     <div class="pagination">

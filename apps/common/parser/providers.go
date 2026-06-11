@@ -59,8 +59,8 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		}
 	})
 
-	// PbootCMS PHP 兼容: {pboot:sitepath}, {pboot:sitetitle}, {pboot:sitetplpath} 等
-	p.Register("pboot", func(tagName string, params map[string]string, inner string) string {
+	// GBoot 兼容: {gboot:sitepath}, {gboot:sitetitle}, {gboot:sitetplpath} 等
+	p.Register("gboot", func(tagName string, params map[string]string, inner string) string {
 		if ctx.Site == nil {
 			return ""
 		}
@@ -110,6 +110,21 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 				return ctx.Sort.Description
 			}
 			return ctx.Site.Description
+		// 會員相關標籤 (暫未實現,返回空)
+		case "loginstatus":
+			return "0" // 0=未登錄
+		case "login":
+			return "/member/login"
+		case "registerstatus":
+			return "0" // 0=關閉註冊
+		case "register":
+			return "/member/register"
+		case "ucenter":
+			return "/member/center"
+		case "islogin":
+			return "0"
+		case "httpurl":
+			return "/" // 簡化實現
 		default:
 			return ""
 		}

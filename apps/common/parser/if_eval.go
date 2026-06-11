@@ -53,7 +53,7 @@ func resolveCondVars(cond string, data map[string]interface{}) string {
 		return match
 	})
 
-	re = regexp.MustCompile(`\{pboot:sitetitle\}`)
+	re = regexp.MustCompile(`\{gboot:sitetitle\}`)
 	cond = re.ReplaceAllStringFunc(cond, func(match string) string {
 		if val, ok := data["sitetitle"]; ok {
 			return ValToStr(val)
