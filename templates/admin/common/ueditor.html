@@ -2,146 +2,148 @@
 <script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/ueditor/ueditor.config.js"></script>
 <script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/ueditor/ueditor.all.js"> </script>
 <script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/ueditor/lang/zh-cn/zh-cn.js"></script>
-<!-- Markdown 支持 -->
-<script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/markdown/marked.min.js"></script>
+<!-- Vditor Markdown 编辑器 -->
+<link rel="stylesheet" href="{APP_THEME_DIR}/extend/vditor/index.css" />
+<script src="{APP_THEME_DIR}/extend/vditor/index.min.js"></script>
 
 <style>
-.md-toggle-bar { margin-bottom: 8px; }
-.md-toggle-bar .layui-btn { margin-right: 5px; }
-.md-toggle-bar .layui-btn.layui-btn-warm { background-color: #FFB800; }
-.md-editor-wrap { display: none; border: 1px solid #e6e6e6; border-radius: 4px; overflow: hidden; }
-.md-editor-wrap .md-toolbar { background: #fafafa; border-bottom: 1px solid #e6e6e6; padding: 6px 10px; display: flex; gap: 5px; align-items: center; }
-.md-editor-wrap .md-toolbar button { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 3px 10px; cursor: pointer; font-size: 13px; }
-.md-editor-wrap .md-toolbar button:hover { background: #f0f0f0; border-color: #bbb; }
-.md-editor-wrap .md-panes { display: flex; height: 500px; }
-.md-editor-wrap .md-input { flex: 1; border: none; outline: none; resize: none; padding: 12px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.6; border-right: 1px solid #e6e6e6; }
-.md-editor-wrap .md-preview { flex: 1; padding: 12px; overflow-y: auto; font-size: 14px; line-height: 1.8; }
-.md-editor-wrap .md-preview h1 { font-size: 24px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-.md-editor-wrap .md-preview h2 { font-size: 20px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
-.md-editor-wrap .md-preview h3 { font-size: 17px; }
-.md-editor-wrap .md-preview code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 13px; }
-.md-editor-wrap .md-preview pre { background: #282c34; color: #abb2bf; padding: 14px; border-radius: 6px; overflow-x: auto; }
-.md-editor-wrap .md-preview pre code { background: none; color: inherit; padding: 0; }
-.md-editor-wrap .md-preview blockquote { border-left: 4px solid #ddd; padding: 8px 16px; color: #666; margin: 10px 0; background: #fafafa; }
-.md-editor-wrap .md-preview table { border-collapse: collapse; width: 100%; margin: 10px 0; }
-.md-editor-wrap .md-preview th, .md-editor-wrap .md-preview td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-.md-editor-wrap .md-preview th { background: #f5f5f5; }
-.md-editor-wrap .md-preview img { max-width: 100%; }
-.md-editor-wrap .md-preview a { color: #1E9FFF; }
+.md-toggle-bar { margin-bottom: 8px; display: flex; gap: 5px; align-items: center; }
+.md-toggle-bar .mode-btn { padding: 5px 16px; border: 1px solid #ddd; background: #fff; border-radius: 3px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.md-toggle-bar .mode-btn:hover { border-color: #1E9FFF; color: #1E9FFF; }
+.md-toggle-bar .mode-btn.active { background: #1E9FFF; color: #fff; border-color: #1E9FFF; }
+.md-toggle-bar .mode-btn i { margin-right: 4px; }
+#vditorWrap { display: none; }
+#vditorWrap .vditor { border: 1px solid #e6e6e6; border-radius: 4px; }
 </style>
 
 <script>
 var mdMode = false;
-var mdEditorReady = false;
+var vditorInstance = null;
+var ueInstance = null;
 
 function getUE() {
-    return UE.getEditor('editor');
-}
-
-function switchToMD() {
-    if (mdMode) return;
-    mdMode = true;
-    
-    // Get HTML from UEditor
-    var ue = getUE();
-    var html = ue.getContent();
-    
-    // Hide UEditor, show MD editor
-    var ueContainer = document.getElementById('editor').parentNode;
-    var ueIframe = ueContainer.querySelector('.edui-editor');
-    
-    // Toggle buttons
-    document.getElementById('mdBtnRich').classList.remove('layui-btn-warm');
-    document.getElementById('mdBtnMD').classList.add('layui-btn-warm');
-    
-    // Hide UEditor
-    if (ueIframe) ueIframe.style.display = 'none';
-    // Also hide the script element area
-    var siblings = ueContainer.children;
-    for (var i = 0; i < siblings.length; i++) {
-        if (siblings[i].id !== 'mdEditorWrap' && siblings[i].classList && !siblings[i].classList.contains('md-toggle-bar')) {
-            siblings[i].style.display = 'none';
-        }
+    if (!ueInstance) {
+        try { ueInstance = UE.getEditor('editor'); } catch(e) {}
     }
-    
-    // Show MD editor
-    var wrap = document.getElementById('mdEditorWrap');
-    wrap.style.display = 'block';
-    
-    // Convert HTML to markdown-ish plain text (simple approach: just use the HTML as-is for editing)
-    // For a better experience, we could use turndown.js, but let's keep it simple
-    var textarea = document.getElementById('mdTextarea');
-    if (!mdEditorReady) {
-        mdEditorReady = true;
-    }
-    
-    // Try to extract plain text from HTML for a cleaner MD editing experience
-    textarea.value = htmlToMarkdownHint(html);
-    updatePreview();
+    return ueInstance;
 }
 
 function switchToRich() {
     if (!mdMode) return;
     mdMode = false;
-    
-    // Get markdown from textarea, convert to HTML
-    var textarea = document.getElementById('mdTextarea');
-    var md = textarea.value;
-    var html = marked.parse(md);
-    
-    // Set HTML into UEditor
-    var ue = getUE();
-    ue.setContent(html);
-    
-    // Toggle buttons
-    document.getElementById('mdBtnMD').classList.remove('layui-btn-warm');
-    document.getElementById('mdBtnRich').classList.add('layui-btn-warm');
-    
-    // Show UEditor, hide MD editor
-    var ueContainer = document.getElementById('editor').parentNode;
-    var ueIframe = ueContainer.querySelector('.edui-editor');
-    if (ueIframe) ueIframe.style.display = '';
-    var siblings = ueContainer.children;
-    for (var i = 0; i < siblings.length; i++) {
-        if (siblings[i].id !== 'mdEditorWrap') {
-            siblings[i].style.display = '';
+
+    document.getElementById('mdBtnMD').classList.remove('active');
+    document.getElementById('mdBtnRich').classList.add('active');
+
+    // Get HTML from Vditor and set into UEditor
+    if (vditorInstance) {
+        var html = vditorInstance.getHTML();
+        var ue = getUE();
+        if (ue) {
+            try { ue.setContent(html); } catch(e) {}
         }
     }
-    
-    document.getElementById('mdEditorWrap').style.display = 'none';
+
+    // Toggle visibility
+    document.getElementById('vditorWrap').style.display = 'none';
+    var editorParent = document.getElementById('editor').parentNode;
+    var eduiEditor = editorParent.querySelector('.edui-editor');
+    if (eduiEditor) eduiEditor.style.display = '';
 }
 
-function htmlToMarkdownHint(html) {
-    // Simple: if content looks like it was written in markdown already, keep it
-    // Otherwise, return the HTML as a starting point
-    if (!html || html.trim() === '') return '';
-    // If it doesn't look like HTML (no tags), assume it's already MD
-    if (html.indexOf('<') === -1 || html.indexOf('<p>') === -1) return html;
-    // Return HTML - user can edit it as-is or rewrite in MD
-    return html;
-}
+function switchToMD() {
+    if (mdMode) return;
+    mdMode = true;
 
-function updatePreview() {
-    var md = document.getElementById('mdTextarea').value;
-    var preview = document.getElementById('mdPreview');
-    try {
-        preview.innerHTML = marked.parse(md);
-    } catch(e) {
-        preview.textContent = md;
+    document.getElementById('mdBtnRich').classList.remove('active');
+    document.getElementById('mdBtnMD').classList.add('active');
+
+    // Get HTML from UEditor
+    var html = '';
+    var ue = getUE();
+    if (ue) {
+        try { html = ue.getContent(); } catch(e) {}
     }
-}
 
-function mdInsertText(before, after) {
-    var ta = document.getElementById('mdTextarea');
-    var start = ta.selectionStart;
-    var end = ta.selectionEnd;
-    var selected = ta.value.substring(start, end);
-    var text = before + (selected || '文本') + (after || '');
-    ta.value = ta.value.substring(0, start) + text + ta.value.substring(end);
-    ta.focus();
-    ta.selectionStart = start + before.length;
-    ta.selectionEnd = start + before.length + (selected || '文本').length;
-    updatePreview();
+    // Toggle visibility
+    var editorParent = document.getElementById('editor').parentNode;
+    var eduiEditor = editorParent.querySelector('.edui-editor');
+    if (eduiEditor) eduiEditor.style.display = 'none';
+
+    var vditorWrap = document.getElementById('vditorWrap');
+    vditorWrap.style.display = 'block';
+
+    // Initialize Vditor (or reinitialize with content)
+    if (!vditorInstance) {
+        vditorInstance = new Vditor('vditorContainer', {
+            height: 500,
+            mode: 'ir', // Instant Rendering mode
+            theme: 'classic',
+            preview: {
+                theme: { current: 'light' },
+                markdown: {
+                    toc: true,
+                    mark: true,
+                    footnotes: true,
+                },
+                math: {
+                    engine: 'KaTeX',
+                },
+            },
+            toolbar: [
+                'emoji', 'headings', 'bold', 'italic', 'strike', '|',
+                'line', 'quote', 'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
+                'code', 'inline-code', 'table', '|',
+                'link', 'upload', '|',
+                'undo', 'redo', '|',
+                'edit-mode', 'fullscreen', 'preview', 'outline', '|',
+                {
+                    name: 'back-to-rich',
+                    tipPosition: 's',
+                    tip: '切回富文本',
+                    className: 'back-to-rich-btn',
+                    click: function() { switchToRich(); }
+                }
+            ],
+            toolbarConfig: {
+                pin: true,
+            },
+            counter: {
+                enable: true,
+                type: 'text',
+            },
+            typewriterMode: true,
+            value: '',
+            cache: { enable: false },
+            after: function() {
+                // Set content after Vditor is ready
+                if (html && html.trim()) {
+                    vditorInstance.setValue(html);
+                }
+            },
+            upload: {
+                url: '/admin/index/upload',
+                fieldName: 'file',
+                format: function(files, responseText) {
+                    var res = JSON.parse(responseText);
+                    if (res.code == 1 && res.data && res.data.length > 0) {
+                        var succMap = {};
+                        for (var i = 0; i < res.data.length; i++) {
+                            var path = res.data[i];
+                            var name = path.split('/').pop();
+                            succMap[name] = path;
+                        }
+                        return JSON.stringify({ msg: '', code: 0, data: { errFiles: [], succMap: succMap } });
+                    }
+                    return JSON.stringify({ msg: 'Upload failed', code: -1, data: { errFiles: files.map(function(f){return f.name}), succMap: {} } });
+                },
+            },
+        });
+    } else {
+        if (html && html.trim()) {
+            vditorInstance.setValue(html);
+        }
+    }
 }
 
 // Initialize
@@ -149,37 +151,21 @@ $(document).ready(function () {
     var ue = UE.getEditor('editor', {
         maximumWords: 30000
     });
-    
-    // Inject toggle buttons above editor
+
+    // Inject toggle bar
     var editorEl = document.getElementById('editor');
     if (editorEl) {
         var parent = editorEl.parentNode;
         var bar = document.createElement('div');
         bar.className = 'md-toggle-bar';
-        bar.innerHTML = '<button type="button" id="mdBtnRich" class="layui-btn layui-btn-sm layui-btn-warm" onclick="switchToRich()"><i class="fa fa-font"></i> 富文本</button>' +
-            '<button type="button" id="mdBtnMD" class="layui-btn layui-btn-sm layui-btn-primary" onclick="switchToMD()"><i class="fa fa-code"></i> Markdown</button>';
+        bar.innerHTML = '<button type="button" id="mdBtnRich" class="mode-btn active" onclick="switchToRich()"><i class="fa fa-font"></i> 富文本模式</button>' +
+            '<button type="button" id="mdBtnMD" class="mode-btn" onclick="switchToMD()"><i class="fa fa-code"></i> Markdown 模式</button>';
         parent.insertBefore(bar, parent.firstChild);
-        
-        // Create MD editor panel
+
+        // Create Vditor container
         var wrap = document.createElement('div');
-        wrap.id = 'mdEditorWrap';
-        wrap.className = 'md-editor-wrap';
-        wrap.innerHTML = '<div class="md-toolbar">' +
-            '<button type="button" onclick="mdInsertText(\'**\',\'**\')" title="粗体"><b>B</b></button>' +
-            '<button type="button" onclick="mdInsertText(\'*\',\'*\')" title="斜体"><i>I</i></button>' +
-            '<button type="button" onclick="mdInsertText(\'# \',\'\')" title="标题">H</button>' +
-            '<button type="button" onclick="mdInsertText(\'\\n- \',\'\')" title="列表">☰</button>' +
-            '<button type="button" onclick="mdInsertText(\'[链接文本](\',\')\')" title="链接">🔗</button>' +
-            '<button type="button" onclick="mdInsertText(\'![图片描述](\',\')\')" title="图片">🖼</button>' +
-            '<button type="button" onclick="mdInsertText(\'\\n> \',\'\')" title="引用">❝</button>' +
-            '<button type="button" onclick="mdInsertText(\'\\n```\\n\',\'\\n```\')" title="代码块">⟨/⟩</button>' +
-            '<button type="button" onclick="mdInsertText(\'| 列1 | 列2 |\\n|---|---|\\n| \',\' | 数据 |\\n\')" title="表格">▦</button>' +
-            '<span style="margin-left:auto;color:#999;font-size:12px;">实时预览 ↓</span>' +
-            '</div>' +
-            '<div class="md-panes">' +
-            '<textarea id="mdTextarea" class="md-input" placeholder="在这里输入 Markdown 内容..." oninput="updatePreview()"></textarea>' +
-            '<div id="mdPreview" class="md-preview"></div>' +
-            '</div>';
+        wrap.id = 'vditorWrap';
+        wrap.innerHTML = '<div id="vditorContainer"></div>';
         parent.insertBefore(wrap, bar.nextSibling);
     }
 });
@@ -189,31 +175,31 @@ $(document).ready(function () {
    <!-- 解决源码模式无法保存 -->
   function editor_init() {
       $('#edit').submit(function () {
-          if (mdMode) {
-              // In MD mode: convert markdown to HTML and set as content
-              var md = document.getElementById('mdTextarea').value;
-              var html = marked.parse(md);
-              // Set the HTML into UEditor's textarea
+          if (mdMode && vditorInstance) {
+              // MD mode: convert to HTML and set
+              var html = vditorInstance.getHTML();
               var ue = getUE();
-              ue.setContent(html);
-              // Also make sure UEditor's underlying textarea has the value
-              document.getElementById('editor').value = html;
+              if (ue) {
+                  try { ue.setContent(html); } catch(e) {}
+              }
+              // Also set the hidden textarea value
+              var ta = document.getElementById('editor');
+              if (ta) ta.value = html;
           } else {
               var editor = getUE();
-              if(editor.queryCommandState('source')==1) editor.execCommand('source');
+              if (editor && editor.queryCommandState('source')==1) editor.execCommand('source');
           }
       })
   }
- 
+
   <!-- 点击后添加到编辑器 -->
   $(".addedit").on("click",'img',function(){
-      if (mdMode) {
-          var img = $(this).attr("src");
-          mdInsertText('![图片](' + img + ')', '');
+      var img = $(this).attr("src");
+      if (mdMode && vditorInstance) {
+          vditorInstance.insertValue('![](' + img + ')');
       } else {
-          editor = getUE();
-          $img = $(this).attr("src");
-          editor.execCommand('inserthtml',"<img src='"+$img+"'>");
+          var editor = getUE();
+          if (editor) editor.execCommand('inserthtml', "<img src='" + img + "'>");
       }
    });
 
