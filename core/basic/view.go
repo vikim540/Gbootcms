@@ -19,7 +19,7 @@ var (
 )
 
 var (
-	reInclude         = regexp.MustCompile(`\{include\s+file='([^']+)'\}`)
+	reInclude         = regexp.MustCompile(`\{include\s+file=['"]?([^'"{}\s]+)['"]?\}`)
 	rePhpBlock        = regexp.MustCompile(`(?s)\{php\}.*?\{/php\}`)
 	reDynamicDollar   = regexp.MustCompile(`\{\$([\w]+)->\{\$([\w]+)->([\w]+)\}\}`)
 	reDynamicDollar2  = regexp.MustCompile(`\{\$([\w]+)->\$([\w]+)\}`)

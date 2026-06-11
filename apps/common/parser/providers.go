@@ -59,6 +59,62 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		}
 	})
 
+	// PbootCMS PHP 兼容: {pboot:sitepath}, {pboot:sitetitle}, {pboot:sitetplpath} 等
+	p.Register("pboot", func(tagName string, params map[string]string, inner string) string {
+		if ctx.Site == nil {
+			return ""
+		}
+		field := params["_field"]
+		switch field {
+		case "sitetitle":
+			return ctx.Site.Title
+		case "sitesubtitle":
+			return ctx.Site.Subtitle
+		case "sitekeywords":
+			return ctx.Site.Keywords
+		case "sitedescription":
+			return ctx.Site.Description
+		case "sitelogo":
+			return ctx.Site.Logo
+		case "siteicp":
+			return ctx.Site.ICP
+		case "sitecopyright":
+			return ctx.Site.Copyright
+		case "sitestatistical":
+			return ctx.Site.Statistical
+		case "sitetplpath":
+			return "/template/" + ctx.Site.Theme
+		case "sitepath":
+			return "/"
+		case "pagetitle":
+			if ctx.Content != nil {
+				return ctx.Content.Title
+			}
+			if ctx.Sort != nil {
+				return ctx.Sort.Name
+			}
+			return ctx.Site.Title
+		case "pagekeywords":
+			if ctx.Content != nil && ctx.Content.Keywords != "" {
+				return ctx.Content.Keywords
+			}
+			if ctx.Sort != nil && ctx.Sort.Keywords != "" {
+				return ctx.Sort.Keywords
+			}
+			return ctx.Site.Keywords
+		case "pagedescription":
+			if ctx.Content != nil && ctx.Content.Description != "" {
+				return ctx.Content.Description
+			}
+			if ctx.Sort != nil && ctx.Sort.Description != "" {
+				return ctx.Sort.Description
+			}
+			return ctx.Site.Description
+		default:
+			return ""
+		}
+	})
+
 	p.Register("company", func(tagName string, params map[string]string, inner string) string {
 		if ctx.Company == nil {
 			return ""

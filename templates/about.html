@@ -1,22 +1,11 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>{content:title} - {pboot:sitetitle}</title>
-    <meta name="keywords" content="{content:keywords}">
-    <meta name="description" content="{content:description}">
-    <link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body>
-    {include file=head.html}
+{include file=comm/head.html}
 
-    <div class="breadcrumb">{pboot:position separator=/}</div>
+{include file=comm/top.html}
 
-    <main class="main-content">
-        <h1>{content:title}</h1>
-        <div class="content-body">
-            {content:content}
-        </div>
-    </main>
+<div class="container pages">
+	{include file=comm/position.html}
+	<h2 class="text-center my-4 fs-sm-28 fs-24">{content:title}</h2>
+	<div class="content">{content:content}</div>
+</div>
 
-    {include file=foot.html}
+{include file=comm/foot.html}
