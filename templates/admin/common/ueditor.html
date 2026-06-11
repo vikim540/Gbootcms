@@ -5,27 +5,77 @@
 <!-- Vditor Markdown 编辑器 -->
 <link rel="stylesheet" href="{APP_THEME_DIR}/extend/vditor/index.css" />
 <script src="{APP_THEME_DIR}/extend/vditor/index.min.js"></script>
+<!-- Turndown.js: HTML → Markdown 反向转换 -->
+<script src="{APP_THEME_DIR}/extend/vditor/turndown.js"></script>
 
 <style>
 .md-toggle-bar { margin-bottom: 8px; display: flex; gap: 5px; align-items: center; }
-.md-toggle-bar .mode-btn { padding: 5px 16px; border: 1px solid #ddd; background: #fff; border-radius: 3px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.md-toggle-bar .mode-btn { padding: 5px 16px; border: 1px solid #ddd; background: #fff; border-radius: 3px; cursor: pointer; font-size: 13px; transition: all 0.15s; }
 .md-toggle-bar .mode-btn:hover { border-color: #1E9FFF; color: #1E9FFF; }
 .md-toggle-bar .mode-btn.active { background: #1E9FFF; color: #fff; border-color: #1E9FFF; }
 .md-toggle-bar .mode-btn i { margin-right: 4px; }
+.md-toggle-bar .md-hint { color: #999; font-size: 12px; margin-left: 10px; }
 #vditorWrap { display: none; }
-#vditorWrap .vditor { border: 1px solid #e6e6e6; border-radius: 4px; }
 </style>
+
+<!-- 隐藏字段：保存原始 Markdown 源码，下次编辑时可还原 -->
+<input type="hidden" id="md_source" name="md_source" value="" />
 
 <script>
 var mdMode = false;
 var vditorInstance = null;
-var ueInstance = null;
+var turndownService = null;
+
+// 初始化 turndown（HTML → Markdown 转换器）
+function getTurndown() {
+    if (!turndownService && typeof TurndownService !== 'undefined') {
+        turndownService = new TurndownService({
+            headingStyle: 'atx',
+            codeBlockStyle: 'fenced',
+            bulletListMarker: '-',
+            emDelimiter: '*',
+            strongDelimiter: '**',
+        });
+        // 保留表格
+        turndownService.addRule('tables', {
+            filter: 'table',
+            replacement: function(content, node) {
+                var rows = node.querySelectorAll('tr');
+                if (rows.length === 0) return '';
+                var md = '';
+                for (var i = 0; i < rows.length; i++) {
+                    var cells = rows[i].querySelectorAll('th, td');
+                    var line = '|';
+                    for (var j = 0; j < cells.length; j++) {
+                        line += ' ' + cells[j].textContent.trim().replace(/\|/g, '\\|') + ' |';
+                    }
+                    md += line + '\n';
+                    if (i === 0) {
+                        var sep = '|';
+                        for (var j = 0; j < cells.length; j++) sep += ' --- |';
+                        md += sep + '\n';
+                    }
+                }
+                return '\n\n' + md + '\n';
+            }
+        });
+    }
+    return turndownService;
+}
 
 function getUE() {
-    if (!ueInstance) {
-        try { ueInstance = UE.getEditor('editor'); } catch(e) {}
+    return UE.getEditor('editor');
+}
+
+// HTML → Markdown
+function htmlToMarkdown(html) {
+    if (!html || !html.trim()) return '';
+    var td = getTurndown();
+    if (td) {
+        try { return td.turndown(html); } catch(e) { /* fallback */ }
     }
-    return ueInstance;
+    // fallback: 简单去标签
+    return html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '');
 }
 
 function switchToRich() {
@@ -35,19 +85,18 @@ function switchToRich() {
     document.getElementById('mdBtnMD').classList.remove('active');
     document.getElementById('mdBtnRich').classList.add('active');
 
-    // Get HTML from Vditor and set into UEditor
+    // 把 Vditor 的 HTML 同步回 UEditor
     if (vditorInstance) {
         var html = vditorInstance.getHTML();
-        var ue = getUE();
-        if (ue) {
-            try { ue.setContent(html); } catch(e) {}
-        }
+        var md = vditorInstance.getValue();
+        try { getUE().setContent(html); } catch(e) {}
+        // 保存原始 MD 到隐藏字段
+        document.getElementById('md_source').value = md;
     }
 
-    // Toggle visibility
+    // 隐藏 Vditor，显示 UEditor
     document.getElementById('vditorWrap').style.display = 'none';
-    var editorParent = document.getElementById('editor').parentNode;
-    var eduiEditor = editorParent.querySelector('.edui-editor');
+    var eduiEditor = document.getElementById('editor').parentNode.querySelector('.edui-editor');
     if (eduiEditor) eduiEditor.style.display = '';
 }
 
@@ -58,111 +107,102 @@ function switchToMD() {
     document.getElementById('mdBtnRich').classList.remove('active');
     document.getElementById('mdBtnMD').classList.add('active');
 
-    // Get HTML from UEditor
-    var html = '';
-    var ue = getUE();
-    if (ue) {
-        try { html = ue.getContent(); } catch(e) {}
-    }
-
-    // Toggle visibility
-    var editorParent = document.getElementById('editor').parentNode;
-    var eduiEditor = editorParent.querySelector('.edui-editor');
+    // 隐藏 UEditor
+    var eduiEditor = document.getElementById('editor').parentNode.querySelector('.edui-editor');
     if (eduiEditor) eduiEditor.style.display = 'none';
 
-    var vditorWrap = document.getElementById('vditorWrap');
-    vditorWrap.style.display = 'block';
+    // 获取内容：优先用隐藏字段的原始 MD，否则从 UEditor HTML 反向转换
+    var md = document.getElementById('md_source').value;
+    if (!md) {
+        var html = '';
+        try { html = getUE().getContent(); } catch(e) {}
+        md = htmlToMarkdown(html);
+    }
 
-    // Initialize Vditor (or reinitialize with content)
+    // 显示 Vditor
+    document.getElementById('vditorWrap').style.display = 'block';
+
     if (!vditorInstance) {
-        vditorInstance = new Vditor('vditorContainer', {
-            height: 500,
-            mode: 'ir', // Instant Rendering mode
-            theme: 'classic',
-            preview: {
-                theme: { current: 'light' },
-                markdown: {
-                    toc: true,
-                    mark: true,
-                    footnotes: true,
-                },
-                math: {
-                    engine: 'KaTeX',
-                },
-            },
-            toolbar: [
-                'emoji', 'headings', 'bold', 'italic', 'strike', '|',
-                'line', 'quote', 'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
-                'code', 'inline-code', 'table', '|',
-                'link', 'upload', '|',
-                'undo', 'redo', '|',
-                'edit-mode', 'fullscreen', 'preview', 'outline', '|',
-                {
-                    name: 'back-to-rich',
-                    tipPosition: 's',
-                    tip: '切回富文本',
-                    className: 'back-to-rich-btn',
-                    click: function() { switchToRich(); }
-                }
-            ],
-            toolbarConfig: {
-                pin: true,
-            },
-            counter: {
-                enable: true,
-                type: 'text',
-            },
-            typewriterMode: true,
-            value: '',
-            cache: { enable: false },
-            after: function() {
-                // Set content after Vditor is ready
-                if (html && html.trim()) {
-                    vditorInstance.setValue(html);
-                }
-            },
-            upload: {
-                url: '/admin/index/upload',
-                fieldName: 'file',
-                format: function(files, responseText) {
-                    var res = JSON.parse(responseText);
-                    if (res.code == 1 && res.data && res.data.length > 0) {
-                        var succMap = {};
-                        for (var i = 0; i < res.data.length; i++) {
-                            var path = res.data[i];
-                            var name = path.split('/').pop();
-                            succMap[name] = path;
-                        }
-                        return JSON.stringify({ msg: '', code: 0, data: { errFiles: [], succMap: succMap } });
-                    }
-                    return JSON.stringify({ msg: 'Upload failed', code: -1, data: { errFiles: files.map(function(f){return f.name}), succMap: {} } });
-                },
-            },
-        });
+        initVditor(md);
     } else {
-        if (html && html.trim()) {
-            vditorInstance.setValue(html);
-        }
+        vditorInstance.setValue(md);
+        // 聚焦编辑器
+        try { vditorInstance.focus(); } catch(e) {}
     }
 }
 
-// Initialize
-$(document).ready(function () {
-    var ue = UE.getEditor('editor', {
-        maximumWords: 30000
+function initVditor(value) {
+    vditorInstance = new Vditor('vditorContainer', {
+        height: 520,
+        mode: 'ir',         // 即时渲染模式（最丝滑）
+        theme: 'classic',
+        outline: { enable: false },
+        preview: {
+            theme: { current: 'light' },
+            markdown: { toc: true, mark: true, footnotes: true },
+            math: { engine: 'KaTeX' },
+        },
+        toolbar: [
+            'emoji', 'headings', 'bold', 'italic', 'strike', '|',
+            'line', 'quote', 'list', 'ordered-list', 'check', '|',
+            'code', 'inline-code', 'table', '|',
+            'link', 'upload', '|',
+            'undo', 'redo', '|',
+            'fullscreen', 'preview', 'edit-mode',
+            {
+                name: 'back-to-rich',
+                tipPosition: 's',
+                tip: '切回富文本编辑器',
+                icon: '<svg viewBox="0 0 32 32" width="14" height="14"><path d="M4 6h24v2H4zm0 8h24v2H4zm0 8h24v2H4z" fill="currentColor"/></svg>',
+                click: function() { switchToRich(); }
+            }
+        ],
+        toolbarConfig: { pin: true },
+        counter: { enable: true, type: 'text' },
+        typewriterMode: false,
+        value: value || '',
+        cache: { enable: false },
+        upload: {
+            url: '/admin/index/upload',
+            fieldName: 'file',
+            format: function(files, responseText) {
+                var res = JSON.parse(responseText);
+                if (res.code == 1 && res.data && res.data.length > 0) {
+                    var succMap = {};
+                    for (var i = 0; i < res.data.length; i++) {
+                        var path = res.data[i];
+                        var name = path.split('/').pop();
+                        succMap[name] = path;
+                    }
+                    return JSON.stringify({ msg: '', code: 0, data: { errFiles: [], succMap: succMap } });
+                }
+                return JSON.stringify({ msg: 'Upload failed', code: -1, data: { errFiles: files.map(function(f){return f.name}), succMap: {} } });
+            },
+        },
+        after: function() {
+            // Vditor 就绪后聚焦
+            try { vditorInstance.focus(); } catch(e) {}
+        },
     });
+}
 
-    // Inject toggle bar
+// 初始化
+$(document).ready(function () {
+    var ue = UE.getEditor('editor', { maximumWords: 30000 });
+
+    // 注入模式切换按钮
     var editorEl = document.getElementById('editor');
     if (editorEl) {
         var parent = editorEl.parentNode;
         var bar = document.createElement('div');
         bar.className = 'md-toggle-bar';
-        bar.innerHTML = '<button type="button" id="mdBtnRich" class="mode-btn active" onclick="switchToRich()"><i class="fa fa-font"></i> 富文本模式</button>' +
-            '<button type="button" id="mdBtnMD" class="mode-btn" onclick="switchToMD()"><i class="fa fa-code"></i> Markdown 模式</button>';
+        bar.innerHTML =
+            '<button type="button" id="mdBtnRich" class="mode-btn active" onclick="switchToRich()"><i class="fa fa-font"></i> 富文本</button>' +
+            '<button type="button" id="mdBtnMD" class="mode-btn" onclick="switchToMD()"><i class="fa fa-code"></i> Markdown</button>' +
+            '<span class="md-hint">切换模式后内容自动同步，Markdown 保存时自动转 HTML</span>';
         parent.insertBefore(bar, parent.firstChild);
 
-        // Create Vditor container
+        // 创建 Vditor 容器
         var wrap = document.createElement('div');
         wrap.id = 'vditorWrap';
         wrap.innerHTML = '<div id="vditorContainer"></div>';
@@ -176,23 +216,20 @@ $(document).ready(function () {
   function editor_init() {
       $('#edit').submit(function () {
           if (mdMode && vditorInstance) {
-              // MD mode: convert to HTML and set
+              // MD 模式：Markdown → HTML 写入 UEditor
               var html = vditorInstance.getHTML();
-              var ue = getUE();
-              if (ue) {
-                  try { ue.setContent(html); } catch(e) {}
-              }
-              // Also set the hidden textarea value
-              var ta = document.getElementById('editor');
-              if (ta) ta.value = html;
+              var md = vditorInstance.getValue();
+              try { getUE().setContent(html); } catch(e) {}
+              // 同时保存原始 MD 到隐藏字段
+              document.getElementById('md_source').value = md;
           } else {
               var editor = getUE();
-              if (editor && editor.queryCommandState('source')==1) editor.execCommand('source');
+              if (editor && editor.queryCommandState('source') == 1) editor.execCommand('source');
           }
       })
   }
 
-  <!-- 点击后添加到编辑器 -->
+  <!-- 点击侧边栏图片添加到编辑器 -->
   $(".addedit").on("click",'img',function(){
       var img = $(this).attr("src");
       if (mdMode && vditorInstance) {
