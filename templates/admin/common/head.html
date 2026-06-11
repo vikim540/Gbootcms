@@ -88,7 +88,11 @@
       <ul class="layui-nav layui-nav-tree" id="nav" lay-shrink="all">
 	   {foreach $menu_tree(key,value)}
         <li class="layui-nav-item nav-item {if([$primary_menu_url]==$value->url)}layui-nav-itemed{/if}">
+          {if($value->son)}
           <a class="" href="javascript:;"><i class="fa [value->ico]" aria-hidden="true"></i>[value->name]</a>
+          {else}
+          <a class="" href="{url.'.$value->url.'}"><i class="fa [value->ico]" aria-hidden="true"></i>[value->name]</a>
+          {/if}
           <dl class="layui-nav-child">
 			{if($value->mcode=='M130')}
 				 {foreach $menu_models(key3,value3,num3)}

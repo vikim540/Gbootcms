@@ -5,20 +5,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"pbootcms-go/apps/admin/model"
+	"pbootcms-go/apps/common"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type MediaController struct {
-	DB *gorm.DB
-}
-
-func NewMediaController(db *gorm.DB) *MediaController {
-	return &MediaController{DB: db}
 }
 
 type MediaFile struct {
@@ -67,7 +63,7 @@ func (c *MediaController) Index(ctx *gin.Context) {
 		}
 	}
 
-	ctx.HTML(http.StatusOK, "admin/content/media.html", gin.H{
+	common.Render(ctx, "content/media.html", gin.H{
 		"Files":       items,
 		"Total":       len(items),
 		"TotalSize":   formatSize(totalSize),
@@ -87,12 +83,12 @@ func (c *MediaController) Mark(ctx *gin.Context) {
 	}
 	// Check if already marked
 	var count int64
-	c.DB.Table("ay_media_mark").Where("path = ?", path).Count(&count)
+	model.DB.Table("ay_media_mark").Where("path = ?", path).Count(&count)
 	if count > 0 {
-		c.DB.Table("ay_media_mark").Where("path = ?", path).Delete(nil)
+		model.DB.Table("ay_media_mark").Where("path = ?", path).Delete(nil)
 		ctx.JSON(http.StatusOK, gin.H{"code": 1, "msg": "已取消標記"})
 	} else {
-		c.DB.Table("ay_media_mark").Create(map[string]interface{}{
+		model.DB.Table("ay_media_mark").Create(map[string]interface{}{
 			"path":       path,
 			"create_time": time.Now(),
 		})
@@ -173,7 +169,7 @@ func (c *MediaController) getUsedPaths() map[string]bool {
 		Ico, Pics, Enclosure string
 	}
 	var contents []ContentRow
-	c.DB.Table("ay_content").Select("ico, pics, enclosure").Find(&contents)
+	model.DB.Table("ay_content").Select("ico, pics, enclosure").Find(&contents)
 	for _, row := range contents {
 		addPaths(used, row.Ico)
 		addPaths(used, row.Pics)
@@ -185,7 +181,7 @@ func (c *MediaController) getUsedPaths() map[string]bool {
 		Ico, Pic string
 	}
 	var sorts []SortRow
-	c.DB.Table("ay_content_sort").Select("ico, pic").Find(&sorts)
+	model.DB.Table("ay_content_sort").Select("ico, pic").Find(&sorts)
 	for _, row := range sorts {
 		addPaths(used, row.Ico)
 		addPaths(used, row.Pic)
@@ -194,7 +190,7 @@ func (c *MediaController) getUsedPaths() map[string]bool {
 	// Scan ay_slide: pic
 	type SlideRow struct{ Pic string }
 	var slides []SlideRow
-	c.DB.Table("ay_slide").Select("pic").Find(&slides)
+	model.DB.Table("ay_slide").Select("pic").Find(&slides)
 	for _, row := range slides {
 		addPaths(used, row.Pic)
 	}
@@ -202,7 +198,7 @@ func (c *MediaController) getUsedPaths() map[string]bool {
 	// Scan ay_link: logo
 	type LinkRow struct{ Logo string }
 	var links []LinkRow
-	c.DB.Table("ay_link").Select("logo").Find(&links)
+	model.DB.Table("ay_link").Select("logo").Find(&links)
 	for _, row := range links {
 		addPaths(used, row.Logo)
 	}
@@ -212,7 +208,7 @@ func (c *MediaController) getUsedPaths() map[string]bool {
 		Weixin, License string
 	}
 	var companies []CompanyRow
-	c.DB.Table("ay_company").Select("weixin, license").Find(&companies)
+	model.DB.Table("ay_company").Select("weixin, license").Find(&companies)
 	for _, row := range companies {
 		addPaths(used, row.Weixin)
 		addPaths(used, row.License)
@@ -221,7 +217,7 @@ func (c *MediaController) getUsedPaths() map[string]bool {
 	// Scan ay_site: logo
 	type SiteRow struct{ Logo string }
 	var sites []SiteRow
-	c.DB.Table("ay_site").Select("logo").Find(&sites)
+	model.DB.Table("ay_site").Select("logo").Find(&sites)
 	for _, row := range sites {
 		addPaths(used, row.Logo)
 	}
@@ -229,7 +225,7 @@ func (c *MediaController) getUsedPaths() map[string]bool {
 	// Scan content HTML for image src references
 	type ContentHTML struct{ Content string }
 	var htmls []ContentHTML
-	c.DB.Table("ay_content").Select("content").Find(&htmls)
+	model.DB.Table("ay_content").Select("content").Find(&htmls)
 	for _, row := range htmls {
 		// Extract src="..." patterns
 		idx := 0
@@ -264,14 +260,14 @@ func (c *MediaController) getUsedPaths() map[string]bool {
 func (c *MediaController) getMarkedPaths() map[string]bool {
 	marked := make(map[string]bool)
 	// Auto-create table if not exists
-	c.DB.Exec(`CREATE TABLE IF NOT EXISTS ay_media_mark (
+	model.DB.Exec(`CREATE TABLE IF NOT EXISTS ay_media_mark (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		path TEXT NOT NULL UNIQUE,
 		create_time DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`)
 	type MarkRow struct{ Path string }
 	var rows []MarkRow
-	c.DB.Table("ay_media_mark").Select("path").Find(&rows)
+	model.DB.Table("ay_media_mark").Select("path").Find(&rows)
 	for _, r := range rows {
 		marked[r.Path] = true
 	}

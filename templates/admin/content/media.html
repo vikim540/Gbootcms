@@ -54,7 +54,7 @@
 
         <div class="media-grid">
           {% for f in Files %}
-          <div class="media-item {% if f.Marked %}marked{% elseif f.Used %}used{% else %}unused{% endif %}" 
+          <div class="media-item {% if f.Marked %}marked{% elif f.Used %}used{% else %}unused{% endif %}" 
                data-category="{{ f.Category }}" data-used="{{ f.Used }}" data-marked="{{ f.Marked }}" 
                data-path="{{ f.Path }}" onclick="toggleMark(this)">
             {% if f.Category == "image" %}
@@ -68,7 +68,7 @@
             <div class="info">{{ f.SizeStr }} | {{ f.ModTime }}</div>
             {% if f.Marked %}
             <span class="badge badge-marked">保护</span>
-            {% elseif f.Used %}
+            {% elif f.Used %}
             <span class="badge badge-used">已用</span>
             {% else %}
             <span class="badge badge-unused">未用</span>
