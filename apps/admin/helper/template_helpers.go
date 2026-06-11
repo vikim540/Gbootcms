@@ -284,6 +284,33 @@ func snakeToPascal(s string) string {
 		"ip": "IP", "id": "ID", "url": "URL", "api": "API",
 		"db": "DB", "cms": "CMS", "html": "HTML",
 	}
+	// PbootCMS compound words without underscore separator
+	compoundMap := map[string]string{
+		"contenttpl":  "ContentTpl",
+		"listtpl":     "ListTpl",
+		"urlname":     "URLName",
+		"outlink":     "Outlink",
+		"keywords":    "Keywords",
+		"createuser":  "CreateUser",
+		"updateuser":  "UpdateUser",
+		"createtime":  "CreateTime",
+		"updatetime":  "UpdateTime",
+		"create_user": "CreateUser",
+		"update_user": "UpdateUser",
+		"create_time": "CreateTime",
+		"update_time": "UpdateTime",
+		"subname":     "Subname",
+		"gnote":       "Gnote",
+		"gtype":       "GType",
+		"sortselect":  "SortSelect",
+		"menutree":    "MenuTree",
+		"menumodels":  "MenuModels",
+		"sitedir":     "SiteDir",
+		"sitetitle":   "SiteTitle",
+	}
+	if v, ok := compoundMap[strings.ToLower(s)]; ok {
+		return v
+	}
 	parts := strings.Split(s, "_")
 	var result string
 	for _, p := range parts {
