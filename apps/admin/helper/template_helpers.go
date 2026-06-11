@@ -173,13 +173,16 @@ func AddSonField(sorts []model.ContentSort) []map[string]interface{} {
 // Uses a scode→name mapping from the sorts list.
 func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[string]interface{} {
 	sortMap := make(map[string]string)
+	sortURLMap := make(map[string]string)
 	for _, s := range sorts {
 		sortMap[s.Scode] = s.Name
+		sortURLMap[s.Scode] = s.URLName
 	}
 	result := make([]map[string]interface{}, len(contents))
 	for i, c := range contents {
 		m := StructToMap(c)
 		m["Sortname"] = sortMap[c.Scode]
+		m["SortUrlname"] = sortURLMap[c.Scode]
 		// Format date for display
 		if !c.Date.IsZero() {
 			m["Date"] = c.Date.Format("2006-01-02")
