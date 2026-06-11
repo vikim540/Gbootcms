@@ -95,11 +95,30 @@
 			                     	<input type="text" name="title" required lay-verify="required" value="{{ Content.Title }}" placeholder="请输入内容标题" class="layui-input">
 			                     </div>
 			                </div>
-
+			                
+			                {% for ext in Extfield %}
+			                {% if ext.Type == "1" %}
+			                <div class="layui-form-item">
+			                    <label class="layui-form-label">{{ ext.Description }}</label>
+			                    <div class="layui-input-block">
+			                        <input type="text" name="{{ ext.Name }}" value="" placeholder="请输入{{ ext.Description }}" class="layui-input">
+			                    </div>
+			                </div>
+			                {% endif %}
+			                {% if ext.Type == "2" %}
+			                <div class="layui-form-item">
+			                    <label class="layui-form-label">{{ ext.Description }}</label>
+			                    <div class="layui-input-block">
+			                        <textarea name="{{ ext.Name }}" class="layui-textarea" placeholder="请输入{{ ext.Description }}"></textarea>
+			                    </div>
+			                </div>
+			                {% endif %}
+			                {% endfor %}
+			                
 			                <div class="layui-form-item">
 			                     <label class="layui-form-label">文章内容</label>
 			                     <div class="layui-input-block">
-			                     	<textarea id="content_editor" name="content" style="width:100%;height:400px;">{{ Content.Content }}</textarea>
+			                     	<script type="text/plain" id="editor" name="content" style="width:100%;height:400px;">{{ Content.Content }}</script>
 			                     </div>
 			                </div>
 
@@ -107,6 +126,10 @@
 			                     <label class="layui-form-label">缩略图</label>
 			                     <div class="layui-input-inline">
 			                     	<input type="text" name="ico" id="ico" value="{{ Content.Ico }}" placeholder="请上传缩略图" class="layui-input">
+			                     </div>
+			                     <button type="button" class="layui-btn upload watermark" data-des="ico">上传图片</button>
+			                     <div id="ico_box" class="pic addedit">
+			                     {% if Content.Ico %}<dl><dt><img src="{{ SiteDir }}{{ Content.Ico }}" data-url="{{ Content.Ico }}"></dt><dd>删除</dd></dl>{% endif %}
 			                     </div>
 			                </div>
 
@@ -155,6 +178,41 @@
 			                </div>
 
 			                <div class="layui-form-item">
+			                     <label class="layui-form-label">轮播多图</label>
+			                     <div class="layui-input-inline" style="width:auto;">
+			                     	<input type="hidden" name="pics" id="pics" value="{{ Content.Pics }}">
+			                     </div>
+			                     <button type="button" class="layui-btn uploads watermark" data-des="pics">上传多图</button>
+			                     <div id="pics_box" class="pic">
+			                     {% for pic in PicsList %}
+			                     <dl><dt><img src="{{ SiteDir }}{{ pic }}" data-url="{{ pic }}"></dt><dd>删除</dd><dt><input type='text' name='picstitle[]' value="" style='width:95%' /></dt></dl>
+			                     {% endfor %}
+			                     </div>
+			                </div>
+			                
+			                <div class="layui-form-item">
+			                     <label class="layui-form-label">时间</label>
+			                     <div class="layui-input-inline">
+			                     	<input type="text" name="date" value="{{ Content.Date|date:'Y-m-d H:i:s' }}" placeholder="请选择时间" class="layui-input datetime" readonly>
+			                     </div>
+			                </div>
+			                
+			                <div class="layui-form-item">
+			                     <label class="layui-form-label">标题颜色</label>
+			                     <div class="layui-input-inline">
+			                     	<input type="text" name="titlecolor" id="titlecolor" value="{{ Content.TitleColor }}" placeholder="请选择标题颜色" class="layui-input jscolor {hash:true}">
+			                     </div>
+			                </div>
+			                
+			                <div class="layui-form-item">
+			                     <label class="layui-form-label">附件</label>
+			                     <div class="layui-input-inline">
+			                     	<input type="text" name="enclosure" id="enclosure" value="{{ Content.Enclosure }}" placeholder="请上传附件" class="layui-input">
+			                     </div>
+			                     <button type="button" class="layui-btn file" data-des="enclosure">上传附件</button>
+			                </div>
+			                
+			                <div class="layui-form-item">
 			                     <label class="layui-form-label">状态</label>
 			                     <div class="layui-input-block">
 			                     	<input type="radio" name="status" value="1" title="显示" {% if Content.Status == 1 %}checked="checked"{% endif %}>
@@ -178,6 +236,7 @@
 	{% endif %}
 </div>
 
+<script src="{APP_THEME_DIR}/js/jscolor.js"></script>
 <script src="{APP_THEME_DIR}/layui/layui.js"></script>
 <script>
 layui.use(['form', 'element', 'layer'], function(){
@@ -185,5 +244,6 @@ layui.use(['form', 'element', 'layer'], function(){
     var element = layui.element;
 });
 </script>
+{include file='common/ueditor.html'}
 
 {include file='common/foot.html'}

@@ -4,6 +4,7 @@ import (
 	"pbootcms-go/apps/admin/helper"
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -46,6 +47,17 @@ func (sg *SingleController) Index(c *gin.Context) {
 		"mcode":      mcode,
 		"model_name": "栏目",
 	})
+}
+
+// IndexCatchAll handles /content/single/index/*action paths like /mcode/1
+// that come from the NoRoute rewriter when users visit /admin/single/index/mcode/1
+func (sg *SingleController) IndexCatchAll(c *gin.Context) {
+	action := strings.TrimPrefix(c.Param("action"), "/")
+	if strings.HasPrefix(action, "mcode/") {
+		mcode := strings.TrimPrefix(action, "mcode/")
+		c.Request.URL.RawQuery = "mcode=" + mcode
+	}
+	sg.Index(c)
 }
 
 // Mod - Modify single page
@@ -105,6 +117,9 @@ func (sg *SingleController) Mod(c *gin.Context) {
 		if v := c.PostForm("status"); v != "" {
 			updates["status"] = helper.ParseInt(v)
 		}
+		if v := c.PostForm("picstitle"); v != "" {
+			updates["picstitle"] = v
+		}
 		model.DB.Model(&model.Content{}).Where("id = ?", id).Updates(updates)
 		sg.JSONOKMsg(c, "Modified successfully")
 		return
@@ -125,7 +140,9 @@ func (sg *SingleController) Mod(c *gin.Context) {
 		"content":    doc,
 		"mod":        true,
 		"model_name": "单页",
+		"mcode":      mcode,
 		"extfield":   helper.GetExtFieldsByMcode(mcode),
+		"picsList":   splitPics(doc.Pics),
 	})
 }
 
@@ -138,4 +155,20 @@ func (sg *SingleController) Del(c *gin.Context) {
 	}
 	model.DB.Delete(&model.Content{}, idStr)
 	sg.JSONOKMsg(c, "Deleted successfully")
+}
+
+// splitPics splits comma-separated pics string into a slice for template rendering.
+func splitPics(pics string) []string {
+	if pics == "" {
+		return nil
+	}
+	parts := strings.Split(pics, ",")
+	var result []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }

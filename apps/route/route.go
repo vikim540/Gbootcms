@@ -46,6 +46,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 
 		sg := &content.SingleController{}
 		adminGroup.GET("/content/single/index", sg.Index)
+		adminGroup.GET("/content/single/index/*action", sg.IndexCatchAll)
 		adminGroup.Any("/content/single/mod/*action", sg.Mod)
 		adminGroup.POST("/content/single/del", sg.Del)
 
