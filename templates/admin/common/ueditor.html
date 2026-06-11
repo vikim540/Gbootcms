@@ -2,35 +2,221 @@
 <script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/ueditor/ueditor.config.js"></script>
 <script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/ueditor/ueditor.all.js"> </script>
 <script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/ueditor/lang/zh-cn/zh-cn.js"></script>
-<script>
-//初始化编辑器
-$(document).ready(function (e) {
-	var ue = UE.getEditor('editor',{
-		maximumWords:30000 
-	});
-})
-</script>
+<!-- Markdown 支持 -->
+<script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/markdown/marked.min.js"></script>
 
+<style>
+.md-toggle-bar { margin-bottom: 8px; }
+.md-toggle-bar .layui-btn { margin-right: 5px; }
+.md-toggle-bar .layui-btn.layui-btn-warm { background-color: #FFB800; }
+.md-editor-wrap { display: none; border: 1px solid #e6e6e6; border-radius: 4px; overflow: hidden; }
+.md-editor-wrap .md-toolbar { background: #fafafa; border-bottom: 1px solid #e6e6e6; padding: 6px 10px; display: flex; gap: 5px; align-items: center; }
+.md-editor-wrap .md-toolbar button { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 3px 10px; cursor: pointer; font-size: 13px; }
+.md-editor-wrap .md-toolbar button:hover { background: #f0f0f0; border-color: #bbb; }
+.md-editor-wrap .md-panes { display: flex; height: 500px; }
+.md-editor-wrap .md-input { flex: 1; border: none; outline: none; resize: none; padding: 12px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.6; border-right: 1px solid #e6e6e6; }
+.md-editor-wrap .md-preview { flex: 1; padding: 12px; overflow-y: auto; font-size: 14px; line-height: 1.8; }
+.md-editor-wrap .md-preview h1 { font-size: 24px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+.md-editor-wrap .md-preview h2 { font-size: 20px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+.md-editor-wrap .md-preview h3 { font-size: 17px; }
+.md-editor-wrap .md-preview code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 13px; }
+.md-editor-wrap .md-preview pre { background: #282c34; color: #abb2bf; padding: 14px; border-radius: 6px; overflow-x: auto; }
+.md-editor-wrap .md-preview pre code { background: none; color: inherit; padding: 0; }
+.md-editor-wrap .md-preview blockquote { border-left: 4px solid #ddd; padding: 8px 16px; color: #666; margin: 10px 0; background: #fafafa; }
+.md-editor-wrap .md-preview table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+.md-editor-wrap .md-preview th, .md-editor-wrap .md-preview td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+.md-editor-wrap .md-preview th { background: #f5f5f5; }
+.md-editor-wrap .md-preview img { max-width: 100%; }
+.md-editor-wrap .md-preview a { color: #1E9FFF; }
+</style>
+
+<script>
+var mdMode = false;
+var mdEditorReady = false;
+
+function getUE() {
+    return UE.getEditor('editor');
+}
+
+function switchToMD() {
+    if (mdMode) return;
+    mdMode = true;
+    
+    // Get HTML from UEditor
+    var ue = getUE();
+    var html = ue.getContent();
+    
+    // Hide UEditor, show MD editor
+    var ueContainer = document.getElementById('editor').parentNode;
+    var ueIframe = ueContainer.querySelector('.edui-editor');
+    
+    // Toggle buttons
+    document.getElementById('mdBtnRich').classList.remove('layui-btn-warm');
+    document.getElementById('mdBtnMD').classList.add('layui-btn-warm');
+    
+    // Hide UEditor
+    if (ueIframe) ueIframe.style.display = 'none';
+    // Also hide the script element area
+    var siblings = ueContainer.children;
+    for (var i = 0; i < siblings.length; i++) {
+        if (siblings[i].id !== 'mdEditorWrap' && siblings[i].classList && !siblings[i].classList.contains('md-toggle-bar')) {
+            siblings[i].style.display = 'none';
+        }
+    }
+    
+    // Show MD editor
+    var wrap = document.getElementById('mdEditorWrap');
+    wrap.style.display = 'block';
+    
+    // Convert HTML to markdown-ish plain text (simple approach: just use the HTML as-is for editing)
+    // For a better experience, we could use turndown.js, but let's keep it simple
+    var textarea = document.getElementById('mdTextarea');
+    if (!mdEditorReady) {
+        mdEditorReady = true;
+    }
+    
+    // Try to extract plain text from HTML for a cleaner MD editing experience
+    textarea.value = htmlToMarkdownHint(html);
+    updatePreview();
+}
+
+function switchToRich() {
+    if (!mdMode) return;
+    mdMode = false;
+    
+    // Get markdown from textarea, convert to HTML
+    var textarea = document.getElementById('mdTextarea');
+    var md = textarea.value;
+    var html = marked.parse(md);
+    
+    // Set HTML into UEditor
+    var ue = getUE();
+    ue.setContent(html);
+    
+    // Toggle buttons
+    document.getElementById('mdBtnMD').classList.remove('layui-btn-warm');
+    document.getElementById('mdBtnRich').classList.add('layui-btn-warm');
+    
+    // Show UEditor, hide MD editor
+    var ueContainer = document.getElementById('editor').parentNode;
+    var ueIframe = ueContainer.querySelector('.edui-editor');
+    if (ueIframe) ueIframe.style.display = '';
+    var siblings = ueContainer.children;
+    for (var i = 0; i < siblings.length; i++) {
+        if (siblings[i].id !== 'mdEditorWrap') {
+            siblings[i].style.display = '';
+        }
+    }
+    
+    document.getElementById('mdEditorWrap').style.display = 'none';
+}
+
+function htmlToMarkdownHint(html) {
+    // Simple: if content looks like it was written in markdown already, keep it
+    // Otherwise, return the HTML as a starting point
+    if (!html || html.trim() === '') return '';
+    // If it doesn't look like HTML (no tags), assume it's already MD
+    if (html.indexOf('<') === -1 || html.indexOf('<p>') === -1) return html;
+    // Return HTML - user can edit it as-is or rewrite in MD
+    return html;
+}
+
+function updatePreview() {
+    var md = document.getElementById('mdTextarea').value;
+    var preview = document.getElementById('mdPreview');
+    try {
+        preview.innerHTML = marked.parse(md);
+    } catch(e) {
+        preview.textContent = md;
+    }
+}
+
+function mdInsertText(before, after) {
+    var ta = document.getElementById('mdTextarea');
+    var start = ta.selectionStart;
+    var end = ta.selectionEnd;
+    var selected = ta.value.substring(start, end);
+    var text = before + (selected || '文本') + (after || '');
+    ta.value = ta.value.substring(0, start) + text + ta.value.substring(end);
+    ta.focus();
+    ta.selectionStart = start + before.length;
+    ta.selectionEnd = start + before.length + (selected || '文本').length;
+    updatePreview();
+}
+
+// Initialize
+$(document).ready(function () {
+    var ue = UE.getEditor('editor', {
+        maximumWords: 30000
+    });
+    
+    // Inject toggle buttons above editor
+    var editorEl = document.getElementById('editor');
+    if (editorEl) {
+        var parent = editorEl.parentNode;
+        var bar = document.createElement('div');
+        bar.className = 'md-toggle-bar';
+        bar.innerHTML = '<button type="button" id="mdBtnRich" class="layui-btn layui-btn-sm layui-btn-warm" onclick="switchToRich()"><i class="fa fa-font"></i> 富文本</button>' +
+            '<button type="button" id="mdBtnMD" class="layui-btn layui-btn-sm layui-btn-primary" onclick="switchToMD()"><i class="fa fa-code"></i> Markdown</button>';
+        parent.insertBefore(bar, parent.firstChild);
+        
+        // Create MD editor panel
+        var wrap = document.createElement('div');
+        wrap.id = 'mdEditorWrap';
+        wrap.className = 'md-editor-wrap';
+        wrap.innerHTML = '<div class="md-toolbar">' +
+            '<button type="button" onclick="mdInsertText(\'**\',\'**\')" title="粗体"><b>B</b></button>' +
+            '<button type="button" onclick="mdInsertText(\'*\',\'*\')" title="斜体"><i>I</i></button>' +
+            '<button type="button" onclick="mdInsertText(\'# \',\'\')" title="标题">H</button>' +
+            '<button type="button" onclick="mdInsertText(\'\\n- \',\'\')" title="列表">☰</button>' +
+            '<button type="button" onclick="mdInsertText(\'[链接文本](\',\')\')" title="链接">🔗</button>' +
+            '<button type="button" onclick="mdInsertText(\'![图片描述](\',\')\')" title="图片">🖼</button>' +
+            '<button type="button" onclick="mdInsertText(\'\\n> \',\'\')" title="引用">❝</button>' +
+            '<button type="button" onclick="mdInsertText(\'\\n```\\n\',\'\\n```\')" title="代码块">⟨/⟩</button>' +
+            '<button type="button" onclick="mdInsertText(\'| 列1 | 列2 |\\n|---|---|\\n| \',\' | 数据 |\\n\')" title="表格">▦</button>' +
+            '<span style="margin-left:auto;color:#999;font-size:12px;">实时预览 ↓</span>' +
+            '</div>' +
+            '<div class="md-panes">' +
+            '<textarea id="mdTextarea" class="md-input" placeholder="在这里输入 Markdown 内容..." oninput="updatePreview()"></textarea>' +
+            '<div id="mdPreview" class="md-preview"></div>' +
+            '</div>';
+        parent.insertBefore(wrap, bar.nextSibling);
+    }
+});
+</script>
 
 <script type="text/javascript">
    <!-- 解决源码模式无法保存 -->
   function editor_init() {
       $('#edit').submit(function () {
-          editor=UE.getEditor('editor');
-          if(editor.queryCommandState('source')==1) editor.execCommand('source');
+          if (mdMode) {
+              // In MD mode: convert markdown to HTML and set as content
+              var md = document.getElementById('mdTextarea').value;
+              var html = marked.parse(md);
+              // Set the HTML into UEditor's textarea
+              var ue = getUE();
+              ue.setContent(html);
+              // Also make sure UEditor's underlying textarea has the value
+              document.getElementById('editor').value = html;
+          } else {
+              var editor = getUE();
+              if(editor.queryCommandState('source')==1) editor.execCommand('source');
+          }
       })
   }
  
   <!-- 点击后添加到编辑器 -->
   $(".addedit").on("click",'img',function(){
-	    editor=UE.getEditor('editor');
-		$img = $(this).attr("src");
-		editor.execCommand('inserthtml',"<img src='"+$img+"'>");
+      if (mdMode) {
+          var img = $(this).attr("src");
+          mdInsertText('![图片](' + img + ')', '');
+      } else {
+          editor = getUE();
+          $img = $(this).attr("src");
+          editor.execCommand('inserthtml',"<img src='"+$img+"'>");
+      }
    });
 
 </script>
 
 <script type="text/javascript">editor_init();</script>
-
-
-
