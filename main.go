@@ -35,7 +35,7 @@ func main() {
 	// Seed initial data (admin user, menus, configs, etc.)
 	seed.Init()
 
-	basic.InitViewEngine(cfg.App.TemplateDir)
+	basic.InitViewEngine(cfg.App.TemplateDir, cfg.App.AdminTemplateDir)
 
 	tagParser := parser.New()
 	store, err := parser.NewTemplateStore(cfg.App.TemplateDir, tagParser)

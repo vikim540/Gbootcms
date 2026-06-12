@@ -3,6 +3,7 @@
     "debug": true,
     "port": 8080,
     "template_dir": "templates",
+    "admin_template_dir": "apps/admin/view",
     "static_dir": "static",
     "runtime_dir": "runtime",
     "url_suffix": ".html",

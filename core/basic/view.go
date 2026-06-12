@@ -12,10 +12,11 @@ import (
 )
 
 var (
-	viewOnce     sync.Once
-	viewDir      string
+	viewOnce      sync.Once
+	viewDir       string
+	adminViewDir  string
 	templateCache map[string]*pongo2.Template
-	viewMu       sync.RWMutex
+	viewMu        sync.RWMutex
 )
 
 var (
@@ -39,9 +40,10 @@ var (
 	reBracketVar      = regexp.MustCompile(`\[\$([\w]+)\]`)
 )
 
-func InitViewEngine(dir string) {
+func InitViewEngine(dir string, adminDir string) {
 	viewOnce.Do(func() {
 		viewDir = dir
+		adminViewDir = adminDir
 		templateCache = make(map[string]*pongo2.Template)
 		registerPongo2Filters()
 	})
@@ -92,7 +94,8 @@ func GetAdminView(tplPath string) (*pongo2.Template, error) {
 }
 
 func compileAdminView(tplPath string) (*pongo2.Template, error) {
-	content, err := os.ReadFile(filepath.Join(viewDir, tplPath))
+	// 使用adminViewDir加载后台模板
+	content, err := os.ReadFile(filepath.Join(adminViewDir, tplPath))
 	if err != nil {
 		return nil, fmt.Errorf("读取模板失败 %s: %w", tplPath, err)
 	}
@@ -124,7 +127,8 @@ func resolveViewIncludes(content string) string {
 				return match
 			}
 			includePath := subs[1]
-			fullPath := filepath.Join(viewDir, "admin", includePath)
+			// 使用adminViewDir查找包含文件
+			fullPath := filepath.Join(adminViewDir, includePath)
 			data, err := os.ReadFile(fullPath)
 			if err != nil {
 				return fmt.Sprintf("<!-- include error: %s -->", includePath)
