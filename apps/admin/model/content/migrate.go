@@ -20,5 +20,6 @@ func AutoMigrate() {
 		&Site{},
 		&Slide{},
 		&Tags{},
+		&MediaMark{},
 	)
 }

@@ -62,6 +62,7 @@ type FormField = content.FormField
 type Label = content.Label
 type ContentModel = content.Model
 type ExtField = content.ExtField
+type MediaMark = content.MediaMark
 
 // ──────────────────────────────────────────────
 // Type aliases – member sub-package

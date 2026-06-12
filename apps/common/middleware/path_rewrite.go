@@ -32,6 +32,7 @@ var pbootToGoRouteMap = map[string]string{
 	"/admin/link":    "/admin/content/link",
 	"/admin/form":    "/admin/content/form",
 	"/admin/tags":    "/admin/content/tags",
+	"/admin/media":   "/admin/content/media",
 
 	// 会员中心（M1001）
 	"/admin/membergroup":   "/admin/member/group",

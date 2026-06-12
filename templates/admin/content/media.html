@@ -1,26 +1,51 @@
 {include file='common/head.html'}
 <style>
-.media-grid { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px; }
-.media-item { width: 150px; border: 2px solid #eee; border-radius: 4px; padding: 5px; position: relative; cursor: pointer; transition: all 0.2s; }
-.media-item:hover { border-color: #1E9FFF; }
-.media-item.used { border-color: #5FB878; }
-.media-item.marked { border-color: #FFB800; }
-.media-item.unused { border-color: #FF5722; }
-.media-item img { width: 100%; height: 100px; object-fit: cover; border-radius: 2px; }
-.media-item .info { font-size: 11px; color: #666; padding: 3px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.media-item .badge { position: absolute; top: 3px; right: 3px; font-size: 10px; padding: 1px 5px; border-radius: 3px; }
-.badge-used { background: #5FB878; color: #fff; }
-.badge-unused { background: #FF5722; color: #fff; }
-.badge-marked { background: #FFB800; color: #fff; }
-.stats-bar { display: flex; gap: 20px; padding: 15px; background: #fafafa; border-bottom: 1px solid #eee; align-items: center; flex-wrap: wrap; }
-.stats-bar .stat { font-size: 14px; }
-.stats-bar .stat b { font-size: 18px; }
+.media-toolbar { display: flex; gap: 15px; padding: 12px 15px; background: #fafafa; border-bottom: 1px solid #eee; align-items: center; flex-wrap: wrap; }
+.media-toolbar .stat { font-size: 13px; color: #666; }
+.media-toolbar .stat b { font-size: 16px; margin: 0 2px; }
+.stat-total b { color: #1E9FFF; }
 .stat-used b { color: #5FB878; }
 .stat-unused b { color: #FF5722; }
 .stat-marked b { color: #FFB800; }
-.stat-total b { color: #1E9FFF; }
-.filter-bar { padding: 10px 15px; border-bottom: 1px solid #eee; }
-.filter-bar .layui-btn { margin-right: 5px; }
+.media-toolbar .toolbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+.filter-bar { padding: 10px 15px; border-bottom: 1px solid #eee; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.filter-bar .layui-btn { margin: 0; }
+.filter-bar .active { background: #1E9FFF !important; color: #fff !important; border-color: #1E9FFF !important; }
+.search-input { width: 200px; height: 30px; border: 1px solid #e6e6e6; border-radius: 2px; padding: 0 10px; font-size: 13px; outline: none; transition: border-color .2s; }
+.search-input:focus { border-color: #1E9FFF; }
+
+.media-grid { display: flex; flex-wrap: wrap; gap: 12px; padding: 15px; min-height: 200px; position: relative; }
+.media-grid.loading::after { content: ''; position: absolute; top: 50%; left: 50%; width: 32px; height: 32px; margin: -16px 0 0 -16px; border: 3px solid #e6e6e6; border-top-color: #1E9FFF; border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.media-empty { width: 100%; text-align: center; padding: 60px 0; color: #999; font-size: 14px; }
+
+.media-item { width: 148px; border: 2px solid #e6e6e6; border-radius: 6px; overflow: hidden; position: relative; cursor: default; transition: all .2s; background: #fff; }
+.media-item:hover { border-color: #1E9FFF; box-shadow: 0 2px 8px rgba(30,159,255,.15); }
+.media-item.is-used { border-color: #5FB878; }
+.media-item.is-marked { border-color: #FFB800; }
+.media-item.is-unused { border-color: #FF5722; }
+
+.media-thumb { width: 100%; height: 110px; overflow: hidden; background: #f5f5f5; display: flex; align-items: center; justify-content: center; position: relative; }
+.media-thumb img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+.media-thumb .file-icon { font-size: 36px; color: #bbb; }
+
+.media-info { padding: 6px 8px; }
+.media-info .name { font-size: 11px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 16px; }
+.media-info .meta { font-size: 10px; color: #999; line-height: 14px; margin-top: 2px; }
+
+.media-badge { position: absolute; top: 5px; right: 5px; font-size: 10px; padding: 1px 6px; border-radius: 3px; color: #fff; line-height: 16px; }
+.badge-used { background: #5FB878; }
+.badge-unused { background: #FF5722; }
+.badge-marked { background: #FFB800; }
+
+.mark-btn { position: absolute; bottom: 5px; right: 5px; width: 26px; height: 26px; border-radius: 50%; border: none; background: rgba(0,0,0,.45); color: #fff; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s; opacity: 0; }
+.media-item:hover .mark-btn { opacity: 1; }
+.mark-btn:hover { background: rgba(0,0,0,.7); transform: scale(1.1); }
+.mark-btn.is-marked { background: #FFB800; opacity: 1; }
+
+.pagination-bar { padding: 15px; text-align: center; border-top: 1px solid #eee; }
+.pagination-bar .layui-laypage a, .pagination-bar .layui-laypage span { font-size: 12px; }
 </style>
 
 <div class="layui-body">
@@ -28,122 +53,245 @@
     <ul class="layui-tab-title">
       <li class="layui-this">媒体库</li>
     </ul>
-    <div class="layui-tab-content">
-      <div class="layui-tab-item layui-show">
+    <div class="layui-tab-content" style="padding:0;">
 
-        <div class="stats-bar">
-          <span class="stat stat-total">总计: <b>{{ Total }}</b> 个文件</span>
-          <span class="stat">总大小: <b>{{ TotalSize }}</b></span>
-          <span class="stat stat-used">已使用: <b>{{ UsedCount }}</b></span>
-          <span class="stat stat-unused">未使用: <b>{{ UnusedCount }}</b></span>
-          <span class="stat stat-marked">已标记: <b>{{ MarkedCount }}</b></span>
-          <span style="margin-left:auto;">
-            <button class="layui-btn layui-btn-sm layui-btn-danger" onclick="cleanUnused()"><i class="fa fa-trash-o"></i> 一键清理未使用</button>
-            <button class="layui-btn layui-btn-sm layui-btn-normal" onclick="location.reload()"><i class="fa fa-refresh"></i> 刷新</button>
-          </span>
-        </div>
-
-        <div class="filter-bar">
-          <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn active" data-filter="all">全部</button>
-          <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="image">图片</button>
-          <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="document">文档</button>
-          <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="video">视频</button>
-          <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="unused">仅未使用</button>
-          <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="marked">仅已标记</button>
-        </div>
-
-        <div class="media-grid">
-          {% for f in Files %}
-          <div class="media-item {% if f.Marked %}marked{% elif f.Used %}used{% else %}unused{% endif %}" 
-               data-category="{{ f.Category }}" data-used="{{ f.Used }}" data-marked="{{ f.Marked }}" 
-               data-path="{{ f.Path }}" onclick="toggleMark(this)">
-            {% if f.Category == "image" %}
-            <img src="/{{ f.Path }}" alt="{{ f.Name }}" onerror="this.src='/static/admin/images/noimg.png'">
-            {% else %}
-            <div style="width:100%;height:100px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:2px;">
-              <i class="fa fa-file-o" style="font-size:32px;color:#999;"></i>
-            </div>
-            {% endif %}
-            <div class="info" title="{{ f.Name }}">{{ f.Name }}</div>
-            <div class="info">{{ f.SizeStr }} | {{ f.ModTime }}</div>
-            {% if f.Marked %}
-            <span class="badge badge-marked">保护</span>
-            {% elif f.Used %}
-            <span class="badge badge-used">已用</span>
-            {% else %}
-            <span class="badge badge-unused">未用</span>
-            {% endif %}
-          </div>
-          {% endfor %}
-        </div>
-
+      <div class="media-toolbar">
+        <span class="stat stat-total">总计 <b>{{ Total }}</b> 个</span>
+        <span class="stat">大小 <b>{{ TotalSize }}</b></span>
+        <span class="stat stat-used">已用 <b>{{ UsedCount }}</b></span>
+        <span class="stat stat-unused">未用 <b>{{ UnusedCount }}</b></span>
+        <span class="stat stat-marked">已标记 <b>{{ MarkedCount }}</b></span>
+        <span class="toolbar-right">
+          <button class="layui-btn layui-btn-sm layui-btn-danger" id="btn-clean"><i class="fa fa-trash-o"></i> 清理未使用</button>
+          <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh"><i class="fa fa-refresh"></i></button>
+        </span>
       </div>
+
+      <div class="filter-bar">
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn active" data-filter="all">全部</button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="image">图片</button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="document">文档</button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="video">视频</button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="unused">仅未使用</button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="marked">仅已标记</button>
+        <input type="text" class="search-input" id="search-input" placeholder="搜索文件名...">
+      </div>
+
+      <div class="media-grid" id="media-grid"></div>
+      <div class="pagination-bar" id="pagination-bar"></div>
+
     </div>
   </div>
 </div>
 
 <script src="{APP_THEME_DIR}/layui/layui.js"></script>
 <script>
+var _jq = window.jQuery;
 layui.use(['layer'], function(){
     var layer = layui.layer;
+    var $ = _jq;
 
-    window.toggleMark = function(el) {
-        var path = el.getAttribute('data-path');
-        layui.layer.confirm('选择操作', {
-            btn: ['标记/取消保护', '关闭'],
-            title: '文件操作'
-        }, function(index){
-            layui.layer.close(index);
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', '/admin/Media/mark', true);
-            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-            xhr.onload = function() {
-                var res = JSON.parse(xhr.responseText);
-                layui.layer.msg(res.msg, {icon: res.code ? 1 : 2});
-                setTimeout(function(){ location.reload(); }, 500);
-            };
-            xhr.send('path=' + encodeURIComponent(path));
+    var currentPage = 1;
+    var currentFilter = 'all';
+    var currentSearch = '';
+    var pageSize = 40;
+
+    // ─── Load page ───────────────────────────────────────
+    function loadPage(page) {
+        currentPage = page || 1;
+        var $grid = $('#media-grid');
+        $grid.addClass('loading');
+
+        $.ajax({
+            url: '/admin/content/media/list',
+            type: 'GET',
+            data: {
+                page: currentPage,
+                pagesize: pageSize,
+                filter: currentFilter,
+                search: currentSearch
+            },
+            dataType: 'json',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            success: function(res) {
+                $grid.removeClass('loading');
+                if (res.code !== 1) {
+                    $grid.html('<div class="media-empty">加载失败: ' + (res.msg || '') + '</div>');
+                    return;
+                }
+                renderGrid(res.data.files);
+                renderPagination(res.data.total, res.data.page, res.data.total_pages);
+            },
+            error: function(xhr, status, error) {
+                $grid.removeClass('loading');
+                $grid.html('<div class="media-empty">网络错误: ' + status + '</div>');
+            }
         });
-    };
+    }
 
-    window.cleanUnused = function() {
-        layui.layer.confirm('确定要清理所有未使用且未标记的文件吗？<br><span style="color:#FF5722">此操作不可撤销！</span>', {
-            btn: ['确定清理', '取消'],
-            title: '一键清理',
-            icon: 3
-        }, function(index){
-            layui.layer.close(index);
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', '/admin/Media/clean', true);
-            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-            xhr.onload = function() {
-                var res = JSON.parse(xhr.responseText);
-                layui.layer.msg(res.msg, {icon: res.code ? 1 : 2, time: 3000});
-                setTimeout(function(){ location.reload(); }, 1500);
-            };
-            xhr.send('');
-        });
-    };
+    // ─── Render grid ─────────────────────────────────────
+    function renderGrid(files) {
+        if (!files || files.length === 0) {
+            $('#media-grid').html('<div class="media-empty"><i class="fa fa-inbox" style="font-size:40px;display:block;margin-bottom:10px;"></i>暂无文件</div>');
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < files.length; i++) {
+            var f = files[i];
+            var cls = f.marked ? 'is-marked' : (f.used ? 'is-used' : 'is-unused');
+            var badgeCls = f.marked ? 'badge-marked' : (f.used ? 'badge-used' : 'badge-unused');
+            var badgeText = f.marked ? '保护' : (f.used ? '已用' : '未用');
 
-    // Filter
-    document.querySelectorAll('.filter-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.filter-btn').forEach(function(b){ b.classList.remove('active'); });
-            this.classList.add('active');
-            var filter = this.getAttribute('data-filter');
-            document.querySelectorAll('.media-item').forEach(function(item) {
-                var show = false;
-                if (filter === 'all') show = true;
-                else if (filter === 'image' || filter === 'document' || filter === 'video')
-                    show = item.getAttribute('data-category') === filter;
-                else if (filter === 'unused')
-                    show = item.getAttribute('data-used') === 'false' && item.getAttribute('data-marked') === 'false';
-                else if (filter === 'marked')
-                    show = item.getAttribute('data-marked') === 'true';
-                item.style.display = show ? '' : 'none';
-            });
+            var thumb;
+            if (f.category === 'image') {
+                thumb = '<img src="/' + f.path + '" loading="lazy" onerror="this.src=\'/static/admin/images/noimg.png\'" title="双击预览">';
+            } else {
+                thumb = '<span class="file-icon"><i class="fa fa-file-o"></i></span>';
+            }
+
+            var markIcon = f.marked ? 'fa-bookmark' : 'fa-bookmark-o';
+            var markCls = f.marked ? 'mark-btn is-marked' : 'mark-btn';
+
+            html += '<div class="media-item ' + cls + '" data-path="' + f.path + '">'
+                  + '<div class="media-thumb">' + thumb + '</div>'
+                  + '<span class="media-badge ' + badgeCls + '">' + badgeText + '</span>'
+                  + '<div class="media-info">'
+                  + '<div class="name" title="' + f.name + '">' + f.name + '</div>'
+                  + '<div class="meta">' + f.size_str + ' · ' + f.mod_time + '</div>'
+                  + '</div>'
+                  + '<button class="' + markCls + '" title="标记/取消保护"><i class="fa ' + markIcon + '"></i></button>'
+                  + '</div>';
+        }
+        $('#media-grid').html(html);
+    }
+
+    // ─── Render pagination ────────────────────────────────
+    function renderPagination(total, page, totalPages) {
+        if (totalPages <= 1) {
+            $('#pagination-bar').html('');
+            return;
+        }
+        var html = '<div class="layui-laypage">';
+        if (page > 1) {
+            html += '<a href="javascript:;" data-page="' + (page - 1) + '">上一页</a>';
+        }
+        var start = Math.max(1, page - 3);
+        var end = Math.min(totalPages, page + 3);
+        if (start > 1) {
+            html += '<a href="javascript:;" data-page="1">1</a>';
+            if (start > 2) html += '<span>…</span>';
+        }
+        for (var i = start; i <= end; i++) {
+            if (i === page) {
+                html += '<span class="layui-laypage-curr"><em>' + i + '</em></span>';
+            } else {
+                html += '<a href="javascript:;" data-page="' + i + '">' + i + '</a>';
+            }
+        }
+        if (end < totalPages) {
+            if (end < totalPages - 1) html += '<span>…</span>';
+            html += '<a href="javascript:;" data-page="' + totalPages + '">' + totalPages + '</a>';
+        }
+        if (page < totalPages) {
+            html += '<a href="javascript:;" data-page="' + (page + 1) + '">下一页</a>';
+        }
+        html += '<span class="layui-laypage-count">共 ' + total + ' 个</span>';
+        html += '</div>';
+        $('#pagination-bar').html(html);
+    }
+
+    // ─── Events ───────────────────────────────────────────
+
+    // Filter buttons
+    $(document).on('click', '.filter-btn', function() {
+        $('.filter-btn').removeClass('active');
+        $(this).addClass('active');
+        currentFilter = $(this).data('filter');
+        loadPage(1);
+    });
+
+    // Pagination
+    $(document).on('click', '#pagination-bar a[data-page]', function() {
+        loadPage(parseInt($(this).data('page')));
+    });
+
+    // Search (debounce 300ms)
+    var searchTimer;
+    $('#search-input').on('input', function() {
+        var val = $(this).val();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function() {
+            currentSearch = val;
+            loadPage(1);
+        }, 300);
+    });
+
+    // Mark toggle (single click, no confirm)
+    $(document).on('click', '.mark-btn', function(e) {
+        e.stopPropagation();
+        var $item = $(this).closest('.media-item');
+        var path = $item.data('path');
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+
+        $.ajax({
+            url: '/admin/content/media/mark',
+            type: 'POST',
+            data: { path: path },
+            dataType: 'json',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            success: function(res) {
+                layer.msg(res.msg, { icon: res.code ? 1 : 2, time: 800 });
+                loadPage(currentPage);
+            },
+            complete: function() {
+                $btn.prop('disabled', false);
+            }
         });
     });
+
+    // Image lightbox (double-click)
+    $(document).on('dblclick', '.media-thumb img', function() {
+        var src = $(this).attr('src');
+        layer.photos({
+            photos: { data: [{ src: src, alt: '' }] },
+            anim: 5
+        });
+    });
+
+    // Clean unused
+    $('#btn-clean').on('click', function() {
+        layer.confirm(
+            '确定要清理所有未使用且未标记的文件吗？<br><span style="color:#FF5722">此操作不可撤销！</span>',
+            { btn: ['确定清理', '取消'], title: '一键清理', icon: 3 },
+            function(index) {
+                layer.close(index);
+                $.ajax({
+                    url: '/admin/content/media/clean',
+                    type: 'POST',
+                    data: {},
+                    dataType: 'json',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    success: function(res) {
+                        layer.msg(res.msg, { icon: res.code ? 1 : 2, time: 2000 });
+                        setTimeout(function() { location.reload(); }, 1500);
+                    }
+                });
+            }
+        );
+    });
+
+    // Refresh
+    $('#btn-refresh').on('click', function() { location.reload(); });
+
+    // ─── Init ─────────────────────────────────────────────
+    loadPage(1);
 });
 </script>
 

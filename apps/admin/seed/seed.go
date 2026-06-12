@@ -41,8 +41,14 @@ func SeedData() {
 // 检测标志：是否存在 mcode='M156'（全局配置）。若不存在则清空 ay_menu 重建。
 func ensureMenuVersion() {
 	var count int64
-	model.DB.Model(&system.Menu{}).Where("mcode = ?", "M156").Count(&count)
+	model.DB.Model(&system.Menu{}).Where("mcode = ?", "M1006").Count(&count)
 	if count > 0 {
+		// 检查是否存在已废弃的M100菜单项，如果存在则删除
+		var m100Count int64
+		model.DB.Model(&system.Menu{}).Where("mcode = ?", "M100").Count(&m100Count)
+		if m100Count > 0 {
+			model.DB.Where("mcode = ?", "M100").Delete(&system.Menu{})
+		}
 		return
 	}
 	// 旧版菜单结构 → 清空重建为 PbootCMS 原版对齐版本
@@ -99,7 +105,6 @@ func seedMenus(now time.Time) {
 	// 数据来源：PbootCMS-3.2.12/static/backup/sql/pbootcms_v3211.sql
 	menus := []system.Menu{
 		// ============ 一级菜单 ============
-		{Mcode: "M100", Pcode: "", Name: "首页", URL: "/admin/index/home", Ico: "fa-home", Sorting: 100, Status: 1, Shortcut: 1, Type: 1},
 		{Mcode: "M156", Pcode: "", Name: "全局配置", URL: "/admin/M156/index", Ico: "fa-globe", Sorting: 200, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M110", Pcode: "", Name: "基础内容", URL: "/admin/M110/index", Ico: "fa-sliders", Sorting: 300, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M130", Pcode: "", Name: "文章内容", URL: "/admin/M130/index", Ico: "fa-file-text-o", Sorting: 400, Status: 1, Shortcut: 0, Type: 1},
@@ -128,6 +133,7 @@ func seedMenus(now time.Time) {
 		{Mcode: "M152", Pcode: "M157", Name: "友情链接", URL: "/admin/Link/index", Ico: "fa-link", Sorting: 503, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M160", Pcode: "M157", Name: "自定义表单", URL: "/admin/Form/index", Ico: "fa-plus-square-o", Sorting: 504, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M1000", Pcode: "M157", Name: "文章内链", URL: "/admin/Tags/index", Ico: "fa-random", Sorting: 505, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M1006", Pcode: "M157", Name: "媒体库", URL: "/admin/Media/index", Ico: "fa-photo", Sorting: 506, Status: 1, Shortcut: 0, Type: 1},
 
 		// ============ 会员中心 子菜单 (M1001) ============
 		{Mcode: "M1002", Pcode: "M1001", Name: "会员等级", URL: "/admin/MemberGroup/index", Ico: "fa-signal", Sorting: 601, Status: 1, Shortcut: 0, Type: 1},
