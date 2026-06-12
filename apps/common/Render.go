@@ -99,7 +99,8 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 	}
 
 	// pongo2 render with compiled template cache
-	tmpl, err := basic.GetAdminView("admin/" + tpl)
+	// adminViewDir 已经指向 apps/admin/view/，所以不需要再加 admin/ 前缀
+	tmpl, err := basic.GetAdminView(tpl)
 	if err != nil {
 		c.Header("Content-Type", "text/html; charset=utf-8")
 		c.String(500, "模板加载失败: %v", err)
