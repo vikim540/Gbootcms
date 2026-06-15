@@ -34,6 +34,7 @@ func (si *SiteController) Mod(c *gin.Context) {
 		"icp":         c.PostForm("icp"),
 		"copyright":   c.PostForm("copyright"),
 		"statistical": c.PostForm("statistical"),
+		"theme":       c.PostForm("theme"),
 	})
 	if result.Error != nil {
 		si.JSONFail(c, "修改失败: "+result.Error.Error())

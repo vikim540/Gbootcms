@@ -56,14 +56,15 @@
     <div class="layui-tab-content" style="padding:0;">
 
       <div class="media-toolbar">
-        <span class="stat stat-total">总计 <b>{{ Total }}</b> 个</span>
-        <span class="stat">大小 <b>{{ TotalSize }}</b></span>
-        <span class="stat stat-used">已用 <b>{{ UsedCount }}</b></span>
-        <span class="stat stat-unused">未用 <b>{{ UnusedCount }}</b></span>
-        <span class="stat stat-marked">已标记 <b>{{ MarkedCount }}</b></span>
+        <span class="stat stat-total"><i class="fa fa-folder-open-o"></i> 总计 <b>{{ Total }}</b> 个</span>
+        <span class="stat"><i class="fa fa-database"></i> 大小 <b>{{ TotalSize }}</b></span>
+        <span class="stat stat-used"><i class="fa fa-link"></i> 已用 <b>{{ UsedCount }}</b></span>
+        <span class="stat stat-unused"><i class="fa fa-unlink"></i> 未用 <b>{{ UnusedCount }}</b></span>
+        <span class="stat stat-marked"><i class="fa fa-bookmark"></i> 已标记 <b>{{ MarkedCount }}</b></span>
+        <span class="stat" style="color:#999;font-size:11px;"><i class="fa fa-clock-o"></i> {{ CacheTime }}</span>
         <span class="toolbar-right">
           <button class="layui-btn layui-btn-sm layui-btn-danger" id="btn-clean"><i class="fa fa-trash-o"></i> 清理未使用</button>
-          <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh"><i class="fa fa-refresh"></i></button>
+          <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh"><i class="fa fa-refresh"></i> 重新扫描</button>
         </span>
       </div>
 
@@ -264,6 +265,94 @@ layui.use(['layer'], function(){
         });
     });
 
+    // Single-click: show file detail popup
+    var detailClickTimer = null;
+    $(document).on('click', '.media-item', function(e) {
+        if ($(e.target).closest('.mark-btn').length) return;
+        var $item = $(this);
+        var path = $item.data('path');
+        if (!path) return;
+
+        // Delay to distinguish from double-click
+        if (detailClickTimer) { clearTimeout(detailClickTimer); detailClickTimer = null; return; }
+        detailClickTimer = setTimeout(function() {
+            detailClickTimer = null;
+            showDetail(path);
+        }, 250);
+    });
+
+    function showDetail(path) {
+        var loadIdx = layer.load(2);
+        $.ajax({
+            url: '/admin/content/media/detail',
+            type: 'GET',
+            data: { path: path },
+            dataType: 'json',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(res) {
+                layer.close(loadIdx);
+                if (!res.code) { layer.msg(res.msg, {icon: 2}); return; }
+                var d = res.data;
+
+                // Build info table
+                var html = '<div style="padding:15px 20px;">';
+                html += '<table class="layui-table" lay-skin="line" style="margin:0;">';
+                html += '<colgroup><col width="90"><col></colgroup>';
+                html += '<tbody>';
+                html += '<tr><td><i class="fa fa-file-o"></i> 文件名</td><td style="word-break:break-all;">' + d.name + '</td></tr>';
+                html += '<tr><td><i class="fa fa-folder-o"></i> 路径</td><td style="word-break:break-all;color:#999;">' + d.path + '</td></tr>';
+                html += '<tr><td><i class="fa fa-database"></i> 大小</td><td>' + d.size_str + '</td></tr>';
+                if (d.mime) {
+                    html += '<tr><td><i class="fa fa-tag"></i> 类型</td><td>' + d.mime + '</td></tr>';
+                }
+                if (d.dimension) {
+                    html += '<tr><td><i class="fa fa-arrows-alt"></i> 尺寸</td><td>' + d.dimension + '</td></tr>';
+                }
+                html += '<tr><td><i class="fa fa-clock-o"></i> 修改时间</td><td>' + d.mod_time + '</td></tr>';
+                html += '</tbody></table>';
+
+                // Usage section
+                html += '<div style="margin-top:15px;">';
+                if (d.usages && d.usages.length > 0) {
+                    html += '<div style="font-weight:bold;margin-bottom:8px;"><i class="fa fa-link"></i> 使用位置 (' + d.usages.length + ')</div>';
+                    html += '<table class="layui-table" lay-skin="line" style="margin:0;">';
+                    html += '<colgroup><col width="100"><col width="60"><col><col width="100"></colgroup>';
+                    html += '<thead><tr><th>来源</th><th>ID</th><th>名称</th><th>字段</th></tr></thead>';
+                    html += '<tbody>';
+                    for (var i = 0; i < d.usages.length; i++) {
+                        var u = d.usages[i];
+                        html += '<tr><td>' + u.table + '</td><td>' + u.id + '</td><td>' + (u.name||'-') + '</td><td>' + u.field + '</td></tr>';
+                    }
+                    html += '</tbody></table>';
+                } else {
+                    html += '<div style="color:#999;padding:10px 0;"><i class="fa fa-unlink"></i> 未在数据库中找到使用位置</div>';
+                }
+                html += '</div>';
+
+                // Preview for images
+                if (d.category === 'image') {
+                    html += '<div style="margin-top:15px;text-align:center;">';
+                    html += '<img src="/' + d.path + '" style="max-width:100%;max-height:300px;border:1px solid #eee;border-radius:4px;">';
+                    html += '</div>';
+                }
+
+                html += '</div>';
+
+                layer.open({
+                    type: 1,
+                    title: '<i class="fa fa-info-circle"></i> 文件详情',
+                    area: ['550px', '500px'],
+                    content: html,
+                    shadeClose: true
+                });
+            },
+            error: function() {
+                layer.close(loadIdx);
+                layer.msg('请求失败', {icon: 2});
+            }
+        });
+    }
+
     // Clean unused
     $('#btn-clean').on('click', function() {
         layer.confirm(
@@ -288,8 +377,36 @@ layui.use(['layer'], function(){
         );
     });
 
-    // Refresh
-    $('#btn-refresh').on('click', function() { location.reload(); });
+    // Refresh — 手動重新掃描
+    $('#btn-refresh').on('click', function() {
+        layer.confirm(
+            '<i class="fa fa-exclamation-triangle" style="color:#FF9800;font-size:18px;"></i> 重新掃描所有文件？<br><br><span style="color:#999;font-size:12px;">將遍歷文件目錄和數據庫，預計耗時 10~50 秒<br>掃描期間頁面數據不會更新</span>',
+            { btn: ['開始掃描', '取消'], title: '<i class="fa fa-refresh"></i> 刷新媒體庫', icon: 0 },
+            function(idx) {
+                layer.close(idx);
+                var loadIdx = layer.load(2, { shade: [0.3, '#000'] });
+                $.ajax({
+                    url: '/admin/content/media/refresh',
+                    type: 'POST',
+                    dataType: 'json',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    success: function(res) {
+                        layer.close(loadIdx);
+                        if (res.code) {
+                            layer.msg('<i class="fa fa-check"></i> ' + res.msg, { icon: 1, time: 2000 });
+                            setTimeout(function() { location.reload(); }, 1500);
+                        } else {
+                            layer.msg('<i class="fa fa-times"></i> ' + res.msg, { icon: 2, time: 3000 });
+                        }
+                    },
+                    error: function() {
+                        layer.close(loadIdx);
+                        layer.msg('請求失敗', { icon: 2 });
+                    }
+                });
+            }
+        );
+    });
 
     // ─── Init ─────────────────────────────────────────────
     loadPage(1);

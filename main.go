@@ -51,8 +51,8 @@ func main() {
 	r := gin.Default()
 
 	r.Static("/static", cfg.App.StaticDir)
-	// PbootCMS 兼容: 模板靜態資源路徑
-	r.Static("/template/default", cfg.App.StaticDir)
+	// PbootCMS 兼容: 前端模板靜態資源（CSS/JS/圖片）
+	r.Static("/template/default", "template/default")
 
 	route.SetupAdminRoutes(r)
 

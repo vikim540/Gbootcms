@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"pbootcms-go/apps/admin/model"
@@ -49,7 +50,11 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		case "statistical":
 			return ctx.Site.Statistical
 		case "tplpath":
-			return "/template/" + ctx.Site.Theme
+			theme := ctx.Site.Theme
+			if theme == "" {
+				theme = "default"
+			}
+			return "/template/" + theme
 		case "index":
 			return "/"
 		case "path":
@@ -83,7 +88,11 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		case "sitestatistical":
 			return ctx.Site.Statistical
 		case "sitetplpath":
-			return "/template/" + ctx.Site.Theme
+			theme := ctx.Site.Theme
+			if theme == "" {
+				theme = "default"
+			}
+			return "/template/" + theme
 		case "sitepath":
 			return "/"
 		case "pagetitle":
@@ -123,8 +132,93 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return "/member/center"
 		case "islogin":
 			return "0"
+		case "commentstatus":
+			return "1" // 1=開啟評論
+		case "commentcodestatus":
+			return "0" // 0=關閉評論驗證碼
+		case "msgcodestatus":
+			return "0" // 0=關閉留言驗證碼
 		case "httpurl":
 			return "/" // 簡化實現
+		// Company 字段路由: {gboot:companyname} → company.name
+		case "companyname":
+			if ctx.Company != nil {
+				return ctx.Company.Name
+			}
+			return ""
+		case "companyaddress":
+			if ctx.Company != nil {
+				return ctx.Company.Address
+			}
+			return ""
+		case "companypostcode":
+			if ctx.Company != nil {
+				return ctx.Company.Postcode
+			}
+			return ""
+		case "companycontact":
+			if ctx.Company != nil {
+				return ctx.Company.Contact
+			}
+			return ""
+		case "companyphone":
+			if ctx.Company != nil {
+				return ctx.Company.Phone
+			}
+			return ""
+		case "companymobile":
+			if ctx.Company != nil {
+				return ctx.Company.Mobile
+			}
+			return ""
+		case "companyfax":
+			if ctx.Company != nil {
+				return ctx.Company.Fax
+			}
+			return ""
+		case "companyemail":
+			if ctx.Company != nil {
+				return ctx.Company.Email
+			}
+			return ""
+		case "companyqq":
+			if ctx.Company != nil {
+				return ctx.Company.Qq
+			}
+			return ""
+		case "companyweixin":
+			if ctx.Company != nil {
+				return ctx.Company.Weixin
+			}
+			return ""
+		case "companyicp":
+			if ctx.Company != nil {
+				return ctx.Company.ICP
+			}
+			return ""
+		case "companyblicense":
+			if ctx.Company != nil {
+				return ctx.Company.Blicense
+			}
+			return ""
+		case "companylegal":
+			if ctx.Company != nil {
+				return ctx.Company.Legal
+			}
+			return ""
+		case "companybusiness":
+			if ctx.Company != nil {
+				return ctx.Company.Business
+			}
+			return ""
+		case "companyother":
+			if ctx.Company != nil {
+				return ctx.Company.Other
+			}
+			return ""
+		// Site info alias: {gboot:siteurl}
+		case "siteurl":
+			return "/"
 		default:
 			return ""
 		}
@@ -140,19 +234,48 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return ctx.Company.Name
 		case "address":
 			return ctx.Company.Address
+		case "postcode":
+			return ctx.Company.Postcode
+		case "contact":
+			return ctx.Company.Contact
 		case "phone":
 			return ctx.Company.Phone
+		case "mobile":
+			return ctx.Company.Mobile
 		case "fax":
 			return ctx.Company.Fax
 		case "email":
 			return ctx.Company.Email
+		case "qq":
+			return ctx.Company.Qq
 		case "weixin":
 			return ctx.Company.Weixin
 		case "icp":
 			return ctx.Company.ICP
+		case "blicense":
+			return ctx.Company.Blicense
+		case "legal":
+			return ctx.Company.Legal
+		case "business":
+			return ctx.Company.Business
+		case "other":
+			return ctx.Company.Other
 		default:
 			return ""
 		}
+	})
+
+	// QRCode 標籤: {gboot:qrcode string=xxx}
+	p.Register("qrcode", func(tagName string, params map[string]string, inner string) string {
+		str := params["string"]
+		if str == "" {
+			str = params["_field"]
+		}
+		if str == "" {
+			return ""
+		}
+		// 返回一個簡單的 QR code 圖片（使用在線 API）
+		return fmt.Sprintf("<img src=\"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=%s\" alt=\"QR Code\">", str)
 	})
 
 	p.Register("sort", func(tagName string, params map[string]string, inner string) string {
@@ -176,6 +299,33 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return ""
 		}
 		field := params["_field"]
+		if field == "numbar" {
+			// 生成數字分頁條: [1] 2 3 4 5
+			current := 1
+			totalPages := 1
+			total := 0
+			if v, ok := ctx.Page["current_page"]; ok {
+				current, _ = v.(int)
+			}
+			if v, ok := ctx.Page["total_pages"]; ok {
+				totalPages, _ = v.(int)
+			}
+			if v, ok := ctx.Page["total"]; ok {
+				total, _ = v.(int)
+			}
+			if total == 0 {
+				return ""
+			}
+			var sb strings.Builder
+			for i := 1; i <= totalPages; i++ {
+				if i == current {
+					sb.WriteString(fmt.Sprintf("<span class=\"current\">%d</span> ", i))
+				} else {
+					sb.WriteString(fmt.Sprintf("<a href=\"?page=%d\">%d</a> ", i))
+				}
+			}
+			return sb.String()
+		}
 		if val, ok := ctx.Page[field]; ok {
 			return ValToStr(val)
 		}
@@ -630,7 +780,10 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				"nickname":      m.Nickname,
 				"headpic":       m.HeadPic,
 				"replycontent":  m.ReplyContent,
+				"recontent":     m.ReplyContent, // 兼容模板中 [message:recontent]
 				"replydate":     m.ReplyDate.Format("2006-01-02"),
+				"os":            m.OS,
+				"bs":            m.Browser,
 			}
 			row := ReplaceInnerTags(inner, "message", data)
 			sb.WriteString(row)
@@ -726,11 +879,34 @@ func getSortField(s *model.ContentSort, field string) string {
 		return s.Name
 	case "scode":
 		return s.Scode
+	case "pcode":
+		return s.Pcode
+	case "tcode":
+		// 頂級父欄目代碼：沿 pcode 鏈向上查找
+		code := s.Scode
+		pcode := s.Pcode
+		for pcode != "" && pcode != "0" {
+			code = pcode
+			var parent model.ContentSort
+			if err := model.DB.Where("scode = ?", pcode).First(&parent).Error; err != nil {
+				break
+			}
+			pcode = parent.Pcode
+		}
+		return code
 	case "link":
 		if s.Outlink != "" {
 			return s.Outlink
 		}
 		return "/" + s.URLName + ".html"
+	case "outlink":
+		return s.Outlink
+	case "urlname":
+		return s.URLName
+	case "listtpl":
+		return s.ListTpl
+	case "contenttpl":
+		return s.ContentTpl
 	case "ico":
 		return s.Ico
 	case "pic":
@@ -741,6 +917,12 @@ func getSortField(s *model.ContentSort, field string) string {
 		return s.Description
 	case "subname":
 		return s.Subname
+	case "isnav":
+		return "1" // 默認導航可見
+	case "isblank":
+		return "0" // 默認不新窗口
+	case "sorttype":
+		return fmt.Sprintf("%d", s.Type)
 	default:
 		return ""
 	}
@@ -769,7 +951,22 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 	case "author":
 		return c.Author
 	case "visits":
-		return strconv.Itoa(c.Visits)
+		val := c.Visits
+		if operate, ok := params["operate"]; ok {
+			operate = strings.TrimSpace(operate)
+			if strings.HasPrefix(operate, "+") {
+				if n, err := strconv.Atoi(strings.TrimPrefix(operate, "+")); err == nil {
+					val += n
+				}
+			} else if strings.HasPrefix(operate, "-") {
+				if n, err := strconv.Atoi(strings.TrimPrefix(operate, "-")); err == nil {
+					val -= n
+				}
+			} else if n, err := strconv.Atoi(operate); err == nil {
+				val = n
+			}
+		}
+		return strconv.Itoa(val)
 	case "likes":
 		return strconv.Itoa(c.Likes)
 	case "date":
@@ -792,12 +989,44 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 		return strconv.Itoa(c.IsHeadline)
 	case "enclosure":
 		return c.Enclosure
+	case "precontent":
+		// 上一篇：同欄目下 ID 小於當前的最大記錄
+		var prev model.Content
+		if err := model.DB.Where("scode = ? AND id < ?", c.Scode, c.ID).Order("id desc").First(&prev).Error; err == nil {
+			return fmt.Sprintf("<a href=\"%s\">%s</a>", "/"+prev.URLName+".html", prev.Title)
+		}
+		return "没有了"
+	case "nextcontent":
+		// 下一篇：同欄目下 ID 大於當前的最小記錄
+		var next model.Content
+		if err := model.DB.Where("scode = ? AND id > ?", c.Scode, c.ID).Order("id asc").First(&next).Error; err == nil {
+			return fmt.Sprintf("<a href=\"%s\">%s</a>", "/"+next.URLName+".html", next.Title)
+		}
+		return "没有了"
 	default:
 		if strings.HasPrefix(field, "ext_") {
+			// TODO: 擴展字段需要 Content 模型支持 Extra JSON 字段
+			// 目前返回空，待 Content 模型增加 Extra 字段後啟用
 			return ""
 		}
 		return ""
 	}
+}
+
+// parseExtraJSON 解析 content.Extra JSON 字段為 map
+func parseExtraJSON(extra string) map[string]string {
+	result := make(map[string]string)
+	if extra == "" {
+		return result
+	}
+	// 嘗試解析為 JSON
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(extra), &m); err == nil {
+		for k, v := range m {
+			result[k] = fmt.Sprintf("%v", v)
+		}
+	}
+	return result
 }
 
 func contentToMap(c *model.Content, index int) map[string]interface{} {

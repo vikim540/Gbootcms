@@ -53,8 +53,10 @@ func SetupAdminRoutes(r *gin.Engine) {
 		mediaCtl := &content.MediaController{}
 		adminGroup.GET("/content/media/index", mediaCtl.Index)
 		adminGroup.GET("/content/media/list", mediaCtl.List)
+		adminGroup.GET("/content/media/detail", mediaCtl.Detail)
 		adminGroup.POST("/content/media/mark", mediaCtl.Mark)
 		adminGroup.POST("/content/media/clean", mediaCtl.Clean)
+		adminGroup.POST("/content/media/refresh", mediaCtl.Refresh)
 
 		co := &content.CompanyController{}
 		adminGroup.GET("/content/company/index", co.Index)

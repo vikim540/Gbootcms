@@ -155,8 +155,8 @@ func (p *TagParser) RenderWithoutInclude(content string) string {
 	// Pre-resolve single tags inside pair tag params (e.g. {gboot:list scode={sort:scode}})
 	content = p.preResolveSingleInPairParams(content)
 	content = p.processPairTags(content)
+	content = p.processSingleTags(content) // single 必須在 if 之前，否則 if 中的 {sort:xxx} 無法解析
 	content = p.processIfTags(content)
-	content = p.processSingleTags(content)
 
 	for i, block := range p.preBlocks {
 		content = strings.Replace(content, fmt.Sprintf("{__PRE_%d__}", i), block, 1)

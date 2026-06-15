@@ -31,6 +31,7 @@ func EvalIfCondition(cond string, data map[string]interface{}) bool {
 }
 
 func resolveCondVars(cond string, data map[string]interface{}) string {
+	// [content:xxx] 方括號格式
 	re := regexp.MustCompile(`\[content:(\w+)\]`)
 	cond = re.ReplaceAllStringFunc(cond, func(match string) string {
 		subs := re.FindStringSubmatch(match)
@@ -39,9 +40,10 @@ func resolveCondVars(cond string, data map[string]interface{}) string {
 				return ValToStr(val)
 			}
 		}
-		return match
+		return "0"
 	})
 
+	// [sort:xxx] 方括號格式
 	re = regexp.MustCompile(`\[sort:(\w+)\]`)
 	cond = re.ReplaceAllStringFunc(cond, func(match string) string {
 		subs := re.FindStringSubmatch(match)
@@ -50,15 +52,51 @@ func resolveCondVars(cond string, data map[string]interface{}) string {
 				return ValToStr(val)
 			}
 		}
-		return match
+		return "0"
 	})
 
-	re = regexp.MustCompile(`\{gboot:sitetitle\}`)
+	// {sort:xxx} 花括號格式（已被 processSingleTags 解析，但保底處理）
+	re = regexp.MustCompile(`\{sort:(\w+)\}`)
 	cond = re.ReplaceAllStringFunc(cond, func(match string) string {
-		if val, ok := data["sitetitle"]; ok {
-			return ValToStr(val)
+		subs := re.FindStringSubmatch(match)
+		if len(subs) > 1 {
+			if val, ok := data[subs[1]]; ok {
+				return ValToStr(val)
+			}
 		}
-		return ""
+		return "0"
+	})
+
+	// {gboot:xxx} 花括號格式 - 通用處理
+	re = regexp.MustCompile(`\{gboot:(\w+)\}`)
+	cond = re.ReplaceAllStringFunc(cond, func(match string) string {
+		subs := re.FindStringSubmatch(match)
+		if len(subs) > 1 {
+			key := subs[1]
+			// 直接從 data map 查找
+			if val, ok := data[key]; ok {
+				return ValToStr(val)
+			}
+			// 特殊映射
+			switch key {
+			case "islogin":
+				if data["islogin"] != nil {
+					return ValToStr(data["islogin"])
+				}
+				return "0"
+			case "registerstatus":
+				return "0"
+			case "loginstatus":
+				return "0"
+			case "commentstatus":
+				return "1"
+			case "commentcodestatus":
+				return "0"
+			case "msgcodestatus":
+				return "0"
+			}
+		}
+		return "0"
 	})
 
 	re = regexp.MustCompile(`'([^']*)'`)
