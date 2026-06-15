@@ -125,6 +125,7 @@ func (ts *TemplateStore) Get(name string) (string, bool) {
 }
 
 // Render template with include resolving
+// Only processes include tags, other tags are left for the caller to process
 func (ts *TemplateStore) Render(name string) string {
 	content, ok := ts.Get(name)
 	if !ok {
@@ -134,8 +135,8 @@ func (ts *TemplateStore) Render(name string) string {
 	visited := map[string]bool{name: true}
 	content = ts.resolveIncludes(name, content, visited)
 
-	// Only process non-include tags, include is already handled in resolveIncludes
-	return ts.parser.RenderWithoutInclude(content)
+	// Don't process other tags here - let the caller handle them with proper context
+	return content
 }
 
 func (ts *TemplateStore) resolveIncludes(currentPath string, content string, visited map[string]bool) string {
