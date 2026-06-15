@@ -124,6 +124,8 @@ func (p *TagParser) Render(content string) string {
 
 	// Pre-resolve single tags inside pair tag params (e.g. {gboot:list scode={sort:scode}})
 	content = p.preResolveSingleInPairParams(content)
+	// Pre-resolve nested {gboot:xxx} tags (e.g. {gboot:qrcode string={gboot:httpurl}{URL}})
+	content = p.preResolveGbootSingleDeep(content)
 	content = p.processPairTags(content)
 	content = p.processSingleTags(content) // single 必須在 if 之前，否則 if 中的 {sort:xxx} 無法解析
 	content = p.processIfTags(content)
@@ -154,6 +156,8 @@ func (p *TagParser) RenderWithoutInclude(content string) string {
 	// Skip include tags
 	// Pre-resolve single tags inside pair tag params (e.g. {gboot:list scode={sort:scode}})
 	content = p.preResolveSingleInPairParams(content)
+	// Pre-resolve nested {gboot:xxx} tags
+	content = p.preResolveGbootSingleDeep(content)
 	content = p.processPairTags(content)
 	content = p.processSingleTags(content) // single 必須在 if 之前，否則 if 中的 {sort:xxx} 無法解析
 	content = p.processIfTags(content)
@@ -406,6 +410,11 @@ func AdjustValue(val string, params map[string]string) string {
 		re := regexp.MustCompile(`<[^>]*>`)
 		val = re.ReplaceAllString(val, "")
 	}
+	if params["dropblank"] == "1" {
+		re := regexp.MustCompile(`[\s]+`)
+		val = re.ReplaceAllString(val, " ")
+		val = strings.TrimSpace(val)
+	}
 	if style, ok := params["style"]; ok && style != "" {
 		val = FormatDate(val, style)
 	}
@@ -577,7 +586,108 @@ func (p *TagParser) resolveSingleTagsInString(s string) string {
 		return providerCall(pr, "label", map[string]string{"_field": subs[1]}, "")
 	})
 
+	// {gboot:xxx} patterns (simple, no params) — for nested resolution
+	reGbootSimple := regexp.MustCompile(`\{gboot:(\w+)\}`)
+	s = reGbootSimple.ReplaceAllStringFunc(s, func(match string) string {
+		subs := reGbootSimple.FindStringSubmatch(match)
+		if len(subs) < 2 {
+			return match
+		}
+		name := subs[1]
+		pr, ok := p.provider(name)
+		if !ok {
+			pr, ok = p.provider("gboot")
+			if !ok {
+				return match
+			}
+			return providerCall(pr, "gboot", map[string]string{"_field": name}, "")
+		}
+		return providerCall(pr, name, map[string]string{}, "")
+	})
+
+	// {gboot:xxx params} patterns (with params) — for nested resolution
+	reGbootParams := regexp.MustCompile(`\{gboot:(\w+)\s+([^{}]+)\}`)
+	s = reGbootParams.ReplaceAllStringFunc(s, func(match string) string {
+		subs := reGbootParams.FindStringSubmatch(match)
+		if len(subs) < 2 {
+			return match
+		}
+		name := subs[1]
+		params := ParseParams(subs[2])
+		pr, ok := p.provider(name)
+		if !ok {
+			return match
+		}
+		return providerCall(pr, name, params, "")
+	})
+
 	return s
+}
+
+// preResolveGbootSingleDeep resolves nested {gboot:xxx} single tags.
+// Uses iterative innermost-first resolution to handle tags like:
+//
+//	{gboot:qrcode string={gboot:httpurl}{URL}} → <img src="...">
+//
+// Each iteration finds {gboot:xxx} patterns whose params contain no nested {},
+// resolves them, and repeats until stable.
+func (p *TagParser) preResolveGbootSingleDeep(content string) string {
+	// Known pair tag names — must NOT be consumed as single tags
+	pairNames := map[string]bool{
+		"nav": true, "sort": true, "list": true, "content": true,
+		"pics": true, "checkbox": true, "tags": true, "slide": true,
+		"link": true, "message": true, "formlist": true, "search": true,
+		"comment": true, "commentsub": true, "mycomment": true,
+		"loop": true, "select": true,
+	}
+	reInnermost := regexp.MustCompile(`\{gboot:(\w+)(?:\s+([^{}]+))?\}`)
+	for iter := 0; iter < 10; iter++ {
+		prev := content
+		content = reInnermost.ReplaceAllStringFunc(content, func(match string) string {
+			subs := reInnermost.FindStringSubmatch(match)
+			if len(subs) < 2 {
+				return match
+			}
+			name := subs[1]
+			paramStr := ""
+			if len(subs) > 2 {
+				paramStr = subs[2]
+			}
+			// Skip 'if' — handled by processIfTags with depth-aware parsing
+			if name == "if" || name == "1if" || name == "2if" || name == "3if" {
+				return match
+			}
+			// Skip pair tags — they are handled by processPairTags
+			if pairNames[name] {
+				return match
+			}
+			// Try specific provider first
+			pr, ok := p.provider(name)
+			if !ok {
+				// Try gboot provider with _field
+				pr, ok = p.provider("gboot")
+				if !ok {
+					return match
+				}
+				params := map[string]string{"_field": name}
+				if paramStr != "" {
+					for k, v := range ParseParams(paramStr) {
+						params[k] = v
+					}
+				}
+				return providerCall(pr, "gboot", params, "")
+			}
+			params := map[string]string{}
+			if paramStr != "" {
+				params = ParseParams(paramStr)
+			}
+			return providerCall(pr, name, params, "")
+		})
+		if content == prev {
+			break
+		}
+	}
+	return content
 }
 
 func ValToStr(v interface{}) string {

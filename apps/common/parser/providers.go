@@ -405,11 +405,14 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 	})
 
 	p.Register("httpurl", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		return "/"
 	})
 
 	p.Register("pageurl", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		if ctx.Content != nil && ctx.Content.URLName != "" {
+			return "/" + ctx.Content.URLName + ".html"
+		}
+		return "/"
 	})
 
 	p.Register("islogin", func(tagName string, params map[string]string, inner string) string {
@@ -429,6 +432,15 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 
 	p.Register("scaction", func(tagName string, params map[string]string, inner string) string {
 		return "/search"
+	})
+
+	// Form provider: {gboot:form fcode=X} → 表單提交 URL
+	p.Register("form", func(tagName string, params map[string]string, inner string) string {
+		fcode := params["fcode"]
+		if fcode != "" {
+			return "/message?fcode=" + fcode
+		}
+		return "/message"
 	})
 
 	p.Register("keyword", func(tagName string, params map[string]string, inner string) string {
@@ -620,11 +632,12 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		var sb strings.Builder
 		for i, s := range slides {
 			data := map[string]interface{}{
-				"n":   i,
-				"i":   i + 1,
-				"src": s.Pic,
-				"link": s.Link,
-				"title": s.Title,
+				"n":        i,
+				"i":        i + 1,
+				"src":      s.Pic,
+				"link":     s.Link,
+				"title":    s.Title,
+				"subtitle": s.Subtitle,
 			}
 			row := ReplaceInnerTags(inner, "slide", data)
 			sb.WriteString(row)
@@ -1046,6 +1059,7 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 		"subtitle":    c.Subtitle,
 		"keywords":    c.Keywords,
 		"description": c.Description,
+		"content":     c.Content,
 		"ico":         c.Ico,
 		"pics":        c.Pics,
 		"source":      c.Source,
