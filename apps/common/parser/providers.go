@@ -975,7 +975,16 @@ func getSortField(s *model.ContentSort, field string) string {
 		if s.Outlink != "" {
 			return s.Outlink
 		}
-		return "/" + s.URLName + ".html"
+		// 優先用欄目自定義 URL 名稱 (filename)
+		if s.Filename != "" {
+			return "/" + s.Filename + ".html"
+		}
+		// fallback 用 model 的 urlname
+		if s.URLName != "" {
+			return "/" + s.URLName + ".html"
+		}
+		// 最後 fallback 到動態 scode 路由
+		return "/sort/" + s.Scode + ".html"
 	case "outlink":
 		return s.Outlink
 	case "urlname":
@@ -1057,7 +1066,16 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 		if c.Outlink != "" {
 			return c.Outlink
 		}
-		return "/" + c.URLName + ".html"
+		// 優先用內容自定義 URL 名稱 (filename)
+		if c.Filename != "" {
+			return "/" + c.Filename + ".html"
+		}
+		// fallback 用 model 的 urlname
+		if c.URLName != "" {
+			return "/" + c.URLName + ".html"
+		}
+		// 最後 fallback 到動態 id 路由
+		return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
 	case "istop":
 		return strconv.Itoa(c.IsTop)
 	case "isrecommend":
@@ -1107,8 +1125,12 @@ func parseExtraJSON(extra string) map[string]string {
 }
 
 func contentToMap(c *model.Content, index int) map[string]interface{} {
-	link := "/" + c.URLName
-	if c.URLName == "" {
+	// URL 生成規則（對齊 PbootCMS PHP）：
+	//   1. 外部鏈接優先
+	//   2. 自定義 URL 名稱 (c.Filename)
+	//   3. fallback 到 /content/{id}
+	link := "/" + c.Filename
+	if link == "/" {
 		link = fmt.Sprintf("/content/%d", c.ID)
 	}
 	if c.Outlink != "" {
@@ -1139,8 +1161,17 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 }
 
 func sortToMap(s *model.ContentSort, index int) map[string]interface{} {
-	link := "/" + s.URLName
-	if s.URLName == "" {
+	// URL 生成規則（對齊 PbootCMS PHP）：
+	//   1. 優先用欄目自定義 URL 名稱 (s.Filename) —— 後台「URL名稱」欄位
+	//   2. 退而求其次用模型的 urlname (s.URLName) —— 通常等同於 scode
+	//   3. 最後 fallback 到動態 scode 路由
+	// 注意：區分 urlname（model 表字段）和 filename（欄目表字段），
+	// PbootCMS PHP 中也用 filename 對應「URL名稱」。
+	link := "/" + s.Filename
+	if link == "/" {
+		link = "/" + s.URLName
+	}
+	if link == "/" {
 		link = fmt.Sprintf("/sort/%s", s.Scode)
 	}
 	return map[string]interface{}{

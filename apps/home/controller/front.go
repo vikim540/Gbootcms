@@ -33,10 +33,13 @@ func (fc *FrontController) ListPage(c *gin.Context) {
 	path := c.Param("path")
 	path = trimSuffix(path)
 
+	// 優先查 filename（欄目自定義 URL 名稱），fallback 查 urlname（向後兼容）
 	var sort model.ContentSort
-	if err := model.DB.Where("urlname = ?", path).First(&sort).Error; err != nil {
-		c.String(http.StatusNotFound, "404")
-		return
+	if err := model.DB.Where("filename = ?", path).First(&sort).Error; err != nil {
+		if err2 := model.DB.Where("urlname = ?", path).First(&sort).Error; err2 != nil {
+			c.String(http.StatusNotFound, "404")
+			return
+		}
 	}
 
 	ctx := fc.buildContext(c)
@@ -68,15 +71,20 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 		return
 	}
 
+	// 優先查 filename（自定義 URL 名稱），fallback 查 urlname
 	var content model.Content
-	if err := model.DB.Where("urlname = ? AND status = 1", path).First(&content).Error; err != nil {
-		var sort model.ContentSort
-		if err2 := model.DB.Where("urlname = ?", path).First(&sort).Error; err2 != nil {
-			c.String(http.StatusNotFound, "404")
+	if err := model.DB.Where("filename = ? AND status = 1", path).First(&content).Error; err != nil {
+		if err2 := model.DB.Where("urlname = ? AND status = 1", path).First(&content).Error; err2 != nil {
+			var sort model.ContentSort
+			if err3 := model.DB.Where("filename = ?", path).First(&sort).Error; err3 != nil {
+				if err4 := model.DB.Where("urlname = ?", path).First(&sort).Error; err4 != nil {
+					c.String(http.StatusNotFound, "404")
+					return
+				}
+			}
+			fc.renderSortPage(c, &sort)
 			return
 		}
-		fc.renderSortPage(c, &sort)
-		return
 	}
 
 	ctx := fc.buildContext(c)
