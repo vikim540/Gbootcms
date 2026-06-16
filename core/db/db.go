@@ -4,6 +4,7 @@ package db
 
 import (
 	"pbootcms-go/config"
+	"pbootcms-go/core/mediaplugin"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -39,6 +40,14 @@ func InitDB(cfg *config.Config) error {
 	sqlDB.SetMaxIdleConns(1)
 	// 連接最長生命週期 5 分鐘，避免長時間持有導致連接過期。
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+
+	// 註冊媒體緩存失效插件：
+	// 對所有「會引用媒體文件」的表（slide、content、content_sort、link、company、site）
+	// 的 Create / Update / Delete 操作，自動標記媒體庫緩存為臟。
+	// Controller 中無需再手動調用 MarkMediaCacheDirty()。
+	if err := DB.Use(&mediaplugin.MediaDirtyPlugin{}); err != nil {
+		return err
+	}
 
 	return nil
 }

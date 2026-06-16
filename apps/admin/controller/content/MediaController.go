@@ -22,7 +22,8 @@ import (
 )
 
 // ─── 緩存機制 ──────────────────────────────────────────────────
-// 媒體庫掃描結果緩存，有效期 1 個月，需手動刷新或清理時自動失效
+// 媒體庫掃描結果緩存。
+// 設計原則：緩存盡可能短（5 分鐘），並在所有改變文件引用的寫操作後自動失效。
 
 type mediaCacheData struct {
 	Files      []MediaFile
@@ -35,14 +36,29 @@ type mediaCacheData struct {
 var (
 	mediaCache   *mediaCacheData
 	mediaCacheMu sync.RWMutex
-	cacheTTL     = 30 * 24 * time.Hour // 1 個月
+	// cacheTTL 縮短為 5 分鐘，避免長時間持有過時的「已用」狀態
+	cacheTTL = 5 * time.Minute
 )
 
-// getCache 獲取緩存數據，如果過期或為空則返回 nil
+// isDirty 檢查緩存是否被標記為臟（轉發到 common package 的全局標記）
+func isDirty() bool {
+	return common.IsMediaCacheDirty()
+}
+
+// clearDirty 清除臟標記
+func clearDirty() {
+	common.ClearMediaCacheDirty()
+}
+
+// getCache 獲取緩存數據，如果過期、為空、或被標記為臟則返回 nil
 func getCache() *mediaCacheData {
 	mediaCacheMu.RLock()
 	defer mediaCacheMu.RUnlock()
 	if mediaCache == nil || mediaCache.Scanning {
+		return nil
+	}
+	// 任何寫操作後都會標記臟，強制重掃
+	if isDirty() {
 		return nil
 	}
 	if time.Since(mediaCache.ScanTime) > cacheTTL {
@@ -51,17 +67,18 @@ func getCache() *mediaCacheData {
 	return mediaCache
 }
 
-// ensureCache 確保緩存存在，不存在則同步掃描（首次訪問觸發）
+// ensureCache 確保緩存存在，不存在則同步掃描（首次訪問或被標記為臟時觸發）
 func ensureCache() *mediaCacheData {
 	if c := getCache(); c != nil {
 		return c
 	}
-	// 首次訪問，同步掃描
+	// 首次訪問、或被標記為臟、或過期 → 重新掃描
 	return doScan()
 }
 
 // refreshCache 強制刷新緩存（手動觸發）
 func refreshCache() *mediaCacheData {
+	clearDirty()
 	return doScan()
 }
 
@@ -70,6 +87,7 @@ func invalidateCache() {
 	mediaCacheMu.Lock()
 	defer mediaCacheMu.Unlock()
 	mediaCache = nil
+	common.MarkMediaCacheDirty()
 }
 
 // doScan 執行實際掃描，帶超時保護
@@ -109,6 +127,7 @@ func doScan() *mediaCacheData {
 			ScanTime:    time.Now(),
 		}
 		mediaCacheMu.Unlock()
+		clearDirty() // 掃描完成，清除臟標記
 		return mediaCache
 	case <-time.After(120 * time.Second):
 		mediaCacheMu.Lock()
