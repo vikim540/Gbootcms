@@ -72,6 +72,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 			Pic:         c.PostForm("pic"),
 			Keywords:    c.PostForm("keywords"),
 			Description: c.PostForm("description"),
+			Filename:    c.PostForm("filename"), // URL 名稱（PbootCMS 偽靜態用）
 			Sort:        sorting,
 			URLName:     urlname,
 			Outlink:     c.PostForm("outlink"),
@@ -169,6 +170,7 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 			"pic":         c.PostForm("pic"),
 			"keywords":    c.PostForm("keywords"),
 			"description": c.PostForm("description"),
+			"filename":    c.PostForm("filename"),
 			"urlname":     urlname,
 			"outlink":     c.PostForm("outlink"),
 			"gid":         c.PostForm("gid"),

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"pbootcms-go/apps/admin/model"
+	contentmodel "pbootcms-go/apps/admin/model/content"
 	"strings"
 	"time"
 )
@@ -83,6 +84,19 @@ func (s *ContentSortService) CreateSort(sort *model.ContentSort) error {
 	if sort.Status == 0 {
 		sort.Status = 1
 	}
+
+	// URL 名稱驗證 + 衝突處理（與 PbootCMS PHP 一致）
+	sort.Filename = strings.Trim(sort.Filename, "/")
+	if !contentmodel.IsValidFilename(sort.Filename) {
+		return errors.New("URL名稱只允許字母、數字、橫線、斜線組成")
+	}
+	if contentmodel.CheckUrlname(sort.Filename) {
+		return errors.New("URL名稱與模型URL名稱衝突，請換一個名稱")
+	}
+	if sort.Filename != "" {
+		sort.Filename = contentmodel.GenerateUniqueFilename(sort.Filename)
+	}
+
 	if err := model.DB.Create(sort).Error; err != nil {
 		return err
 	}
@@ -100,11 +114,17 @@ func (s *ContentSortService) CreateSort(sort *model.ContentSort) error {
 
 // UpdateSort updates a sort record
 func (s *ContentSortService) UpdateSort(id int, updates map[string]interface{}) error {
+	if err := validateAndNormalizeFilenameUpdate(updates, "id="+fmt.Sprintf("%d", id)); err != nil {
+		return err
+	}
 	return model.DB.Model(&model.ContentSort{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // UpdateSortByScode updates a sort record by scode, with id fallback
 func (s *ContentSortService) UpdateSortByScode(scode string, updates map[string]interface{}) error {
+	if err := validateAndNormalizeFilenameUpdate(updates, "scode <> '"+scode+"'"); err != nil {
+		return err
+	}
 	res := model.DB.Model(&model.ContentSort{}).Where("scode = ?", scode).Updates(updates)
 	if res.Error != nil {
 		return res.Error
@@ -118,6 +138,29 @@ func (s *ContentSortService) UpdateSortByScode(scode string, updates map[string]
 		if res2.RowsAffected == 0 {
 			return errors.New("sort does not exist")
 		}
+	}
+	return nil
+}
+
+// validateAndNormalizeFilenameUpdate 對 updates 中的 filename 做完整 PbootCMS 校驗鏈
+// excludeWhere 為排除自身的 WHERE 條件
+func validateAndNormalizeFilenameUpdate(updates map[string]interface{}, excludeWhere string) error {
+	raw, ok := updates["filename"]
+	if !ok {
+		return nil
+	}
+	filename, _ := raw.(string)
+	filename = strings.Trim(filename, "/")
+	updates["filename"] = filename
+
+	if !contentmodel.IsValidFilename(filename) {
+		return errors.New("URL名稱只允許字母、數字、橫線、斜線組成")
+	}
+	if contentmodel.CheckUrlname(filename) {
+		return errors.New("URL名稱與模型URL名稱衝突，請換一個名稱")
+	}
+	if filename != "" {
+		updates["filename"] = contentmodel.GenerateUniqueFilename(filename, excludeWhere)
 	}
 	return nil
 }
