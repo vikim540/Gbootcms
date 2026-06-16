@@ -6,41 +6,33 @@
 //   - 集中維護「會引用文件的表名」白名單
 package mediaplugin
 
-import (
-	"sync"
-)
-
-// 媒體庫緩存失效標記的全局狀態。
-// 為避免循環引用，這裡自管理 dirty 標記，
-// MediaController 通過 IsDirty/ClearDirty 讀取與清除。
-
-var (
-	dirtyMu sync.RWMutex
-	dirty   = false
-)
+// dirtyFlag 在 plugin.go 中聲明（atomic.Bool），這裡是對外的讀寫 API。
+// 使用 atomic 操作避免鎖競爭，O(1) 無鎖。
 
 // MarkDirty 標記媒體緩存為臟。
 // 由 GORM Plugin 在寫操作回調中調用。
+//
+// 性能：atomic.Store 操作，無鎖。
 func MarkDirty() {
-	dirtyMu.Lock()
-	dirty = true
-	dirtyMu.Unlock()
+	dirtyFlag.Store(true)
 }
 
 // IsDirty 檢查緩存是否被標記為臟。
 // 由 MediaController 在讀取前調用。
+//
+// 性能：atomic.Load 操作，無鎖。
+// 注意：返回值只是當前快照，因為多線程可能隨時 MarkDirty。
+// 但 MediaController 內部會再用讀寫鎖保護，這裡只是快速路徑。
 func IsDirty() bool {
-	dirtyMu.RLock()
-	defer dirtyMu.RUnlock()
-	return dirty
+	return dirtyFlag.Load()
 }
 
 // ClearDirty 清除臟標記。
 // 由 MediaController 在掃描成功後調用。
+//
+// 性能：atomic.Store 操作，無鎖。
 func ClearDirty() {
-	dirtyMu.Lock()
-	dirty = false
-	dirtyMu.Unlock()
+	dirtyFlag.Store(false)
 }
 
 // MediaReferencingTables 引用媒體文件的表白名單。
