@@ -55,11 +55,11 @@ func GetAllModelsData() []map[string]interface{} {
 	return result
 }
 
-// GetTemplateFiles scans the templates/ directory for .html files (excluding admin/).
+// GetTemplateFiles scans the template/default/ directory for .html files (excluding admin/).
 // Returns a list of template filenames for dropdown selection.
 func GetTemplateFiles() []string {
 	var files []string
-	tplDir := "templates"
+	tplDir := "template/default"
 	entries, err := os.ReadDir(tplDir)
 	if err != nil {
 		return files
@@ -162,6 +162,49 @@ func AddSonField(sorts []model.ContentSort) []map[string]interface{} {
 	}
 	result := make([]map[string]interface{}, len(sorts))
 	for i, s := range sorts {
+		m := StructToMap(s)
+		m["Son"] = pcodeSet[s.Scode]
+		result[i] = m
+	}
+	return result
+}
+
+// BuildSortTreeData reorders sorts into a proper tree hierarchy
+// (parent rows always before their children) AND adds the Son field.
+// This is critical for jQuery treetable which requires parent-before-child
+// ordering in the DOM. The DB ORDER BY sorting,id does NOT guarantee this.
+func BuildSortTreeData(sorts []model.ContentSort) []map[string]interface{} {
+	// 1. Build children map: pcode → []ContentSort
+	children := make(map[string][]model.ContentSort)
+	for _, s := range sorts {
+		pcode := s.Pcode
+		if pcode == "" {
+			pcode = "0"
+		}
+		children[pcode] = append(children[pcode], s)
+	}
+
+	// 2. Recursively flatten: parent before children
+	var ordered []model.ContentSort
+	var walk func(pcode string)
+	walk = func(pcode string) {
+		for _, s := range children[pcode] {
+			ordered = append(ordered, s)
+			walk(s.Scode)
+		}
+	}
+	walk("0")
+
+	// 3. Add Son field (has children?)
+	pcodeSet := make(map[string]bool)
+	for _, s := range sorts {
+		if s.Pcode != "" && s.Pcode != "0" {
+			pcodeSet[s.Pcode] = true
+		}
+	}
+
+	result := make([]map[string]interface{}, len(ordered))
+	for i, s := range ordered {
 		m := StructToMap(s)
 		m["Son"] = pcodeSet[s.Scode]
 		result[i] = m

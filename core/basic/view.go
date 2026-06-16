@@ -419,9 +419,35 @@ func processPongo2Url(html string) string {
 		return result
 	})
 
+	// Handle URLs with {{ }} template variables (lowercase only literal path parts)
+	reUrlWithTpl := regexp.MustCompile(`\{url\.([^}]*\{\{[^}]+\}\}[^}]*)\}`)
+	html = reUrlWithTpl.ReplaceAllStringFunc(html, func(match string) string {
+		subs := reUrlWithTpl.FindStringSubmatch(match)
+		if len(subs) < 2 {
+			return match
+		}
+		path := subs[1]
+		reTpl := regexp.MustCompile(`\{\{[^}]+\}\}`)
+		parts := reTpl.Split(path, -1)
+		tpls := reTpl.FindAllString(path, -1)
+		var sb strings.Builder
+		for i, part := range parts {
+			sb.WriteString(strings.ToLower(part))
+			if i < len(tpls) {
+				sb.WriteString(tpls[i])
+			}
+		}
+		return sb.String()
+	})
+
+	// Handle simple URLs without template variables
 	html = reUrlPath.ReplaceAllStringFunc(html, func(match string) string {
 		subs := reUrlPath.FindStringSubmatch(match)
 		if len(subs) < 2 {
+			return match
+		}
+		// Skip if contains {{ (already handled above)
+		if strings.Contains(subs[1], "{{") {
 			return match
 		}
 		return strings.ToLower(subs[1])
@@ -902,6 +928,10 @@ func SnakeToPascal(s string) string {
 		"menumodels":  "MenuModels",
 		"sitedir":     "SiteDir",
 		"sitetitle":   "SiteTitle",
+		"gid":         "GID",
+		"icp":         "ICP",
+		"os":          "OS",
+		"picmobile":   "PicMobile",
 	}
 	if v, ok := compoundMap[strings.ToLower(s)]; ok {
 		return v

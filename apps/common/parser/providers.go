@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"pbootcms-go/apps/admin/model"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -18,6 +19,14 @@ type Context struct {
 	Member      *model.Member
 	Keyword     string
 	CurrentPage int
+}
+
+// addLeadingSlash 為本地路徑添加前導 /
+func addLeadingSlash(path string) string {
+	if path != "" && !strings.HasPrefix(path, "/") && !strings.HasPrefix(path, "http") {
+		return "/" + path
+	}
+	return path
 }
 
 func RegisterAllProviders(p *TagParser, ctx *Context) {
@@ -42,7 +51,11 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		case "description":
 			return ctx.Site.Description
 		case "logo":
-			return ctx.Site.Logo
+			logo := ctx.Site.Logo
+			if logo != "" && !strings.HasPrefix(logo, "/") && !strings.HasPrefix(logo, "http") {
+				logo = "/" + logo
+			}
+			return logo
 		case "icp":
 			return ctx.Site.ICP
 		case "copyright":
@@ -54,7 +67,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			if theme == "" {
 				theme = "default"
 			}
-			return "/template/" + theme
+			return "/template/" + theme + "/static"
 		case "index":
 			return "/"
 		case "path":
@@ -80,7 +93,11 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		case "sitedescription":
 			return ctx.Site.Description
 		case "sitelogo":
-			return ctx.Site.Logo
+			logo := ctx.Site.Logo
+			if logo != "" && !strings.HasPrefix(logo, "/") && !strings.HasPrefix(logo, "http") {
+				logo = "/" + logo
+			}
+			return logo
 		case "siteicp":
 			return ctx.Site.ICP
 		case "sitecopyright":
@@ -92,7 +109,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			if theme == "" {
 				theme = "default"
 			}
-			return "/template/" + theme
+			return "/template/" + theme + "/static"
 		case "sitepath":
 			return "/"
 		case "pagetitle":
@@ -188,7 +205,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return ""
 		case "companyweixin":
 			if ctx.Company != nil {
-				return ctx.Company.Weixin
+				return addLeadingSlash(ctx.Company.Weixin)
 			}
 			return ""
 		case "companyicp":
@@ -623,7 +640,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			num = n
 		}
 		var slides []model.Slide
-		query := model.DB.Order("sorting ASC")
+		query := model.DB.Order("gid ASC, sorting ASC, id ASC")
 		if gid != "" {
 			query = query.Where("gid = ?", gid)
 		}
@@ -632,14 +649,18 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		var sb strings.Builder
 		for i, s := range slides {
 			data := map[string]interface{}{
-				"n":        i,
-				"i":        i + 1,
-				"src":      s.Pic,
-				"link":     s.Link,
-				"title":    s.Title,
-				"subtitle": s.Subtitle,
+				"n":         i,
+				"i":         i + 1,
+				"src":       s.Pic,
+				"pic":       s.Pic,
+				"picmobile": s.PicMobile,
+				"link":      s.Link,
+				"title":     s.Title,
+				"subtitle":  s.Subtitle,
 			}
 			row := ReplaceInnerTags(inner, "slide", data)
+			// 處理內嵌的 {gboot:if(...)} 標籤（在 slide 數據上下文中）
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -845,6 +866,49 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 	p.Register("select", func(tagName string, params map[string]string, inner string) string {
 		return ""
 	})
+}
+
+// processInnerIfTags 處理循環體內的 {gboot:if(...)} 標籤
+// 使用正則匹配，避免 processIfTags 的字符串索引 bug
+func processInnerIfTags(content string) string {
+	re := regexp.MustCompile(`(?s)\{gboot:if\(([^)]+)\)\}(.*?)(?:\{else\}(.*?))?\{/gboot:if\}`)
+	for re.MatchString(content) {
+		content = re.ReplaceAllStringFunc(content, func(match string) string {
+			subs := re.FindStringSubmatch(match)
+			if len(subs) < 3 {
+				return ""
+			}
+			cond := strings.TrimSpace(subs[1])
+			trueBody := subs[2]
+			falseBody := ""
+			if len(subs) > 3 {
+				falseBody = subs[3]
+			}
+			// 簡單條件求值
+			if evalInnerCondition(cond) {
+				return trueBody
+			}
+			return falseBody
+		})
+	}
+	return content
+}
+
+// evalInnerCondition 在循環上下文中求值簡單條件
+func evalInnerCondition(cond string) bool {
+	// 處理 == 和 != 操作符
+	for _, op := range []string{"!=", "=="} {
+		if idx := strings.Index(cond, op); idx > 0 {
+			left := strings.TrimSpace(strings.Trim(cond[:idx], "'\" "))
+			right := strings.TrimSpace(strings.Trim(cond[idx+len(op):], "'\" "))
+			if op == "==" {
+				return left == right
+			}
+			return left != right
+		}
+	}
+	// 無操作符：非空即真
+	return cond != "" && cond != "0" && cond != "false"
 }
 
 func registerIfProvider(p *TagParser, ctx *Context) {

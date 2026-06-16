@@ -47,7 +47,7 @@ func Load(path string) *Config {
 			App: App{
 				Debug:            true,
 				Port:             8080,
-				TemplateDir:       "templates",
+				TemplateDir:       "template/default",
 				AdminTemplateDir: "apps/admin/view",
 				StaticDir:        "static",
 				RuntimeDir:   "runtime",

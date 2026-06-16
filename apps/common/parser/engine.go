@@ -46,6 +46,10 @@ func (ts *TemplateStore) loadAll() error {
 			return nil
 		}
 		if info.IsDir() {
+			// 跳過 static 靜態資源目錄（只掃描模板 HTML）
+			if info.Name() == "static" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))
@@ -72,7 +76,20 @@ func (ts *TemplateStore) startWatcher() error {
 	}
 	ts.watcher = w
 
-	if err := w.Add(ts.dir); err != nil {
+	// Watch 頂目錄和所有子目錄
+	err = filepath.WalkDir(ts.dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if addErr := w.Add(path); addErr != nil {
+				// 靜默忽略無法 watch 的目錄
+				return nil
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 

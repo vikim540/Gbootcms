@@ -255,6 +255,10 @@ func SnakeToPascal(s string) string {
 		"menumodels":  "MenuModels",
 		"sitedir":     "SiteDir",
 		"sitetitle":   "SiteTitle",
+		"gid":         "GID",
+		"icp":         "ICP",
+		"os":          "OS",
+		"picmobile":   "PicMobile",
 	}
 	if v, ok := compoundMap[strings.ToLower(s)]; ok {
 		return v

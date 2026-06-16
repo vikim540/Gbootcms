@@ -73,16 +73,45 @@ layui.use(['element','upload','laydate','form'], function(){
   });
   
   // 通用后台表单 AJAX 提交（排除登录表单）
-  $(document).on('submit', 'form.layui-form:not(#dologin)', function(e) {
-    e.preventDefault();
+  // 拦截范围：layui-form 表单 + 点击了排序按钮的任何表单
+  $(document).on('submit', 'form.layui-form:not(#dologin), form:not(#dologin):has(button[value=sorting])', function(e) {
     var form = $(this);
-    var formData = form.serialize();
-    // 确保被点击的 submit 按钮值被包含
-    var submitBtn = form.find('button[lay-submit]._clicked').length ? form.find('button[lay-submit]._clicked') : form.find('button[lay-submit]').last();
-    if (submitBtn.attr('name')) {
-        formData += '&' + submitBtn.attr('name') + '=' + submitBtn.val();
+
+    // ── 检测被点击的提交按钮 ──
+    var activeEl = $(document.activeElement);
+    var clickedBtn;
+    if (activeEl.is('button[type=submit], button[lay-submit], input[type=submit]') && form[0].contains(activeEl[0])) {
+        clickedBtn = activeEl;
+    } else {
+        clickedBtn = form.find('button[type=submit]._clicked, button[lay-submit]._clicked');
     }
-    
+
+    // ── 非 layui-form 表单：仅当点击排序按钮时才 AJAX，其他按钮（如批量删除）正常提交 ──
+    var isLayuiForm = form.hasClass('layui-form');
+    if (!isLayuiForm) {
+        var isSortingBtn = (clickedBtn && clickedBtn.length && clickedBtn.val() === 'sorting')
+                        || form.find('input[type=hidden][name=submit][value=sorting]').length > 0;
+        if (!isSortingBtn) return true; // 正常提交（如批量删除）
+    }
+
+    e.preventDefault();
+    var formData = form.serialize();
+
+    // 确保被点击的 submit 按钮值被包含（serialize 不包含 button 值）
+    if (!clickedBtn || !clickedBtn.length) clickedBtn = form.find('button[lay-submit], button[type=submit]').last();
+    if (clickedBtn && clickedBtn.attr('name')) {
+        formData += '&' + encodeURIComponent(clickedBtn.attr('name')) + '=' + encodeURIComponent(clickedBtn.val());
+    }
+
+    // ── 顶部居中通知样式 ──
+    var notifyTop = {
+        time: 2000, shade: 0, offset: 't', anim: 0,
+        success: function(layero) {
+            layero.css({'margin-top': '20px', 'border-radius': '8px'});
+        }
+    };
+    var notifyErr = $.extend({}, notifyTop, { time: 3000 });
+
     $.ajax({
         type: form.attr('method') || 'POST',
         url: form.attr('action'),
@@ -90,42 +119,25 @@ layui.use(['element','upload','laydate','form'], function(){
         data: formData,
         success: function(res) {
             if (res.code == 1) {
-                // 左下角轻量 toast，不阻塞操作
-                layer.msg('<i class="fa fa-rocket" style="color:#5FB878;font-size:15px;margin-right:8px"></i>' + (res.msg || '操作成功'), {
-                    time: 1500,
-                    shade: 0,
-                    offset: 'lb',
-                    anim: 2
-                });
-                // 1.5秒后自动跳转回列表页（如果有 returnto 参数）
+                layer.msg('<i class="fa fa-check-circle" style="color:#5FB878;font-size:16px;margin-right:8px"></i>' + (res.msg || '操作成功'), notifyTop);
                 var returnto = form.find('input[name="returnto"]').val();
                 if (returnto) {
                     setTimeout(function(){ window.location.href = returnto; }, 1500);
                 }
             } else {
-                layer.msg('<i class="fa fa-exclamation-circle" style="color:#FF5722;font-size:15px;margin-right:8px"></i>' + (res.data || res.msg || '操作失败'), {
-                    time: 3000,
-                    shade: 0,
-                    offset: 'lb',
-                    anim: 2
-                });
+                layer.msg('<i class="fa fa-exclamation-circle" style="color:#FF5722;font-size:16px;margin-right:8px"></i>' + (res.data || res.msg || '操作失败'), notifyErr);
             }
         },
         error: function() {
-            layer.msg('<i class="fa fa-exclamation-triangle" style="color:#FF5722;font-size:15px;margin-right:8px"></i>请求发生错误', {
-                time: 3000,
-                shade: 0,
-                offset: 'lb',
-                anim: 2
-            });
+            layer.msg('<i class="fa fa-exclamation-triangle" style="color:#FF5722;font-size:16px;margin-right:8px"></i>请求发生错误', notifyErr);
         }
     });
     return false;
   });
   
-  // 记录点击的 lay-submit 按钮（用于获取按钮的 name/value）
-  $(document).on('click', 'button[lay-submit]', function() {
-    $(this).closest('form').find('button[lay-submit]').removeClass('_clicked');
+  // 记录点击的 submit 按钮（用于获取按钮的 name/value）
+  $(document).on('click', 'button[lay-submit], button[type=submit]', function() {
+    $(this).closest('form').find('button[type=submit], button[lay-submit]').removeClass('_clicked');
     $(this).addClass('_clicked');
   });
   
