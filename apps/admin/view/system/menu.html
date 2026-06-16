@@ -10,6 +10,8 @@
 	  </ul>
 	  <div class="layui-tab-content">
 	  	   <div class="layui-tab-item layui-show">
+				<form action="{url./admin/Menu/mod}" method="post" class="layui-form">
+				<input type="hidden" name="submit" value="sorting">
 				<table class="layui-table" id="menuTable">
 	                <thead>
 	                    <tr>
@@ -32,7 +34,10 @@
 	                            [value->name]</td>
 	                        <td>[value->mcode]</td>
 	                        <td>[value->pcode]</td>
-	                        <td>[value->sorting]</td>
+	                        <td class="table-input">
+	                        <input type="hidden" name="listall[]" value="[value->id]">
+	                        <input type="text" lay-ignore class="layui-input" name="sorting[]" value="[value->sorting]">
+	                        </td>
 	                        <td>[value->url]</td>
 
 	                        <td>
@@ -51,6 +56,8 @@
 	                {/foreach}
 	                </tbody>
             	</table>
+            	<button type="submit" class="layui-btn layui-btn-sm">保存排序</button>
+            	</form>
             	<script>
             	$("#menuTable").treetable({ expandable: true,column: 1,indent:20,stringCollapse:'收缩',stringExpand:'展开' });
             	</script>

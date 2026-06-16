@@ -85,7 +85,7 @@ func (cc *ContentController) Add(c *gin.Context) {
 		}
 
 		visits, _ := strconv.Atoi(c.DefaultPostForm("visits", "0"))
-		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
+		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		istop, _ := strconv.Atoi(c.DefaultPostForm("istop", "0"))
 		isrecommend, _ := strconv.Atoi(c.DefaultPostForm("isrecommend", "0"))
 		isheadline, _ := strconv.Atoi(c.DefaultPostForm("isheadline", "0"))
@@ -166,21 +166,8 @@ func (cc *ContentController) Mod(c *gin.Context) {
 
 	submit := c.PostForm("submit")
 
-	if submit == "sorting" {
-		idList := c.PostFormArray("id")
-		sortingList := c.PostFormArray("sorting")
-		idSortingMap := map[string]int{}
-		for i, sid := range idList {
-			if i < len(sortingList) {
-				s, _ := strconv.Atoi(sortingList[i])
-				idSortingMap[sid] = s
-			}
-		}
-		if err := cc.svc.UpdateSorting(idSortingMap); err != nil {
-			cc.JSONFail(c, err.Error())
-			return
-		}
-		cc.JSONOKMsg(c, "Sort order modified successfully")
+	if cc.IsBatchSort(c) {
+		cc.BatchSort(c, &model.Content{}, "sorting", 255)
 		return
 	}
 
@@ -264,9 +251,8 @@ func (cc *ContentController) Mod(c *gin.Context) {
 		if v, err := strconv.Atoi(c.DefaultPostForm("visits", "0")); err == nil {
 			updates["visits"] = v
 		}
-		if v, err := strconv.Atoi(c.DefaultPostForm("sorting", "0")); err == nil {
-			updates["sorting"] = v
-		}
+		// 注意：詳情編輯不改排序值（與 PbootCMS PHP 一致）
+		// 排序僅通過列表頁批量排序修改
 		if v, err := strconv.Atoi(c.DefaultPostForm("istop", "0")); err == nil {
 			updates["istop"] = v
 		}

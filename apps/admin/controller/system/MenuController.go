@@ -18,13 +18,13 @@ type MenuController struct {
 func (mc *MenuController) Index(c *gin.Context) {
 	var menus []model.Menu
 	model.DB.Order("sorting ASC, id ASC").Find(&menus)
-	common.Render(c, "system/menu.html", gin.H{"menus": menus})
+	common.Render(c, "system/menu.html", gin.H{"list": true, "menus": menus})
 }
 
 // Add - Add new menu
 func (mc *MenuController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
-		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
+		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		model.DB.Create(&model.Menu{
 			Mcode:    c.PostForm("mcode"),
 			Pcode:    c.PostForm("pcode"),
@@ -51,8 +51,14 @@ func (mc *MenuController) Mod(c *gin.Context) {
 	}
 	id, _ := strconv.Atoi(idStr)
 
+	// 批量排序：POST submit=sorting
+	if mc.IsBatchSort(c) {
+		mc.BatchSort(c, &model.Menu{}, "sorting", 255)
+		return
+	}
+
 	if c.Request.Method == "POST" {
-		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
+		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 		model.DB.Model(&model.Menu{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"mcode":   c.PostForm("mcode"),

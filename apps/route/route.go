@@ -71,17 +71,24 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.GET("/content/slide/index", sl.Index)
 		adminGroup.GET("/content/slide/add", sl.Add)
 		adminGroup.POST("/content/slide/add", sl.Add)
-		adminGroup.GET("/content/slide/mod/:id", sl.Mod)
-		adminGroup.POST("/content/slide/mod/:id", sl.Mod)
+		adminGroup.POST("/content/slide/mod", sl.Mod)
+		adminGroup.Any("/content/slide/mod/*action", sl.Mod)
 		adminGroup.POST("/content/slide/del", sl.Del)
+		adminGroup.Any("/content/slide/del/*action", sl.Del)
+		// 短路由別名（模板 {url./admin/Slide/mod} 生成 /admin/slide/mod）
+		adminGroup.POST("/slide/mod", sl.Mod)
+		adminGroup.GET("/slide/mod/*action", sl.Mod)
+		adminGroup.POST("/slide/mod/*action", sl.Mod)
+		adminGroup.POST("/slide/del", sl.Del)
+		adminGroup.Any("/slide/del/*action", sl.Del)
 
 		lk := &content.LinkController{}
 		adminGroup.GET("/content/link/index", lk.Index)
 		adminGroup.GET("/content/link/add", lk.Add)
 		adminGroup.POST("/content/link/add", lk.Add)
-		adminGroup.GET("/content/link/mod/:id", lk.Mod)
-		adminGroup.POST("/content/link/mod/:id", lk.Mod)
+		adminGroup.Any("/content/link/mod/*action", lk.Mod)
 		adminGroup.POST("/content/link/del", lk.Del)
+		adminGroup.Any("/content/link/del/*action", lk.Del)
 
 		ms := &content.MessageController{}
 		adminGroup.GET("/content/message/index", ms.Index)
@@ -139,6 +146,10 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.POST("/system/menu/add", mc.Add)
 		adminGroup.GET("/system/menu/mod/:id", mc.Mod)
 		adminGroup.POST("/system/menu/mod/:id", mc.Mod)
+		adminGroup.POST("/system/menu/mod", mc.Mod)
+		// 短路由別名
+		adminGroup.POST("/menu/mod", mc.Mod)
+		adminGroup.POST("/menu/mod/:id", mc.Mod)
 		adminGroup.POST("/system/menu/del", mc.Del)
 
 		uc := &system.UserController{}

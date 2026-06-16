@@ -32,7 +32,7 @@ func (csc *ContentSortController) sortTemplateData(sorts []model.ContentSort) gi
 func (csc *ContentSortController) Index(c *gin.Context) {
 	sorts, _ := csc.svc.ListSorts()
 	data := csc.sortTemplateData(sorts)
-	data["sorts"] = helper.AddSonField(sorts)
+	data["sorts"] = helper.BuildSortTreeData(sorts)
 	data["list"] = true
 	common.Render(c, "content/contentsort.html", data)
 }
@@ -50,7 +50,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 			return
 		}
 
-		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
+		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		stype, _ := strconv.Atoi(c.DefaultPostForm("type", "1"))
 
 		// Read filename (template uses name="filename") with urlname fallback
@@ -94,7 +94,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 
 	sorts, _ := csc.svc.ListSorts()
 	data := csc.sortTemplateData(sorts)
-	data["sorts"] = helper.AddSonField(sorts)
+	data["sorts"] = helper.BuildSortTreeData(sorts)
 	data["list"] = true
 	common.Render(c, "content/contentsort.html", data)
 }
@@ -142,27 +142,12 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 		return
 	}
 
-	submit := c.PostForm("submit")
-	if submit == "sorting" {
-		idList := c.PostFormArray("id")
-		sortingList := c.PostFormArray("sorting")
-		idSortingMap := map[string]int{}
-		for i, sid := range idList {
-			if i < len(sortingList) {
-				s, _ := strconv.Atoi(sortingList[i])
-				idSortingMap[sid] = s
-			}
-		}
-		if err := csc.svc.UpdateSortSorting(idSortingMap); err != nil {
-			csc.JSONFail(c, err.Error())
-			return
-		}
-		csc.JSONOKMsg(c, "Sort order modified successfully")
+	if csc.IsBatchSort(c) {
+		csc.BatchSort(c, &model.ContentSort{}, "sorting", 255)
 		return
 	}
 
 	if c.Request.Method == "POST" {
-		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
 		stype, _ := strconv.Atoi(c.DefaultPostForm("type", "1"))
 		postScode := c.PostForm("scode")
 
@@ -184,7 +169,6 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 			"pic":         c.PostForm("pic"),
 			"keywords":    c.PostForm("keywords"),
 			"description": c.PostForm("description"),
-			"sorting":     sorting,
 			"urlname":     urlname,
 			"outlink":     c.PostForm("outlink"),
 			"gid":         c.PostForm("gid"),
@@ -261,7 +245,7 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 	sorts, _ := csc.svc.ListSorts()
 	data := csc.sortTemplateData(sorts)
 	data["sort"] = sort
-	data["sorts"] = helper.AddSonField(sorts)
+	data["sorts"] = helper.BuildSortTreeData(sorts)
 	data["sort_select"] = helper.BuildSortSelectHTML(sorts, sort.Pcode)
 	data["mod"] = true
 	common.Render(c, "content/contentsort.html", data)
