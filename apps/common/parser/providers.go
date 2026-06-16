@@ -648,12 +648,25 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 
 		var sb strings.Builder
 		for i, s := range slides {
+			// 圖片路徑確保以 / 開頭
+			src := s.Pic
+			if src != "" && !strings.HasPrefix(src, "/") && !strings.HasPrefix(src, "http") {
+				src = "/" + src
+			}
+			pic := s.Pic
+			if pic != "" && !strings.HasPrefix(pic, "/") && !strings.HasPrefix(pic, "http") {
+				pic = "/" + pic
+			}
+			picmobile := s.PicMobile
+			if picmobile != "" && !strings.HasPrefix(picmobile, "/") && !strings.HasPrefix(picmobile, "http") {
+				picmobile = "/" + picmobile
+			}
 			data := map[string]interface{}{
 				"n":         i,
 				"i":         i + 1,
-				"src":       s.Pic,
-				"pic":       s.Pic,
-				"picmobile": s.PicMobile,
+				"src":       src,
+				"pic":       pic,
+				"picmobile": picmobile,
 				"link":      s.Link,
 				"title":     s.Title,
 				"subtitle":  s.Subtitle,
@@ -681,10 +694,14 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 
 		var sb strings.Builder
 		for i, l := range links {
+			logo := l.Logo
+			if logo != "" && !strings.HasPrefix(logo, "/") && !strings.HasPrefix(logo, "http") {
+				logo = "/" + logo
+			}
 			data := map[string]interface{}{
 				"n":   i,
 				"i":   i + 1,
-				"logo": l.Logo,
+				"logo": logo,
 				"link": l.Link,
 				"title": l.Title,
 			}
@@ -994,9 +1011,17 @@ func getSortField(s *model.ContentSort, field string) string {
 	case "contenttpl":
 		return s.ContentTpl
 	case "ico":
-		return s.Ico
+		v := s.Ico
+		if v != "" && !strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "http") {
+			v = "/" + v
+		}
+		return v
 	case "pic":
-		return s.Pic
+		v := s.Pic
+		if v != "" && !strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "http") {
+			v = "/" + v
+		}
+		return v
 	case "keywords":
 		return s.Keywords
 	case "description":
@@ -1031,7 +1056,11 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 	case "content":
 		return c.Content
 	case "ico":
-		return c.Ico
+		v := c.Ico
+		if v != "" && !strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "http") {
+			v = "/" + v
+		}
+		return v
 	case "source":
 		return c.Source
 	case "author":
@@ -1136,6 +1165,16 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 	if c.Outlink != "" {
 		link = c.Outlink
 	}
+	// 圖片路徑標準化：確保以 / 開頭
+	ico := c.Ico
+	if ico != "" && !strings.HasPrefix(ico, "/") && !strings.HasPrefix(ico, "http") {
+		ico = "/" + ico
+	}
+	// 注意：Content 結構用的是 Pics（複數）不是 Pic
+	pics := c.Pics
+	if pics != "" && !strings.HasPrefix(pics, "/") && !strings.HasPrefix(pics, "http") {
+		pics = "/" + pics
+	}
 	return map[string]interface{}{
 		"n":           index,
 		"i":           index + 1,
@@ -1146,8 +1185,8 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 		"keywords":    c.Keywords,
 		"description": c.Description,
 		"content":     c.Content,
-		"ico":         c.Ico,
-		"pics":        c.Pics,
+		"ico":         ico,
+		"pics":        pics,
 		"source":      c.Source,
 		"author":      c.Author,
 		"visits":      c.Visits,
@@ -1174,14 +1213,23 @@ func sortToMap(s *model.ContentSort, index int) map[string]interface{} {
 	if link == "/" {
 		link = fmt.Sprintf("/sort/%s", s.Scode)
 	}
+	// 圖片路徑標準化：確保以 / 開頭
+	ico := s.Ico
+	if ico != "" && !strings.HasPrefix(ico, "/") && !strings.HasPrefix(ico, "http") {
+		ico = "/" + ico
+	}
+	pic := s.Pic
+	if pic != "" && !strings.HasPrefix(pic, "/") && !strings.HasPrefix(pic, "http") {
+		pic = "/" + pic
+	}
 	return map[string]interface{}{
 		"n":      index,
 		"i":      index + 1,
 		"scode":  s.Scode,
 		"name":   s.Name,
 		"subname": s.Subname,
-		"ico":    s.Ico,
-		"pic":    s.Pic,
+		"ico":    ico,
+		"pic":    pic,
 		"link":   link,
 	}
 }
