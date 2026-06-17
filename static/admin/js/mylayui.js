@@ -103,14 +103,23 @@ layui.use(['element','upload','laydate','form'], function(){
         formData += '&' + encodeURIComponent(clickedBtn.attr('name')) + '=' + encodeURIComponent(clickedBtn.val());
     }
 
-    // ── 顶部居中通知样式 ──
-    var notifyTop = {
-        time: 2000, shade: 0, offset: 't', anim: 0,
-        success: function(layero) {
-            layero.css({'margin-top': '20px', 'border-radius': '8px'});
-        }
-    };
-    var notifyErr = $.extend({}, notifyTop, { time: 3000 });
+    // ── 顶部居中通知 ──
+    function showNotify(html, type) {
+        layer.open({
+            type: 1,
+            title: false,
+            closeBtn: 0,
+            shade: 0,
+            area: 'auto',
+            offset: '20px',
+            anim: 0,
+            time: type === 'error' ? 3000 : 2000,
+            content: '<div style="padding:12px 24px;border-radius:8px;background:' +
+                (type === 'error' ? '#fff3f0' : '#f6ffed') +
+                ';border:1px solid ' + (type === 'error' ? '#ffccc7' : '#b7eb8f') +
+                ';font-size:14px;white-space:nowrap;">' + html + '</div>'
+        });
+    }
 
     $.ajax({
         type: form.attr('method') || 'POST',
@@ -119,17 +128,17 @@ layui.use(['element','upload','laydate','form'], function(){
         data: formData,
         success: function(res) {
             if (res.code == 1) {
-                layer.msg('<i class="fa fa-check-circle" style="color:#5FB878;font-size:16px;margin-right:8px"></i>' + (res.msg || '操作成功'), notifyTop);
+                showNotify('<i class="fa fa-check-circle" style="color:#52c41a;margin-right:8px"></i>' + (res.msg || '操作成功'), 'success');
                 var returnto = form.find('input[name="returnto"]').val();
                 if (returnto) {
                     setTimeout(function(){ window.location.href = returnto; }, 1500);
                 }
             } else {
-                layer.msg('<i class="fa fa-exclamation-circle" style="color:#FF5722;font-size:16px;margin-right:8px"></i>' + (res.data || res.msg || '操作失败'), notifyErr);
+                showNotify('<i class="fa fa-exclamation-circle" style="color:#ff4d4f;margin-right:8px"></i>' + (res.data || res.msg || '操作失败'), 'error');
             }
         },
         error: function() {
-            layer.msg('<i class="fa fa-exclamation-triangle" style="color:#FF5722;font-size:16px;margin-right:8px"></i>请求发生错误', notifyErr);
+            showNotify('<i class="fa fa-exclamation-triangle" style="color:#ff4d4f;margin-right:8px"></i>请求发生错误', 'error');
         }
     });
     return false;

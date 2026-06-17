@@ -43,9 +43,9 @@
     UEDITOR_HOME_URL: URL,
     UEDITOR_CORS_URL: CORS_URL,
 
-    // 服务器统一请求接口路径
-    //serverUrl: "/ueditor-plus/_demo_server/handle.php",
-    serverUrl: URL + "php/controller.php",
+    // 服务器统一请求接口路径 (PHP backend removed, Go handles uploads via /admin/index/upload)
+    //serverUrl: URL + "php/controller.php",
+    serverUrl: "/admin/index/upload",
 
     //工具栏上的所有的功能按钮和下拉框，可以在new编辑器的实例时选择自己需要的重新定义
     toolbars: [
@@ -109,21 +109,17 @@
         "simpleupload",        // 单图上传
         "insertimage",         // 多图上传
         "emotion",             // 表情
-        "scrawl",              // 涂鸦
         "insertvideo",         // 视频
         "attachment",          // 附件
-        "insertframe",         // 插入Iframe
         "insertcode",          // 插入代码
         "pagebreak",           // 分页
         "template",            // 模板
         "background",          // 背景
-        "formula",             // 公式
         "|",
         "horizontal",          // 分隔线
         "date",                // 日期
         "time",                // 时间
         "spechars",            // 特殊字符
-        "wordimage",           // Word图片转存
         "|",
         "inserttable",         // 插入表格
         "deletetable",         // 删除表格

@@ -852,7 +852,7 @@ func (ic *IndexController) Upload(c *gin.Context) {
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	allowedExts := map[string]bool{
 		".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
-		".bmp": true, ".webp": true, ".ico": true,
+		".bmp": true, ".webp": true, ".avif": true, ".ico": true,
 		".doc": true, ".docx": true, ".pdf": true,
 		".xls": true, ".xlsx": true, ".ppt": true, ".pptx": true,
 		".rar": true, ".zip": true, ".7z": true,

@@ -73,7 +73,7 @@
   - 留言 (`{pboot:message}`)
 
 - ✅ **文件上傳**
-  - 支持圖片、文檔等多類型
+  - 支持圖片（JPG/PNG/GIF/BMP/WEBP/AVIF）、文檔等多類型
   - 擴展名白名單校驗
   - 水印支持
 
@@ -125,17 +125,17 @@
 
 ```bash
 # 1. 克隆項目
-git clone https://github.com/yourname/pbootcms-go.git
-cd pbootcms-go
+git clone https://github.com/vikim540/Gbootcms.git
+cd Gbootcms
 
 # 2. 下載依賴
 go mod tidy
 
-# 3. 編譯
-go build -o pbootcms-go .
+# 3. 編譯（產物輸出到 bin/ 目錄）
+go build -o bin/gbootcms .
 
 # 4. 運行
-./pbootcms-go
+./bin/gbootcms
 ```
 
 ### 訪問
@@ -158,16 +158,17 @@ docker run -d -p 8080:8080 -v /data/pbootcms:/app/data pbootcms-go
 pbootcms-go/
 ├── main.go                      # 入口文件
 ├── go.mod                       # 依賴管理
+├── build.ps1                    # 構建腳本
 ├── config/
 │   └── config.json              # 配置文件
 ├── apps/
 │   ├── admin/                   # 後台管理
-│   │   ├── controller/          # 30 個 controller
-│   │   ├── model/               # 27 個 GORM model
-│   │   ├── service/             # 業務邏輯層（MVC+S）
-│   │   └── view/                # 靜態資源
+│   │   ├── controller/          # Controller 層
+│   │   ├── model/               # GORM Model
+│   │   ├── service/             # 業務邏輯層
+│   │   └── view/                # HTML 模板
 │   ├── home/                    # 前台展示
-│   │   ├── controller/          # 前台 controller
+│   │   ├── controller/          # 前台 Controller
 │   │   └── model/
 │   ├── common/                  # 公共組件
 │   │   ├── parser/              # 模板解析器
@@ -175,17 +176,21 @@ pbootcms-go/
 │   └── route/                   # 路由配置
 ├── core/                        # 核心模塊
 │   └── db/                      # 數據庫初始化
-├── templates/                   # HTML 模板
-│   ├── admin/                   # 後台模板
-│   └── index.html               # 前台首頁
-├── static/                      # 靜態資源
-│   ├── admin/                   # 後台 CSS/JS
-│   └── css/                     # 前台 CSS
+├── template/                    # 前台模板
+│   └── default/                 # 默認主題
+│       ├── comm/                # 公共模板（head/foot）
+│       ├── static/              # 主題靜態資源
+│       └── index.html
+├── static/                      # 全局靜態資源
+│   ├── admin/                   # 後台資源
+│   ├── upload/                  # 用戶上傳
+│   └── images/                  # 公共圖片
+├── bin/                         # 編譯產物
 ├── data/                        # 數據目錄
 │   └── pbootcms.db              # SQLite 數據庫
+├── docs/                        # 項目文檔
 ├── runtime/                     # 緩存目錄
-├── ARCHITECTURE_REVIEW.md       # 架構評測報告
-└── ARCHITECTURE_REVIEWS/        # 評測記錄目錄
+└── .plan.md                     # 開發進度記錄
 ```
 
 ---

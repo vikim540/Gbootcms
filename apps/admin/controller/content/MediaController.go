@@ -432,7 +432,7 @@ func (c *MediaController) Detail(ctx *gin.Context) {
 	mimeMap := map[string]string{
 		".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
 		".gif": "image/gif", ".bmp": "image/bmp", ".webp": "image/webp",
-		".svg": "image/svg+xml", ".ico": "image/x-icon",
+		".avif": "image/avif", ".svg": "image/svg+xml", ".ico": "image/x-icon",
 		".doc": "application/msword", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 		".xls": "application/vnd.ms-excel", ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 		".pdf": "application/pdf", ".txt": "text/plain", ".csv": "text/csv",
@@ -786,7 +786,7 @@ func addPaths(set map[string]bool, val string) {
 func getCategory(name string) string {
 	ext := strings.ToLower(filepath.Ext(name))
 	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".ico":
+	case ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".avif", ".svg", ".ico":
 		return "image"
 	case ".doc", ".docx", ".xls", ".xlsx", ".pdf", ".txt", ".csv":
 		return "document"

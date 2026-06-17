@@ -104,7 +104,7 @@ func (ie *ImageExtController) CheckDataFile(c *gin.Context) {
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))
-		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".bmp" || ext == ".ico" || ext == ".svg" || ext == ".webp" {
+		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".bmp" || ext == ".ico" || ext == ".svg" || ext == ".webp" || ext == ".avif" {
 			relPath := "/" + strings.ReplaceAll(path, "\\", "/")
 			fileArr = append(fileArr, relPath)
 		}
@@ -210,7 +210,7 @@ func (ie *ImageExtController) DoExt(c *gin.Context) {
 				return nil
 			}
 			ext := strings.ToLower(filepath.Ext(path))
-			if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".bmp" || ext == ".ico" || ext == ".svg" || ext == ".webp" {
+			if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".bmp" || ext == ".ico" || ext == ".svg" || ext == ".webp" || ext == ".avif" {
 				relPath := "/" + strings.ReplaceAll(path, "\\", "/")
 				if !dbImageSet[relPath] {
 					dstPath := filepath.Join(backupDir, filepath.Base(path))
