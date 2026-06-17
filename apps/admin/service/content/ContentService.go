@@ -10,7 +10,7 @@ import (
 type ContentService struct{}
 
 // ListContents returns paginated content list and total count
-func (s *ContentService) ListContents(scode string, page, pageSize int) ([]model.Content, int64, error) {
+func (s *ContentService) ListContents(scode, keyword string, page, pageSize int) ([]model.Content, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -18,6 +18,10 @@ func (s *ContentService) ListContents(scode string, page, pageSize int) ([]model
 	query := model.DB.Model(&model.Content{}).Where("status >= 0")
 	if scode != "" {
 		query = query.Where("scode = ? OR subscode = ?", scode, scode)
+	}
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("title LIKE ? OR tags LIKE ?", like, like)
 	}
 	query.Count(&total)
 

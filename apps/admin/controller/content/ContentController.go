@@ -36,6 +36,7 @@ func (cc *ContentController) contentTemplateData(mcode string, sorts []model.Con
 func (cc *ContentController) Index(c *gin.Context) {
 	mcode := c.Query("mcode")
 	scode := c.Query("scode")
+	keyword := c.Query("keyword")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize := 15
 	if ps := c.Query("pagesize"); ps != "" {
@@ -44,13 +45,14 @@ func (cc *ContentController) Index(c *gin.Context) {
 		}
 	}
 
-	contents, total, _ := cc.svc.ListContents(scode, page, pageSize)
+	contents, total, _ := cc.svc.ListContents(scode, keyword, page, pageSize)
 	sorts, _ := cc.svc.GetAllSorts()
 
 	data := cc.contentTemplateData(mcode, sorts)
 	data["contents"] = helper.AddSortName(contents, sorts)
 	data["list"] = true
 	data["scode"] = scode
+	data["keyword"] = keyword
 	data["total"] = total
 	data["page"] = page
 	data["pagesize"] = pageSize
@@ -59,6 +61,9 @@ func (cc *ContentController) Index(c *gin.Context) {
 	baseURL := fmt.Sprintf("/admin/content/index?mcode=%s", mcode)
 	if scode != "" {
 		baseURL += "&scode=" + scode
+	}
+	if keyword != "" {
+		baseURL += "&keyword=" + keyword
 	}
 	data["pagebar"] = helper.BuildPagebarHTML(total, page, pageSize, baseURL)
 

@@ -87,6 +87,10 @@ layui.use(['element','upload','laydate','form'], function(){
           anim: -1, // 關閉默認動畫，用 CSS 自定義
           time: isErr ? 4000 : 2500,
           success: function(lyr) {
+              // 消除 LayUI 外層容器的白背景（否則在圓角處外露白色）
+              $(lyr).css({ background: 'transparent', padding: 0 });
+              $(lyr).find('.layui-layer-content').css({ background: 'transparent', padding: 0 });
+              $(lyr).find('.layui-layer-page').css({ background: 'transparent', padding: 0 });
               // 自定義縮放入場
               $(lyr).css({ opacity: 0, transform: 'scale(0.88) translateY(-10px)' });
               setTimeout(function() {
