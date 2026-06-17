@@ -87,10 +87,8 @@ layui.use(['element','upload','laydate','form'], function(){
           anim: -1, // 關閉默認動畫，用 CSS 自定義
           time: isErr ? 4000 : 2500,
           success: function(lyr) {
-              // 消除 LayUI 外層容器的白背景（否則在圓角處外露白色）
-              $(lyr).css({ background: 'transparent', padding: 0 });
-              $(lyr).find('.layui-layer-content').css({ background: 'transparent', padding: 0 });
-              $(lyr).find('.layui-layer-page').css({ background: 'transparent', padding: 0 });
+              // 在 .layui-layer 容器直接套圓角+溢出裁切，隱藏 LayUI 預設白背景
+              $(lyr).css({ overflow: 'hidden', borderRadius: '12px' });
               // 自定義縮放入場
               $(lyr).css({ opacity: 0, transform: 'scale(0.88) translateY(-10px)' });
               setTimeout(function() {
@@ -123,6 +121,9 @@ layui.use(['element','upload','laydate','form'], function(){
   form.on('submit()', function(data) {
       var $form = $(data.form);
       if ($form.attr('id') === 'dologin') return true; // 跳過登錄表單
+      // GET 表單（搜索/篩選）使用原生提交而非 AJAX
+      var method = ($form.attr('method') || 'POST').toUpperCase();
+      if (method === 'GET') return true;
       // 跳過有 lay-filter 的按鈕（已由專屬 handler 處理）
       var $btn = $(data.elem);
       if ($btn.attr('lay-filter')) return true;
