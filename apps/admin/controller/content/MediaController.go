@@ -576,21 +576,21 @@ func findUsages(filePath string) []UsageInfo {
 		}
 	}
 
-	// 5. ay_company: weixin, license
+	// 5. ay_company: weixin, blicense
 	type CompanyRow struct {
-		ID      int
-		Name    string
-		Weixin  string
-		License string
+		ID       int
+		Name     string
+		Weixin   string
+		Blicense string
 	}
 	var companies []CompanyRow
-	model.DB.Table("ay_company").Select("id, name, weixin, license").Find(&companies)
+	model.DB.Table("ay_company").Select("id, name, weixin, blicense").Find(&companies)
 	for _, row := range companies {
 		if pathMatchField(row.Weixin, np, base) {
 			usages = append(usages, UsageInfo{"ay_company", row.ID, row.Name, "weixin(微信)"})
 		}
-		if pathMatchField(row.License, np, base) {
-			usages = append(usages, UsageInfo{"ay_company", row.ID, row.Name, "license(證照)"})
+		if pathMatchField(row.Blicense, np, base) {
+			usages = append(usages, UsageInfo{"ay_company", row.ID, row.Name, "blicense(證照)"})
 		}
 	}
 
@@ -702,15 +702,15 @@ func getUsedPaths() map[string]bool {
 		addPaths(used, row.Logo)
 	}
 
-	// ay_company: weixin, license
+	// ay_company: weixin, blicense
 	type CompanyRow struct {
-		Weixin, License string
+		Weixin, Blicense string
 	}
 	var companies []CompanyRow
-	model.DB.Table("ay_company").Select("weixin, license").Find(&companies)
+	model.DB.Table("ay_company").Select("weixin, blicense").Find(&companies)
 	for _, row := range companies {
 		addPaths(used, row.Weixin)
-		addPaths(used, row.License)
+		addPaths(used, row.Blicense)
 	}
 
 	// ay_site: logo

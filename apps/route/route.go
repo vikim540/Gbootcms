@@ -126,11 +126,9 @@ func SetupAdminRoutes(r *gin.Engine) {
 
 		md := &content.ModelController{}
 		adminGroup.GET("/content/model/index", md.Index)
-		adminGroup.GET("/content/model/add", md.Add)
-		adminGroup.POST("/content/model/add", md.Add)
-		adminGroup.GET("/content/model/mod/:id", md.Mod)
-		adminGroup.POST("/content/model/mod/:id", md.Mod)
-		adminGroup.POST("/content/model/del", md.Del)
+		adminGroup.Any("/content/model/add", md.Add)
+		adminGroup.Any("/content/model/mod/*action", md.Mod)
+		adminGroup.Any("/content/model/del/*action", md.Del)
 
 		ef := &content.ExtFieldController{}
 		adminGroup.GET("/content/extField/index", ef.Index)
