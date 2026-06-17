@@ -121,9 +121,12 @@ layui.use(['element','upload','laydate','form'], function(){
   form.on('submit()', function(data) {
       var $form = $(data.form);
       if ($form.attr('id') === 'dologin') return true; // 跳過登錄表單
-      // GET 表單（搜索/篩選）使用原生提交而非 AJAX
+      // GET 表單（搜索/篩選）直接原生提交，跳過 LayUI AJAX 處理
       var method = ($form.attr('method') || 'POST').toUpperCase();
-      if (method === 'GET') return true;
+      if (method === 'GET') {
+          $form[0].submit();
+          return false;
+      }
       // 跳過有 lay-filter 的按鈕（已由專屬 handler 處理）
       var $btn = $(data.elem);
       if ($btn.attr('lay-filter')) return true;

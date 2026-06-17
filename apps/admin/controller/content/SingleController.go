@@ -24,9 +24,17 @@ func (sg *SingleController) Index(c *gin.Context) {
 		mcode = "1" // 默認單頁模型 mcode (對應 ay_model 中 type=1 的記錄)
 	}
 
+	// 搜索參數
+	field := c.Query("field")
+	keyword := c.Query("keyword")
+
 	// 通過 mcode 查詢屬於單頁模型的欄目
 	var sorts []model.ContentSort
-	model.DB.Where("mcode = ? AND status = 1", mcode).Order("sorting ASC").Find(&sorts)
+	sortQuery := model.DB.Where("mcode = ? AND status = 1", mcode)
+	if keyword != "" && field == "b.name" {
+		sortQuery = sortQuery.Where("name LIKE ?", "%"+keyword+"%")
+	}
+	sortQuery.Order("sorting ASC").Find(&sorts)
 
 	// 查詢每個欄目下的最新一條內容(單頁每個欄目只有一條)
 	var contents []model.Content
@@ -35,9 +43,12 @@ func (sg *SingleController) Index(c *gin.Context) {
 		for _, s := range sorts {
 			scodes = append(scodes, s.Scode)
 		}
-		model.DB.Where("scode IN (?)", scodes).
-			Where("id IN (SELECT MAX(id) FROM ay_content WHERE scode IN (?) GROUP BY scode)", scodes).
-			Order("scode ASC").Find(&contents)
+		contentQuery := model.DB.Where("scode IN (?)", scodes).
+			Where("id IN (SELECT MAX(id) FROM ay_content WHERE scode IN (?) GROUP BY scode)", scodes)
+		if keyword != "" && field == "a.title" {
+			contentQuery = contentQuery.Where("title LIKE ?", "%"+keyword+"%")
+		}
+		contentQuery.Order("scode ASC").Find(&contents)
 	}
 
 	common.Render(c, "content/single.html", gin.H{
@@ -45,7 +56,9 @@ func (sg *SingleController) Index(c *gin.Context) {
 		"contents":   helper.AddSortName(contents, sorts),
 		"list":       true,
 		"mcode":      mcode,
-		"model_name": "栏目",
+		"keyword":    keyword,
+		"field":      field,
+		"model_name": "欄目",
 	})
 }
 

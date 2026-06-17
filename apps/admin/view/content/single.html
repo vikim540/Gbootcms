@@ -13,12 +13,12 @@
 	  	   		<div class="layui-form-item nospace">
 	  	   			<div class="layui-input-inline">
 				      <select name="field" class="form-control input-sm" style="width:auto;">
-				      		<option value="b.name">栏目名称</option>
-                               <option value="a.title">文章标题</option>
+				      		<option value="b.name"{% if field == "b.name" %} selected{% endif %}>栏目名称</option>
+                               <option value="a.title"{% if field == "a.title" %} selected{% endif %}>文章标题</option>
                        	</select>
 				    </div>
                      <div class="layui-input-inline">
-                     	<input type="text" name="keyword" value="" placeholder="请输入搜索关键字" class="layui-input">
+                     	<input type="text" name="keyword" value="{{ keyword }}" placeholder="请输入搜索关键字" class="layui-input">
                      </div>
                      <div class="layui-input-inline">
                      	<button class="layui-btn" lay-submit>搜索</button>
