@@ -348,7 +348,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 					}
 				}
 				if i == current {
-					sb.WriteString(fmt.Sprintf("<a class=\"page-num-current\" href=\"%s\">%d</a>", link, i))
+					sb.WriteString(fmt.Sprintf("<a class=\"page-num page-num-current\" href=\"%s\">%d</a>", link, i))
 				} else {
 					sb.WriteString(fmt.Sprintf("<a class=\"page-num\" href=\"%s\">%d</a>", link, i))
 				}
