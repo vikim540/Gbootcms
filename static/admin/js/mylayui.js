@@ -72,26 +72,44 @@ layui.use(['element','upload','laydate','form'], function(){
     return false;
   });
   
-  // 通用頂部通知彈窗（美化版）
-  function showNotify(html, type) {
-      var cfg = type === 'error'
-          ? { icon: 'fa-times-circle', iconColor: '#ff4d4f', bg: '#fff2f0', border: '#ffccc7', textColor: '#cf1322' }
-          : { icon: 'fa-check-circle',  iconColor: '#52c41a', bg: '#f6ffed', border: '#b7eb8f', textColor: '#389e0d' };
+  // ─── 通用頂級通知（設計：玻璃質感 + 左側色條 + 縮放入場） ───
+  //  呼叫時只傳純文字，不再傳 icon（showNotify 內部統一處理 icon）
+  function showNotify(text, type) {
+      var isErr = type === 'error';
+      // error → fa-times-circle · success → fa-check-circle
+      var icon   = isErr ? 'fa-times-circle' : 'fa-check-circle';
+      var accent = isErr ? '#ff4d4f' : '#52c41a';
+      var bg     = isErr ? '#fff2f0' : '#f6ffed';
+      var txtCol = isErr ? '#cf1322' : '#389e0d';
       layer.open({
-          type: 1,
-          title: false,
-          closeBtn: 0,
-          shade: 0,
-          area: 'auto',
-          offset: '20px',
-          anim: 2,
-          time: type === 'error' ? 3500 : 2200,
-          content: '<div style="padding:14px 28px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.10),0 1px 3px rgba(0,0,0,0.06);background:' + cfg.bg + ';border:1px solid ' + cfg.border + ';font-size:15px;display:flex;align-items:center;gap:10px;white-space:nowrap;">' +
-              '<span style="width:28px;height:28px;border-radius:50%;background:' + cfg.iconColor + '22;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
-              '<i class="fa ' + cfg.icon + '" style="color:' + cfg.iconColor + ';font-size:16px;"></i>' +
-              '</span>' +
-              '<span style="color:' + cfg.textColor + ';font-weight:500;">' + html + '</span>' +
-              '</div>'
+          type: 1, title: false, closeBtn: 0, shade: 0,
+          area: 'auto', offset: '28px',
+          anim: -1, // 關閉默認動畫，用 CSS 自定義
+          time: isErr ? 4000 : 2500,
+          success: function(lyr) {
+              // 自定義縮放入場
+              $(lyr).css({ opacity: 0, transform: 'scale(0.88) translateY(-10px)' });
+              setTimeout(function() {
+                  $(lyr).css({
+                      transition: 'all 0.35s cubic-bezier(.34,1.56,.64,1)',
+                      opacity: 1,
+                      transform: 'scale(1) translateY(0)'
+                  });
+              }, 10);
+          },
+          content: '<div style="display:flex;align-items:stretch;overflow:hidden;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.10),0 2px 8px rgba(0,0,0,0.06);background:' + bg + ';border:1px solid ' + (isErr ? '#ffccc7' : '#b7eb8f') + ';">' +
+              /* 左側色條 */
+              '<div style="width:4px;flex-shrink:0;background:linear-gradient(180deg,' + accent + ',' + (isErr ? '#ff7875' : '#73d13d') + ');"></div>' +
+              /* 主體 */
+              '<div style="display:flex;align-items:center;gap:12px;padding:14px 24px 14px 18px;white-space:nowrap;">' +
+                  /* 圖標圓環 */
+                  '<span style="width:30px;height:30px;border-radius:50%;background:' + accent + '1a;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
+                      '<i class="fa ' + icon + '" style="color:' + accent + ';font-size:16px;"></i>' +
+                  '</span>' +
+                  /* 文字 */
+                  '<span style="color:' + txtCol + ';font-size:14px;font-weight:500;letter-spacing:0.01em;">' + text + '</span>' +
+              '</div>' +
+          '</div>'
       });
   }
 
@@ -121,17 +139,17 @@ layui.use(['element','upload','laydate','form'], function(){
           data: formData,
           success: function(res) {
               if (res.code == 1) {
-                  showNotify('<i class="fa fa-check-circle" style="color:#52c41a;margin-right:8px"></i>' + (res.msg || '操作成功'), 'success');
+                  showNotify(res.msg || '操作成功', 'success');
                   var returnto = $form.find('input[name="returnto"]').val();
                   if (returnto) {
                       setTimeout(function(){ window.location.href = returnto; }, 1500);
                   }
               } else {
-                  showNotify('<i class="fa fa-exclamation-circle" style="color:#ff4d4f;margin-right:8px"></i>' + (res.data || res.msg || '操作失败'), 'error');
+                  showNotify(res.data || res.msg || '操作失败', 'error');
               }
           },
           error: function() {
-              showNotify('<i class="fa fa-exclamation-triangle" style="color:#ff4d4f;margin-right:8px"></i>请求发生错误', 'error');
+              showNotify('请求发生错误', 'error');
           }
       });
       return false; // 阻止 layui 原生 formElem.submit()
@@ -153,13 +171,13 @@ layui.use(['element','upload','laydate','form'], function(){
           data: formData,
           success: function(res) {
               if (res.code == 1) {
-                  showNotify('<i class="fa fa-check-circle" style="color:#52c41a;margin-right:8px"></i>' + (res.msg || '操作成功'), 'success');
+                  showNotify(res.msg || '操作成功', 'success');
               } else {
-                  showNotify('<i class="fa fa-exclamation-circle" style="color:#ff4d4f;margin-right:8px"></i>' + (res.data || res.msg || '操作失败'), 'error');
+                  showNotify(res.data || res.msg || '操作失败', 'error');
               }
           },
           error: function() {
-              showNotify('<i class="fa fa-exclamation-triangle" style="color:#ff4d4f;margin-right:8px"></i>请求发生错误', 'error');
+              showNotify('请求发生错误', 'error');
           }
       });
       return false;
@@ -171,21 +189,22 @@ layui.use(['element','upload','laydate','form'], function(){
     $(this).addClass('_clicked');
   });
 
-  // 通用刪除按鈕：LayUI 確認彈窗 → AJAX 刪除
+  // ─── 通用刪除按鈕（設計：左側圖標區 + 漸進式確認） ───
   $(document).on('click', '.btn-del', function(e) {
       e.preventDefault();
       var $btn = $(this);
       var url = $btn.data('url');
 
-      // 從按鈕文字判斷刪除對象
-      var targetName = $btn.closest('td').prevAll('td').eq(1).text().trim() || '此项';
+      // 自動提取列表行中的名稱（第二個 td 的內容）
+      var targetName = $btn.closest('tr').find('td').eq(1).text().trim() || '此项';
 
       layer.open({
           type: 1,
-          title: '<i class="fa fa-exclamation-triangle" style="color:#faad14;margin-right:8px"></i> 确认删除',
-          area: ['420px', 'auto'],
+          title: false, // 自定義標題在 content 內
+          area: ['440px', 'auto'],
           shadeClose: true,
-          anim: 1,
+          anim: 2,
+          shade: [0.4, '#000'],
           btn: ['确认删除', '取消'],
           btnAlign: 'c',
           yes: function(index) {
@@ -194,30 +213,43 @@ layui.use(['element','upload','laydate','form'], function(){
                   url: url,
                   dataType: 'json',
                   beforeSend: function() {
-                      layer.load(1);
+                      layer.load(2);
                   },
                   success: function(res) {
                       layer.closeAll('loading');
                       if (res.code == 1) {
-                          showNotify('<i class="fa fa-check-circle" style="color:#52c41a;margin-right:8px"></i> ' + (res.msg || '删除成功'), 'success');
-                          // 刷新當前頁面
+                          showNotify(res.msg || '删除成功', 'success');
                           setTimeout(function(){ location.reload(); }, 1200);
                       } else {
-                          showNotify('<i class="fa fa-exclamation-circle" style="color:#ff4d4f;margin-right:8px"></i> ' + (res.data || res.msg || '删除失败'), 'error');
+                          showNotify(res.data || res.msg || '删除失败', 'error');
                       }
                   },
                   error: function() {
                       layer.closeAll('loading');
-                      showNotify('<i class="fa fa-exclamation-triangle" style="color:#ff4d4f;margin-right:8px"></i> 请求发生错误', 'error');
+                      showNotify('请求发生错误', 'error');
                   }
               });
               layer.close(index);
           },
-          content: '<div style="padding:20px 28px 10px;font-size:15px;line-height:1.8;color:#555;">' +
-              '<div style="margin-bottom:8px;font-weight:600;font-size:16px;color:#333;">确定要删除 <span style="color:#ff4d4f;">' + targetName + '</span> 吗？</div>' +
-              '<div style="background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;padding:10px 14px;font-size:13px;color:#ad8b00;">' +
-              '<i class="fa fa-info-circle" style="margin-right:6px;color:#faad14;"></i>此操作不可撤销，删除后数据将永久丢失' +
-              '</div>' +
+          // 按鈕樣式自定義（LayUI layer 的 btn 支援 css class）
+          btnClass: ['layui-btn-danger'],
+          content:
+              '<div style="padding:0;">' +
+                  /* 頂部：大圖標 + 警示色背景 */
+                  '<div style="text-align:center;padding:28px 0 18px;background:linear-gradient(135deg,#fff2f0 0%,#fff 70%);border-radius:6px 6px 0 0;">' +
+                      '<span style="display:inline-flex;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#ff4d4f,#ff7875);box-shadow:0 6px 20px rgba(255,77,79,0.30);align-items:center;justify-content:center;">' +
+                          '<i class="fa fa-trash" style="color:#fff;font-size:28px;"></i>' +
+                      '</span>' +
+                      '<div style="margin-top:16px;font-size:18px;font-weight:700;color:#262626;">确认删除</div>' +
+                      '<div style="margin-top:6px;font-size:14px;color:#8c8c8c;">确定要删除 <strong style="color:#ff4d4f;">' + targetName + '</strong> 吗？</div>' +
+                  '</div>' +
+                  /* 分隔線 */
+                  '<div style="margin:0 24px;border-top:1px solid #f0f0f0;"></div>' +
+                  /* 底部警告區域 */
+                  '<div style="padding:16px 24px 22px;display:flex;align-items:flex-start;gap:10px;">' +
+                      '<i class="fa fa-info-circle" style="color:#faad14;font-size:16px;flex-shrink:0;margin-top:1px;"></i>' +
+                      '<span style="font-size:13px;line-height:1.6;color:#8c8c8c;">此操作将永久删除该数据，<span style="color:#ff4d4f;font-weight:600;">不可撤销</span>。请在操作前确认已备份重要数据。</span>' +
+                  '</div>' +
               '</div>'
       });
       return false;
