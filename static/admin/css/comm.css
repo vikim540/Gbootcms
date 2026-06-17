@@ -263,3 +263,23 @@ a.page-num-current:hover{
 	margin: 0 0 10px 0px;
 }
 }
+
+/* 使用 Font Awesome 替換 layer 關閉按鈕圖標 */
+.layui-layer-setwin .layui-layer-close1 {
+    background: none !important;
+    font-size: 18px;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
+    color: #999;
+    transition: color 0.2s;
+}
+.layui-layer-setwin .layui-layer-close1:before {
+    font-family: FontAwesome;
+    content: "\f00d";
+}
+.layui-layer-setwin .layui-layer-close1:hover {
+    color: #333;
+    opacity: 1;
+}
