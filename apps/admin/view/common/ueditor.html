@@ -214,19 +214,28 @@ $(document).ready(function () {
 <script type="text/javascript">
    <!-- 解决源码模式无法保存 -->
   function editor_init() {
-      $('#edit').submit(function () {
-          if (mdMode && vditorInstance) {
-              // MD 模式：Markdown → HTML 写入 UEditor
-              var html = vditorInstance.getHTML();
-              var md = vditorInstance.getValue();
-              try { getUE().setContent(html); } catch(e) {}
-              // 同时保存原始 MD 到隐藏字段
-              document.getElementById('md_source').value = md;
-          } else {
-              var editor = getUE();
-              if (editor && editor.queryCommandState('source') == 1) editor.execCommand('source');
-          }
-      })
+      // LayUI 的 lay-submit 會阻止原生 submit 事件，
+      // 所以改用按鈕點擊直接同步編輯器內容
+      var btn = document.querySelector('#edit [lay-submit]');
+      if (btn) {
+          btn.addEventListener('click', function() {
+              syncEditorBeforeSubmit();
+          }, true); // capture phase，在 LayUI 之前執行
+      }
+  }
+
+  function syncEditorBeforeSubmit() {
+      if (mdMode && vditorInstance) {
+          // MD 模式：Markdown → HTML 写入 UEditor
+          var html = vditorInstance.getHTML();
+          var md = vditorInstance.getValue();
+          try { getUE().setContent(html); } catch(e) {}
+          // 同时保存原始 MD 到隐藏字段
+          document.getElementById('md_source').value = md;
+      } else {
+          var editor = getUE();
+          if (editor && editor.queryCommandState('source') == 1) editor.execCommand('source');
+      }
   }
 
   <!-- 点击侧边栏图片添加到编辑器 -->
