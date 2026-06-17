@@ -1,8 +1,10 @@
 package content
 
 import (
+	"pbootcms-go/apps/admin/helper"
 	"pbootcms-go/apps/admin/model/content"
 	"pbootcms-go/apps/common"
+	"regexp"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -12,82 +14,149 @@ type ModelController struct {
 	common.BaseController
 }
 
+// Index — 模型列表
 func (md *ModelController) Index(c *gin.Context) {
 	models := content.GetAllModels()
-	common.Render(c, "content/model.html", gin.H{"models": models})
+	common.Render(c, "content/model.html", gin.H{
+		"list":   true,
+		"models": models,
+	})
 }
 
+// Add — 新增模型
 func (md *ModelController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
-		typ, _ := strconv.Atoi(c.DefaultPostForm("type", "1"))
-		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
-		err := content.AddModel(
-			c.PostForm("mcode"),
-			c.PostForm("name"),
-			c.PostForm("urlname"),
-			"admin",
-			typ,
-			status,
-		)
-		if err != nil {
-			md.JSONFailMsg(c, "Add failed: "+err.Error())
+		name := c.PostForm("name")
+		if name == "" {
+			md.JSONFail(c, "模型名稱不能為空")
 			return
 		}
-		md.JSONOKMsg(c, "Added successfully")
+
+		typ, _ := strconv.Atoi(c.DefaultPostForm("type", "1"))
+		urlname := c.PostForm("urlname")
+		listtpl := c.PostForm("listtpl")
+		contenttpl := c.PostForm("contenttpl")
+		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
+
+		// 驗證 urlname 格式
+		if urlname != "" {
+			if matched, _ := regexp.MatchString(`^[a-zA-Z0-9\-]+$`, urlname); !matched {
+				md.JSONFail(c, "路由別名僅允許英文、數字和短橫線")
+				return
+			}
+		}
+
+		// 自動生成 mcode
+		mcode := content.GetNextMcode()
+
+		if err := content.AddModel(mcode, name, urlname, listtpl, contenttpl, "admin", typ, status); err != nil {
+			md.JSONFail(c, "新增失敗: "+err.Error())
+			return
+		}
+		md.JSONOKMsg(c, "新增成功")
 		return
 	}
-	common.Render(c, "content/model.html", gin.H{"action": "add"})
+
+	// GET: 渲染新增表單（與列表同頁）
+	models := content.GetAllModels()
+	common.Render(c, "content/model.html", gin.H{
+		"list":   true,
+		"models": models,
+	})
 }
 
+// Mod — 修改模型
 func (md *ModelController) Mod(c *gin.Context) {
-	idStr := c.Param("id")
+	params := helper.ParseWildcardAction(c.Param("action"))
+
+	idStr := params["id"]
 	if idStr == "" {
 		idStr = c.Query("id")
 	}
 	id, _ := strconv.Atoi(idStr)
 
-	// === 双重人格路由：GET /field/status/value 模式单字段快速切换 ===
-	fieldName := c.Query("field")
-	fieldValue := c.Query("value")
-	if c.Request.Method == "GET" && fieldName != "" && fieldValue != "" {
-		// 白名单：只允许修改 status 字段，防止 SQL 注入
-		if fieldName == "status" {
-			content.UpdateModelSingleField(id, fieldName, fieldValue, "admin")
-			md.JSONOKMsg(c, "Modified successfully")
+	field := params["field"]
+	if field == "" {
+		field = c.Query("field")
+	}
+	value := params["value"]
+	if value == "" {
+		value = c.Query("value")
+	}
+
+	// === 單字段快速切換（如狀態切換） ===
+	if field != "" && value != "" {
+		if field == "status" {
+			content.UpdateModelSingleField(id, field, value, "admin")
+			md.JSONOKMsg(c, "修改成功")
 			return
 		}
-		md.JSONFailMsg(c, "Invalid field")
+		md.JSONFail(c, "不允許修改的字段")
 		return
 	}
 
-	// === POST 全量修改模式 ===
+	// === POST 全量修改 ===
 	if c.Request.Method == "POST" {
-		err := content.UpdateModel(
-			id,
-			c.PostForm("mcode"),
-			c.PostForm("name"),
-			c.PostForm("urlname"),
-			"admin",
-		)
-		if err != nil {
-			md.JSONFailMsg(c, "Modify failed: "+err.Error())
+		name := c.PostForm("name")
+		if name == "" {
+			md.JSONFail(c, "模型名稱不能為空")
 			return
 		}
-		md.JSONOKMsg(c, "Modified successfully")
+
+		typ, _ := strconv.Atoi(c.DefaultPostForm("type", "1"))
+		urlname := c.PostForm("urlname")
+		listtpl := c.PostForm("listtpl")
+		contenttpl := c.PostForm("contenttpl")
+		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
+
+		// 驗證 urlname 格式
+		if urlname != "" {
+			if matched, _ := regexp.MatchString(`^[a-zA-Z0-9\-]+$`, urlname); !matched {
+				md.JSONFail(c, "路由別名僅允許英文、數字和短橫線")
+				return
+			}
+		}
+
+		// 檢查 urlname 衝突
+		if conflict := content.CheckUrlnameConflict(urlname, id); conflict != "" {
+			md.JSONFail(c, conflict)
+			return
+		}
+
+		if err := content.UpdateModel(id, name, urlname, listtpl, contenttpl, "admin", typ, status); err != nil {
+			md.JSONFail(c, "修改失敗: "+err.Error())
+			return
+		}
+		md.JSONOKMsg(c, "修改成功")
 		return
 	}
 
+	// === GET: 渲染修改表單 ===
 	cm := content.GetModelById(id)
-	common.Render(c, "content/model.html", gin.H{"model": cm, "action": "mod"})
+	models := content.GetAllModels()
+	common.Render(c, "content/model.html", gin.H{
+		"list":   true,
+		"models": models,
+		"mod":    true,
+		"model":  cm,
+	})
 }
 
+// Del — 刪除模型
 func (md *ModelController) Del(c *gin.Context) {
-	idStr := c.Query("id")
+	params := helper.ParseWildcardAction(c.Param("action"))
+	idStr := params["id"]
+	if idStr == "" {
+		idStr = c.Query("id")
+	}
 	id, _ := strconv.Atoi(idStr)
-	err := content.DeleteModel(id)
-	if err != nil {
-		md.JSONFailMsg(c, "Delete failed: "+err.Error())
+	if id <= 0 {
+		md.JSONFail(c, "缺少模型 ID")
 		return
 	}
-	md.JSONOKMsg(c, "Deleted successfully")
+	if err := content.DeleteModel(id); err != nil {
+		md.JSONFail(c, err.Error())
+		return
+	}
+	md.JSONOKMsg(c, "刪除成功")
 }

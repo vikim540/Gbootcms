@@ -188,8 +188,8 @@ func seedMemberGroups() {
 
 func seedContentModels() {
 	models := []content.Model{
-		{Mcode: "3D1", Name: "文章模型", Urlname: "list", Status: 1, Type: 2, Issystem: 0},
-		{Mcode: "3D2", Name: "单页模型", Urlname: "about", Status: 1, Type: 1, Issystem: 0},
+		{Mcode: "3D1", Name: "文章模型", URLName: "list", Status: 1, Type: 2, Issystem: 0},
+		{Mcode: "3D2", Name: "单页模型", URLName: "about", Status: 1, Type: 1, Issystem: 0},
 	}
 	for _, m := range models {
 		model.DB.Create(&m)

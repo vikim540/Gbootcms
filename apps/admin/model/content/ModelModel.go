@@ -13,7 +13,7 @@ type Model struct {
 	Mcode      string `gorm:"column:mcode" json:"mcode"`
 	Name       string `gorm:"column:name" json:"name"`
 	Type       int    `gorm:"column:type" json:"type"`
-	Urlname    string `gorm:"column:urlname" json:"urlname"`
+	URLName    string `gorm:"column:urlname" json:"urlname"`
 	ListTpl    string `gorm:"column:listtpl;default:''" json:"listtpl"`
 	ContentTpl string `gorm:"column:contenttpl;default:''" json:"contenttpl"`
 	Status     int    `gorm:"column:status" json:"status"`
@@ -120,12 +120,12 @@ func CheckUrlnameConflict(urlname string, excludeID int) string {
 	var count int64
 	db.DB.Raw("SELECT COUNT(*) FROM ay_model WHERE urlname = ? AND id != ?", urlname, excludeID).Scan(&count)
 	if count > 0 {
-		return "URL名稱已被其他模型使用"
+		return "路由別名已被其他模型使用"
 	}
 	// Check against content_sort filename
 	db.DB.Raw("SELECT COUNT(*) FROM ay_content_sort WHERE filename = ? AND filename != ''", urlname).Scan(&count)
 	if count > 0 {
-		return "URL名稱與欄目文件名稱衝突"
+		return "路由別名與欄目文件名稱衝突"
 	}
 	return ""
 }

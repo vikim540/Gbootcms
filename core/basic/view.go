@@ -383,6 +383,7 @@ func processPongo2Foreach(html string) string {
 			curVar := varStack[depth-1]
 			line = strings.ReplaceAll(line, "[value]", "{{ "+curVar+" }}")
 			line = strings.ReplaceAll(line, "[key]", "{{ key }}")
+			line = strings.ReplaceAll(line, "[num]", "{{ forloop.Counter }}")
 			// Replace standalone 'value' in PbootCMS conditions (e.g. {if(value!=X)}) → valN
 			// But NOT inside HTML attributes like value="..." or value='...'
 			// At this stage conditions are still {if(...)} not {% if ... %}

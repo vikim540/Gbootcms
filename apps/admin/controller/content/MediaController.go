@@ -6,6 +6,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -69,6 +70,7 @@ func getCache() *mediaCacheData {
 
 // ensureCache 確保緩存存在，不存在則同步掃描（首次訪問或被標記為臟時觸發）
 func ensureCache() *mediaCacheData {
+	validateFileRefs()
 	if c := getCache(); c != nil {
 		return c
 	}
@@ -151,6 +153,62 @@ type MediaFile struct {
 	Used     bool   `json:"used"`
 	Marked   bool   `json:"marked"`
 	Category string `json:"category"` // image, document, video, other
+}
+
+// ─── 檔案引用欄位定義（getUsedPaths + findUsages 的唯壹資料來源）──────
+type refColumn struct {
+	column string // 列名
+	label  string // 人類可讀描述（findUsages 顯示用）
+}
+
+type refTable struct {
+	table   string      // 完整表名（含 ay_ 前綴）
+	idCol   string      // ID 列名
+	nameCol string      // 顯示名稱列名（title / name）
+	columns []refColumn // 文件引用列列表
+}
+
+// fileRefs 是整個媒體庫中「哪些欄位可能含有文件路徑」的唯壹權威定義。
+// getUsedPaths() 和 findUsages() 都從這裏讀取，修改欄位只需改此壹處。
+var fileRefs = []refTable{
+	{"ay_content",      "id", "title", []refColumn{{"ico", "ico(封面)"}, {"pics", "pics(多圖)"}, {"enclosure", "enclosure(附件)"}}},
+	{"ay_content_sort", "id", "name",  []refColumn{{"ico", "ico(圖標)"}, {"pic", "pic(圖片)"}}},
+	{"ay_slide",        "id", "name",  []refColumn{{"pic", "pic(輪播圖)"}}},
+	{"ay_link",         "id", "name",  []refColumn{{"logo", "logo(Logo)"}}},
+	{"ay_company",      "id", "name",  []refColumn{{"weixin", "weixin(微信)"}, {"blicense", "blicense(證照)"}}},
+	{"ay_site",         "id", "name",  []refColumn{{"logo", "logo(Logo)"}}},
+}
+
+// validateOnce 確保 PRAGMA 校驗只運行壹次
+var validateOnce sync.Once
+
+// validateFileRefs 啟動校驗：PRAGMA table_info 檢查 fileRefs 中所有表-列是否存在
+func validateFileRefs() {
+	validateOnce.Do(func() {
+		byTable := make(map[string][]refColumn)
+		for _, rt := range fileRefs {
+			byTable[rt.table] = rt.columns
+		}
+		for tableName, cols := range byTable {
+			type colInfo struct {
+				Name string `gorm:"column:name"`
+			}
+			var actualCols []colInfo
+			if err := model.DB.Raw(fmt.Sprintf("PRAGMA table_info(`%s`)", tableName)).Scan(&actualCols).Error; err != nil {
+				log.Printf("[WARN] MediaController: 無法查詢 %s: %v", tableName, err)
+				continue
+			}
+			actualSet := make(map[string]bool, len(actualCols))
+			for _, c := range actualCols {
+				actualSet[c.Name] = true
+			}
+			for _, c := range cols {
+				if !actualSet[c.column] {
+					log.Printf("[WARN] MediaController: 檔案引用欄位 %s.%s（%s）在數據庫中不存在", tableName, c.column, c.label)
+				}
+			}
+		}
+	})
 }
 
 // Index 媒體庫頁面（僅渲染統計外殼，文件列表由 AJAX 加載）
@@ -504,107 +562,55 @@ func findUsages(filePath string) []UsageInfo {
 	np := normalizePath(filePath)
 	base := strings.TrimPrefix(np, "static/")
 
-	// 1. ay_content: ico, pics, enclosure
+	for _, rt := range fileRefs {
+		// 構建 SELECT: idCol, nameCol, col1, col2, ...
+		colCount := 2 + len(rt.columns)
+		colNames := make([]string, 0, colCount)
+		colNames = append(colNames, rt.idCol, rt.nameCol)
+		for _, c := range rt.columns {
+			colNames = append(colNames, c.column)
+		}
+		selectStr := strings.Join(colNames, ", ")
+
+		rows, err := model.DB.Table(rt.table).Select(selectStr).Rows()
+		if err != nil {
+			continue
+		}
+
+		for rows.Next() {
+			vals := make([]*string, colCount)
+			ptrs := make([]interface{}, colCount)
+			for i := range vals {
+				ptrs[i] = &vals[i]
+			}
+			rows.Scan(ptrs...)
+
+			if vals[0] == nil || vals[1] == nil {
+				continue
+			}
+			id, _ := strconv.Atoi(*vals[0])
+			name := *vals[1]
+
+			for i, c := range rt.columns {
+				if vals[i+2] != nil && pathMatchField(*vals[i+2], np, base) {
+					usages = append(usages, UsageInfo{rt.table, id, name, c.label})
+				}
+			}
+		}
+		rows.Close()
+	}
+
+	// 特殊處理：ay_content.content 正文中的 HTML img src
 	type ContentRow struct {
-		ID       int
-		Title    string
-		Ico      string
-		Pics     string
-		Enclosure string
-		Content  string
+		ID      int
+		Title   string
+		Content string
 	}
 	var contents []ContentRow
-	model.DB.Table("ay_content").Select("id, title, ico, pics, enclosure, content").Find(&contents)
+	model.DB.Table("ay_content").Select("id, title, content").Find(&contents)
 	for _, row := range contents {
-		if pathMatchField(row.Ico, np, base) {
-			usages = append(usages, UsageInfo{"ay_content", row.ID, row.Title, "ico(封面)"})
-		}
-		if pathMatchField(row.Pics, np, base) {
-			usages = append(usages, UsageInfo{"ay_content", row.ID, row.Title, "pics(多圖)"})
-		}
-		if pathMatchField(row.Enclosure, np, base) {
-			usages = append(usages, UsageInfo{"ay_content", row.ID, row.Title, "enclosure(附件)"})
-		}
 		if containsImgSrc(row.Content, np, base) {
 			usages = append(usages, UsageInfo{"ay_content", row.ID, row.Title, "content(正文)"})
-		}
-	}
-
-	// 2. ay_content_sort: ico, pic
-	type SortRow struct {
-		ID   int
-		Name string
-		Ico  string
-		Pic  string
-	}
-	var sorts []SortRow
-	model.DB.Table("ay_content_sort").Select("id, name, ico, pic").Find(&sorts)
-	for _, row := range sorts {
-		if pathMatchField(row.Ico, np, base) {
-			usages = append(usages, UsageInfo{"ay_content_sort", row.ID, row.Name, "ico(圖標)"})
-		}
-		if pathMatchField(row.Pic, np, base) {
-			usages = append(usages, UsageInfo{"ay_content_sort", row.ID, row.Name, "pic(圖片)"})
-		}
-	}
-
-	// 3. ay_slide: pic
-	type SlideRow struct {
-		ID   int
-		Name string
-		Pic  string
-	}
-	var slides []SlideRow
-	model.DB.Table("ay_slide").Select("id, name, pic").Find(&slides)
-	for _, row := range slides {
-		if pathMatchField(row.Pic, np, base) {
-			usages = append(usages, UsageInfo{"ay_slide", row.ID, row.Name, "pic(輪播圖)"})
-		}
-	}
-
-	// 4. ay_link: logo
-	type LinkRow struct {
-		ID   int
-		Name string
-		Logo string
-	}
-	var links []LinkRow
-	model.DB.Table("ay_link").Select("id, name, logo").Find(&links)
-	for _, row := range links {
-		if pathMatchField(row.Logo, np, base) {
-			usages = append(usages, UsageInfo{"ay_link", row.ID, row.Name, "logo(Logo)"})
-		}
-	}
-
-	// 5. ay_company: weixin, blicense
-	type CompanyRow struct {
-		ID       int
-		Name     string
-		Weixin   string
-		Blicense string
-	}
-	var companies []CompanyRow
-	model.DB.Table("ay_company").Select("id, name, weixin, blicense").Find(&companies)
-	for _, row := range companies {
-		if pathMatchField(row.Weixin, np, base) {
-			usages = append(usages, UsageInfo{"ay_company", row.ID, row.Name, "weixin(微信)"})
-		}
-		if pathMatchField(row.Blicense, np, base) {
-			usages = append(usages, UsageInfo{"ay_company", row.ID, row.Name, "blicense(證照)"})
-		}
-	}
-
-	// 6. ay_site: logo
-	type SiteRow struct {
-		ID    int
-		Name  string
-		Logo  string
-	}
-	var sites []SiteRow
-	model.DB.Table("ay_site").Select("id, name, logo").Find(&sites)
-	for _, row := range sites {
-		if pathMatchField(row.Logo, np, base) {
-			usages = append(usages, UsageInfo{"ay_site", row.ID, row.Name, "logo(Logo)"})
 		}
 	}
 
@@ -663,65 +669,34 @@ func scanFiles() []MediaFile {
 func getUsedPaths() map[string]bool {
 	used := make(map[string]bool)
 
-	// ay_content: ico, pics, enclosure
-	type ContentRow struct {
-		Ico, Pics, Enclosure string
-	}
-	var contents []ContentRow
-	model.DB.Table("ay_content").Select("ico, pics, enclosure").Find(&contents)
-	for _, row := range contents {
-		addPaths(used, row.Ico)
-		addPaths(used, row.Pics)
-		addPaths(used, row.Enclosure)
+	for _, rt := range fileRefs {
+		cols := make([]string, len(rt.columns))
+		for i, c := range rt.columns {
+			cols[i] = c.column
+		}
+		selectStr := strings.Join(cols, ", ")
+
+		rows, err := model.DB.Table(rt.table).Select(selectStr).Rows()
+		if err != nil {
+			continue
+		}
+		for rows.Next() {
+			vals := make([]*string, len(rt.columns))
+			ptrs := make([]interface{}, len(rt.columns))
+			for i := range vals {
+				ptrs[i] = &vals[i]
+			}
+			rows.Scan(ptrs...)
+			for _, v := range vals {
+				if v != nil && *v != "" {
+					addPaths(used, *v)
+				}
+			}
+		}
+		rows.Close()
 	}
 
-	// ay_content_sort: ico, pic
-	type SortRow struct {
-		Ico, Pic string
-	}
-	var sorts []SortRow
-	model.DB.Table("ay_content_sort").Select("ico, pic").Find(&sorts)
-	for _, row := range sorts {
-		addPaths(used, row.Ico)
-		addPaths(used, row.Pic)
-	}
-
-	// ay_slide: pic
-	type SlideRow struct{ Pic string }
-	var slides []SlideRow
-	model.DB.Table("ay_slide").Select("pic").Find(&slides)
-	for _, row := range slides {
-		addPaths(used, row.Pic)
-	}
-
-	// ay_link: logo
-	type LinkRow struct{ Logo string }
-	var links []LinkRow
-	model.DB.Table("ay_link").Select("logo").Find(&links)
-	for _, row := range links {
-		addPaths(used, row.Logo)
-	}
-
-	// ay_company: weixin, blicense
-	type CompanyRow struct {
-		Weixin, Blicense string
-	}
-	var companies []CompanyRow
-	model.DB.Table("ay_company").Select("weixin, blicense").Find(&companies)
-	for _, row := range companies {
-		addPaths(used, row.Weixin)
-		addPaths(used, row.Blicense)
-	}
-
-	// ay_site: logo
-	type SiteRow struct{ Logo string }
-	var sites []SiteRow
-	model.DB.Table("ay_site").Select("logo").Find(&sites)
-	for _, row := range sites {
-		addPaths(used, row.Logo)
-	}
-
-	// ay_content.content HTML 中的 img src 引用
+	// ay_content.content HTML 中的 img src 引用（特殊處理）
 	type ContentHTML struct{ Content string }
 	var htmls []ContentHTML
 	model.DB.Table("ay_content").Select("content").Find(&htmls)

@@ -72,76 +72,92 @@ layui.use(['element','upload','laydate','form'], function(){
     return false;
   });
   
-  // 通用后台表单 AJAX 提交（排除登录表单）
-  // 拦截范围：layui-form 表单 + 点击了排序按钮的任何表单
-  $(document).on('submit', 'form.layui-form:not(#dologin), form:not(#dologin):has(button[value=sorting])', function(e) {
-    var form = $(this);
+  // 通用顶部居中通知（供全局使用）
+  function showNotify(html, type) {
+      layer.open({
+          type: 1,
+          title: false,
+          closeBtn: 0,
+          shade: 0,
+          area: 'auto',
+          offset: '20px',
+          anim: 0,
+          time: type === 'error' ? 3000 : 2000,
+          content: '<div style="padding:12px 24px;border-radius:8px;background:' +
+              (type === 'error' ? '#fff3f0' : '#f6ffed') +
+              ';border:1px solid ' + (type === 'error' ? '#ffccc7' : '#b7eb8f') +
+              ';font-size:14px;white-space:nowrap;">' + html + '</div>'
+      });
+  }
 
-    // ── 检测被点击的提交按钮 ──
-    var activeEl = $(document.activeElement);
-    var clickedBtn;
-    if (activeEl.is('button[type=submit], button[lay-submit], input[type=submit]') && form[0].contains(activeEl[0])) {
-        clickedBtn = activeEl;
-    } else {
-        clickedBtn = form.find('button[type=submit]._clicked, button[lay-submit]._clicked');
-    }
+  // 通用后台表单 AJAX 提交
+  // 使用 layui 的 form.on('submit()') 攔截 lay-submit 按鈕提交
+  // 原因：layui 驗證通過後調用 formElem.submit()（原生方法），不觸發 jQuery delegated submit 事件
+  form.on('submit()', function(data) {
+      var $form = $(data.form);
+      if ($form.attr('id') === 'dologin') return true; // 跳過登錄表單
+      // 跳過有 lay-filter 的按鈕（已由專屬 handler 處理）
+      var $btn = $(data.elem);
+      if ($btn.attr('lay-filter')) return true;
 
-    // ── 非 layui-form 表单：仅当点击排序按钮时才 AJAX，其他按钮（如批量删除）正常提交 ──
-    var isLayuiForm = form.hasClass('layui-form');
-    if (!isLayuiForm) {
-        var isSortingBtn = (clickedBtn && clickedBtn.length && clickedBtn.val() === 'sorting')
-                        || form.find('input[type=hidden][name=submit][value=sorting]').length > 0;
-        if (!isSortingBtn) return true; // 正常提交（如批量删除）
-    }
+      var formData = $form.serialize();
 
-    e.preventDefault();
-    var formData = form.serialize();
+      // 確保被點擊的 submit 按鈕值被包含
+      var clickedBtn = $form.find('button[lay-submit]._clicked, button[type=submit]._clicked');
+      if (!clickedBtn.length) clickedBtn = $form.find('button[lay-submit], button[type=submit]').last();
+      if (clickedBtn.length && clickedBtn.attr('name')) {
+          formData += '&' + encodeURIComponent(clickedBtn.attr('name')) + '=' + encodeURIComponent(clickedBtn.val());
+      }
 
-    // 确保被点击的 submit 按钮值被包含（serialize 不包含 button 值）
-    if (!clickedBtn || !clickedBtn.length) clickedBtn = form.find('button[lay-submit], button[type=submit]').last();
-    if (clickedBtn && clickedBtn.attr('name')) {
-        formData += '&' + encodeURIComponent(clickedBtn.attr('name')) + '=' + encodeURIComponent(clickedBtn.val());
-    }
+      $.ajax({
+          type: $form.attr('method') || 'POST',
+          url: $form.attr('action'),
+          dataType: 'json',
+          data: formData,
+          success: function(res) {
+              if (res.code == 1) {
+                  showNotify('<i class="fa fa-check-circle" style="color:#52c41a;margin-right:8px"></i>' + (res.msg || '操作成功'), 'success');
+                  var returnto = $form.find('input[name="returnto"]').val();
+                  if (returnto) {
+                      setTimeout(function(){ window.location.href = returnto; }, 1500);
+                  }
+              } else {
+                  showNotify('<i class="fa fa-exclamation-circle" style="color:#ff4d4f;margin-right:8px"></i>' + (res.data || res.msg || '操作失败'), 'error');
+              }
+          },
+          error: function() {
+              showNotify('<i class="fa fa-exclamation-triangle" style="color:#ff4d4f;margin-right:8px"></i>请求发生错误', 'error');
+          }
+      });
+      return false; // 阻止 layui 原生 formElem.submit()
+  });
 
-    // ── 顶部居中通知 ──
-    function showNotify(html, type) {
-        layer.open({
-            type: 1,
-            title: false,
-            closeBtn: 0,
-            shade: 0,
-            area: 'auto',
-            offset: '20px',
-            anim: 0,
-            time: type === 'error' ? 3000 : 2000,
-            content: '<div style="padding:12px 24px;border-radius:8px;background:' +
-                (type === 'error' ? '#fff3f0' : '#f6ffed') +
-                ';border:1px solid ' + (type === 'error' ? '#ffccc7' : '#b7eb8f') +
-                ';font-size:14px;white-space:nowrap;">' + html + '</div>'
-        });
-    }
+  // 排序表單（非 layui-form）的 AJAX 攔截
+  $(document).on('submit', 'form:not(#dologin):has(button[value=sorting]):not(.layui-form)', function(e) {
+      var $form = $(this);
+      var activeEl = $(document.activeElement);
+      var isSortingBtn = activeEl.is('button[value=sorting]') || $form.find('button[value=sorting]._clicked').length > 0;
+      if (!isSortingBtn) return true; // 非排序按鈕（如批量刪除）正常提交
 
-    $.ajax({
-        type: form.attr('method') || 'POST',
-        url: form.attr('action'),
-        dataType: 'json',
-        data: formData,
-        success: function(res) {
-            if (res.code == 1) {
-                showNotify('<i class="fa fa-check-circle" style="color:#52c41a;margin-right:8px"></i>' + (res.msg || '操作成功'), 'success');
-                var returnto = form.find('input[name="returnto"]').val();
-                if (returnto) {
-                    setTimeout(function(){ window.location.href = returnto; }, 1500);
-                }
-            } else {
-                showNotify('<i class="fa fa-exclamation-circle" style="color:#ff4d4f;margin-right:8px"></i>' + (res.data || res.msg || '操作失败'), 'error');
-            }
-        },
-        error: function() {
-            showNotify('<i class="fa fa-exclamation-triangle" style="color:#ff4d4f;margin-right:8px"></i>请求发生错误', 'error');
-        }
-    });
-    return false;
+      e.preventDefault();
+      var formData = $form.serialize();
+      $.ajax({
+          type: $form.attr('method') || 'POST',
+          url: $form.attr('action'),
+          dataType: 'json',
+          data: formData,
+          success: function(res) {
+              if (res.code == 1) {
+                  showNotify('<i class="fa fa-check-circle" style="color:#52c41a;margin-right:8px"></i>' + (res.msg || '操作成功'), 'success');
+              } else {
+                  showNotify('<i class="fa fa-exclamation-circle" style="color:#ff4d4f;margin-right:8px"></i>' + (res.data || res.msg || '操作失败'), 'error');
+              }
+          },
+          error: function() {
+              showNotify('<i class="fa fa-exclamation-triangle" style="color:#ff4d4f;margin-right:8px"></i>请求发生错误', 'error');
+          }
+      });
+      return false;
   });
   
   // 记录点击的 submit 按钮（用于获取按钮的 name/value）
