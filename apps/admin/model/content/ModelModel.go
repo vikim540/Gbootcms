@@ -120,12 +120,12 @@ func CheckUrlnameConflict(urlname string, excludeID int) string {
 	var count int64
 	db.DB.Raw("SELECT COUNT(*) FROM ay_model WHERE urlname = ? AND id != ?", urlname, excludeID).Scan(&count)
 	if count > 0 {
-		return "路由別名已被其他模型使用"
+		return "URL名稱已被其他模型使用"
 	}
 	// Check against content_sort filename
 	db.DB.Raw("SELECT COUNT(*) FROM ay_content_sort WHERE filename = ? AND filename != ''", urlname).Scan(&count)
 	if count > 0 {
-		return "路由別名與欄目文件名稱衝突"
+		return "URL名稱與欄目文件名稱衝突"
 	}
 	return ""
 }

@@ -476,6 +476,9 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 func registerPairProviders(p *TagParser, ctx *Context) {
 	p.Register("list", func(tagName string, params map[string]string, inner string) string {
 		scode := params["scode"]
+		if scode == "" && ctx.Sort != nil {
+			scode = ctx.Sort.Scode
+		}
 		num := 10
 		if n, err := strconv.Atoi(params["num"]); err == nil && n > 0 {
 			num = n

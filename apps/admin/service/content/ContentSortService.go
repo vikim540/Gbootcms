@@ -78,8 +78,16 @@ func (s *ContentSortService) BatchAddSorts(multiplename, pcode string) error {
 
 // CreateSort creates a new sort
 func (s *ContentSortService) CreateSort(sort *model.ContentSort) error {
-	if sort.Name == "" || sort.Scode == "" {
-		return errors.New("name and code cannot be empty")
+	if sort.Name == "" {
+		return errors.New("欄目名稱不能為空")
+	}
+	// scode 為空時自動生成（與 BatchAddSorts 一致）
+	if sort.Scode == "" {
+		var lastSort model.ContentSort
+		model.DB.Order("id DESC").First(&lastSort)
+		lastCodeNum := 0
+		fmt.Sscanf(lastSort.Scode, "%d", &lastCodeNum)
+		sort.Scode = fmt.Sprintf("%d", lastCodeNum+1)
 	}
 	if sort.Status == 0 {
 		sort.Status = 1

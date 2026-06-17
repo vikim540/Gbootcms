@@ -41,7 +41,7 @@ func (md *ModelController) Add(c *gin.Context) {
 		// 驗證 urlname 格式
 		if urlname != "" {
 			if matched, _ := regexp.MatchString(`^[a-zA-Z0-9\-]+$`, urlname); !matched {
-				md.JSONFail(c, "路由別名僅允許英文、數字和短橫線")
+				md.JSONFail(c, "URL名稱僅允許英文、數字和短橫線")
 				return
 			}
 		}
@@ -112,7 +112,7 @@ func (md *ModelController) Mod(c *gin.Context) {
 		// 驗證 urlname 格式
 		if urlname != "" {
 			if matched, _ := regexp.MatchString(`^[a-zA-Z0-9\-]+$`, urlname); !matched {
-				md.JSONFail(c, "路由別名僅允許英文、數字和短橫線")
+				md.JSONFail(c, "URL名稱僅允許英文、數字和短橫線")
 				return
 			}
 		}
