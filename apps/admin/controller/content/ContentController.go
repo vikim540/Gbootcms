@@ -45,7 +45,7 @@ func (cc *ContentController) Index(c *gin.Context) {
 		}
 	}
 
-	contents, total, _ := cc.svc.ListContents(scode, keyword, page, pageSize)
+	contents, total, _ := cc.svc.ListContents(mcode, scode, keyword, page, pageSize)
 	sorts, _ := cc.svc.GetAllSorts()
 
 	data := cc.contentTemplateData(mcode, sorts)
