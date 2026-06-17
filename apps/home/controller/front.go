@@ -64,6 +64,7 @@ func (fc *FrontController) ListPage(c *gin.Context) {
 func (fc *FrontController) ContentPage(c *gin.Context) {
 	path := c.Request.URL.Path
 	path = strings.TrimPrefix(path, "/")
+	path = strings.TrimRight(path, "/")
 	path = trimSuffix(path)
 
 	if path == "" {

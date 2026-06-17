@@ -348,9 +348,9 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 					}
 				}
 				if i == current {
-					sb.WriteString(fmt.Sprintf("<a class=\"page-numbar-current\" href=\"%s\">%d</a>", link, i))
+					sb.WriteString(fmt.Sprintf("<a class=\"page-num-current\" href=\"%s\">%d</a>", link, i))
 				} else {
-					sb.WriteString(fmt.Sprintf("<a class=\"page-numbar\" href=\"%s\">%d</a>", link, i))
+					sb.WriteString(fmt.Sprintf("<a class=\"page-num\" href=\"%s\">%d</a>", link, i))
 				}
 			}
 			return sb.String()
@@ -562,15 +562,12 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 
 		basePath := "?"
-		if ctx.Sort != nil && ctx.Sort.URLName != "" {
-			// 注意：排序條件可能缺省，但 basePath 仍需正確
+		if ctx.Sort != nil {
 			if ctx.Sort.Filename != "" {
-				basePath = "/" + ctx.Sort.Filename + ".html?"
-			} else {
-				basePath = "/" + ctx.Sort.URLName + ".html?"
+				basePath = "/" + ctx.Sort.Filename + "/?"
+			} else if ctx.Sort.URLName != "" {
+				basePath = "/" + ctx.Sort.URLName + "/?"
 			}
-		} else if ctx.Sort != nil && ctx.Sort.Filename != "" {
-			basePath = "/" + ctx.Sort.Filename + ".html?"
 		}
 
 		ctx.Page["current"] = currentPage
@@ -1031,13 +1028,13 @@ func getSortField(s *model.ContentSort, field string) string {
 				return topSort.Outlink
 			}
 			if topSort.Filename != "" {
-				return "/" + topSort.Filename + ".html"
+				return "/" + topSort.Filename + "/"
 			}
 			if topSort.URLName != "" {
-				return "/" + topSort.URLName + ".html"
+				return "/" + topSort.URLName + "/"
 			}
 		}
-		return "/" + tcode + ".html"
+		return "/" + tcode + "/"
 	case "toprows":
 		// 頂級父欄目及其所有子欄目的內容總數
 		tcode := getSortField(s, "tcode")
@@ -1265,11 +1262,11 @@ func sortToMap(s *model.ContentSort, index int) map[string]interface{} {
 	//   3. 最後 fallback 到動態 scode 路由
 	// 注意：區分 urlname（model 表字段）和 filename（欄目表字段），
 	// PbootCMS PHP 中也用 filename 對應「URL名稱」。
-	link := "/" + s.Filename
-	if link == "/" {
-		link = "/" + s.URLName
+	link := "/" + s.Filename + "/"
+	if link == "//" {
+		link = "/" + s.URLName + "/"
 	}
-	if link == "/" {
+	if link == "//" {
 		link = fmt.Sprintf("/sort/%s", s.Scode)
 	}
 	// 圖片路徑標準化：確保以 / 開頭
