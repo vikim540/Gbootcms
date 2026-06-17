@@ -101,7 +101,7 @@ layui.use(['element','upload','laydate','form'], function(){
               /* 左側色條 */
               '<div style="width:4px;flex-shrink:0;background:linear-gradient(180deg,' + accent + ',' + (isErr ? '#ff7875' : '#73d13d') + ');"></div>' +
               /* 主體 */
-              '<div style="display:flex;align-items:center;gap:12px;padding:14px 24px 14px 18px;white-space:nowrap;">' +
+              '<div style="display:flex;align-items:center;gap:12px;padding:14px 24px 14px 18px;white-space:normal;word-break:break-word;max-width:80vw;">' +
                   /* 圖標圓環 */
                   '<span style="width:30px;height:30px;border-radius:50%;background:' + accent + '1a;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
                       '<i class="fa ' + icon + '" style="color:' + accent + ';font-size:16px;"></i>' +

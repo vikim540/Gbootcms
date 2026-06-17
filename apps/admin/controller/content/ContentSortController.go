@@ -268,9 +268,18 @@ func (csc *ContentSortController) Del(c *gin.Context) {
 		csc.JSONOKMsg(c, "刪除成功")
 		return
 	}
-	if err := csc.svc.DeleteSort(idStr); err != nil {
-		csc.JSONFail(c, err.Error())
-		return
+	// get_btn_del 的 URL 可傳入 id 或 scode，根據參數類型自動判斷
+	// 數值 → DeleteSort(id)；非數值 → DeleteSortByScode(scode)
+	if _, err := strconv.Atoi(idStr); err == nil {
+		if err := csc.svc.DeleteSort(idStr); err != nil {
+			csc.JSONFail(c, err.Error())
+			return
+		}
+	} else {
+		if err := csc.svc.DeleteSortByScode(idStr); err != nil {
+			csc.JSONFail(c, err.Error())
+			return
+		}
 	}
 	csc.JSONOKMsg(c, "刪除成功")
 }
