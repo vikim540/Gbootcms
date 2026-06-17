@@ -510,7 +510,7 @@ func processPongo2Fun(html string) string {
 		} else {
 			inner = "/admin/{{ C }}/del/id/" + valExpr
 		}
-		return `<a href="{url.` + inner + `}" class="layui-btn layui-btn-xs layui-btn-danger" onclick="return confirm('確定刪除？');">刪除</a>`
+		return `<a href="javascript:;" class="layui-btn layui-btn-xs layui-btn-danger btn-del" data-url="{url.` + inner + `}">刪除</a>`
 	})
 
 	// get_btn_mod($var->field) or get_btn_mod($var->field,'fieldname'[, 'btntext']) → edit link
