@@ -490,7 +490,9 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 
 		query := model.DB.Where("status = 1")
 		if scode != "" {
-			query = query.Where("scode = ? OR subscode = ?", scode, scode)
+			// 遞歸查找當前欄目及其所有子欄目的 scode
+			childScodes := findAllChildScodes(scode)
+			query = query.Where("scode IN ?", childScodes)
 		}
 		switch order {
 		case "date":
@@ -514,50 +516,66 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		var total int64
 		currentPage := 1
 
+		// 先取數，再獨立取總數（避免 GORM Count 污染查詢狀態）
+		var contents []model.Content
 		if pageEnabled {
-			query.Count(&total)
 			if ctx.CurrentPage > 0 {
 				currentPage = ctx.CurrentPage
 			}
-		}
-
-		var contents []model.Content
-		if pageEnabled {
 			offset := (currentPage - 1) * num
 			query.Offset(offset).Limit(num).Find(&contents)
 
-			// Fill page data
-			totalPages := int(total) / num
-			if int(total)%num > 0 {
-				totalPages++
-			}
-			if totalPages < 1 {
-				totalPages = 1
-			}
-
-			basePath := "?"
-			if ctx.Sort != nil && ctx.Sort.URLName != "" {
-				basePath = "/" + ctx.Sort.URLName + ".html?"
-			}
-
-			ctx.Page["current"] = currentPage
-			ctx.Page["count"] = totalPages
-			ctx.Page["rows"] = int(total)
-			ctx.Page["index"] = basePath + "page=1"
-			if currentPage > 1 {
-				ctx.Page["pre"] = fmt.Sprintf("%spage=%d", basePath, currentPage-1)
-			} else {
-				ctx.Page["pre"] = ""
-			}
-			if currentPage < totalPages {
-				ctx.Page["next"] = fmt.Sprintf("%spage=%d", basePath, currentPage+1)
-			} else {
-				ctx.Page["next"] = ""
-			}
-			ctx.Page["last"] = fmt.Sprintf("%spage=%d", basePath, totalPages)
+			// 獨立查詢取總記錄數
+			model.DB.Model(&model.Content{}).
+				Where("status = 1").
+				Count(&total)
 		} else {
 			query.Limit(num).Find(&contents)
+			// 獨立查詢取總記錄數（含 scode 過濾）
+			countQuery := model.DB.Model(&model.Content{}).
+				Where("status = 1")
+			if scode != "" {
+				countQuery = countQuery.Where("scode IN (?)", findAllChildScodes(scode))
+			}
+			countQuery.Count(&total)
 		}
+
+		// 始終設置分頁資訊（page:rows / page:count 等），供 {gboot:if({page:rows}>0)} 判斷
+		totalPages := int(total) / num
+		if int(total)%num > 0 {
+			totalPages++
+		}
+		if totalPages < 1 {
+			totalPages = 1
+		}
+
+		basePath := "?"
+		if ctx.Sort != nil && ctx.Sort.URLName != "" {
+			// 注意：排序條件可能缺省，但 basePath 仍需正確
+			if ctx.Sort.Filename != "" {
+				basePath = "/" + ctx.Sort.Filename + ".html?"
+			} else {
+				basePath = "/" + ctx.Sort.URLName + ".html?"
+			}
+		} else if ctx.Sort != nil && ctx.Sort.Filename != "" {
+			basePath = "/" + ctx.Sort.Filename + ".html?"
+		}
+
+		ctx.Page["current"] = currentPage
+		ctx.Page["count"] = totalPages
+		ctx.Page["rows"] = int(total)
+		ctx.Page["index"] = basePath + "page=1"
+		if currentPage > 1 {
+			ctx.Page["pre"] = fmt.Sprintf("%spage=%d", basePath, currentPage-1)
+		} else {
+			ctx.Page["pre"] = ""
+		}
+		if currentPage < totalPages {
+			ctx.Page["next"] = fmt.Sprintf("%spage=%d", basePath, currentPage+1)
+		} else {
+			ctx.Page["next"] = ""
+		}
+		ctx.Page["last"] = fmt.Sprintf("%spage=%d", basePath, totalPages)
 
 		var sb strings.Builder
 		for i, c := range contents {
@@ -1235,4 +1253,32 @@ func sortToMap(s *model.ContentSort, index int) map[string]interface{} {
 		"pic":    pic,
 		"link":   link,
 	}
+}
+
+// findAllChildScodes 遞歸查找指定 scode 及其所有子欄目的 scode 列表
+func findAllChildScodes(parentScode string) []string {
+	result := []string{parentScode}
+	childScodes := getDirectChildScodes(parentScode)
+	for _, child := range childScodes {
+		// 遞歸：查找孫子、曾孫...
+		grandchildren := findAllChildScodes(child)
+		result = append(result, grandchildren...)
+	}
+	return result
+}
+
+// getDirectChildScodes 查找指定 scode 的直接子欄目 scode 列表
+func getDirectChildScodes(parentScode string) []string {
+	var children []struct {
+		Scode string
+	}
+	model.DB.Table("ay_content_sort").
+		Select("scode").
+		Where("pcode = ? AND status = 1", parentScode).
+		Find(&children)
+	scodes := make([]string, len(children))
+	for i, c := range children {
+		scodes[i] = c.Scode
+	}
+	return scodes
 }

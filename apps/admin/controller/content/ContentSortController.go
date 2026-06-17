@@ -46,7 +46,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 				csc.JSONFail(c, err.Error())
 				return
 			}
-			csc.JSONOKMsg(c, "Batch added successfully")
+			csc.JSONOKMsg(c, "批量新增成功")
 			return
 		}
 
@@ -89,7 +89,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 			csc.JSONFail(c, err.Error())
 			return
 		}
-		csc.JSONOKMsg(c, "Added successfully")
+		csc.JSONOKMsg(c, "新增成功")
 		return
 	}
 
@@ -139,7 +139,7 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 				return
 			}
 		}
-		csc.JSONOKMsg(c, "Modified successfully")
+		csc.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -220,7 +220,7 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 			}
 		}
 
-		csc.JSONOKMsg(c, "Modified successfully")
+		csc.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -265,12 +265,12 @@ func (csc *ContentSortController) Del(c *gin.Context) {
 		for _, scode := range ids {
 			csc.svc.DeleteSortByScode(scode)
 		}
-		csc.JSONOKMsg(c, "Deleted successfully")
+		csc.JSONOKMsg(c, "刪除成功")
 		return
 	}
 	if err := csc.svc.DeleteSort(idStr); err != nil {
 		csc.JSONFail(c, err.Error())
 		return
 	}
-	csc.JSONOKMsg(c, "Deleted successfully")
+	csc.JSONOKMsg(c, "刪除成功")
 }

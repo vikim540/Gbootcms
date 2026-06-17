@@ -42,7 +42,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.GET("/content/sort/add", csc.Add)
 		adminGroup.POST("/content/sort/add", csc.Add)
 		adminGroup.Any("/content/sort/mod/*action", csc.Mod)
-		adminGroup.POST("/content/sort/del", csc.Del)
+		adminGroup.Any("/content/sort/del", csc.Del)
 
 		sg := &content.SingleController{}
 		adminGroup.GET("/content/single/index", sg.Index)

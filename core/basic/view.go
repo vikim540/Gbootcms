@@ -489,9 +489,9 @@ func processPongo2Fun(html string) string {
 	html = reBtnBack.ReplaceAllString(html, `<a href="javascript:history.back();" class="layui-btn layui-btn-primary">返回</a>`)
 
 	// get_btn_del($var->field) or get_btn_del($var->field,'fieldname') → delete link
-	// PbootCMS 慣例: 第二個參數 'fieldname' 是類型標記,生成的 URL 為
-	//   /mod/{fieldname}/{value}/field/status/value/0
-	// 而不是 /mod/{value},{fieldname}/field/status/value/0
+	// 生成真實刪除 URL：呼叫 Del 控制器
+	// - scode 欄位: /del?id={value}（POST/GET 均可）
+	// - id 欄位:   /del/id/{value}（萬用路由）
 	reBtnDel := regexp.MustCompile(`\{fun=get_btn_del\(([^)]+)\)\}`)
 	html = reBtnDel.ReplaceAllStringFunc(html, func(match string) string {
 		subs := reBtnDel.FindStringSubmatch(match)
@@ -504,9 +504,13 @@ func processPongo2Fun(html string) string {
 		if len(args) >= 2 {
 			fieldName = strings.Trim(strings.TrimSpace(args[1]), "'\"")
 		}
-		// 生成 /admin/C/mod/{fieldName}/{valExpr}/field/status/value/0
-		inner := "/admin/{{ C }}/mod/" + fieldName + "/" + valExpr + "/field/status/value/0"
-		return `<a href="{url.` + inner + `}" class="layui-btn layui-btn-xs layui-btn-danger" onclick="return confirm('确定删除?');">删除</a>`
+		var inner string
+		if fieldName == "scode" {
+			inner = "/admin/{{ C }}/del?id=" + valExpr
+		} else {
+			inner = "/admin/{{ C }}/del/id/" + valExpr
+		}
+		return `<a href="{url.` + inner + `}" class="layui-btn layui-btn-xs layui-btn-danger" onclick="return confirm('確定刪除？');">刪除</a>`
 	})
 
 	// get_btn_mod($var->field) or get_btn_mod($var->field,'fieldname'[, 'btntext']) → edit link

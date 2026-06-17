@@ -24,7 +24,7 @@ func (s *ContentSortService) GetSort(id int) (*model.ContentSort, error) {
 	var sort model.ContentSort
 	err := model.DB.First(&sort, id).Error
 	if err != nil {
-		return nil, errors.New("sort does not exist")
+		return nil, errors.New("欄目不存在")
 	}
 	return &sort, nil
 }
@@ -44,7 +44,7 @@ func (s *ContentSortService) GetSortByScode(scode string) (*model.ContentSort, e
 	if err2 := model.DB.Where("id = ?", scode).First(&byID).Error; err2 == nil {
 		return &byID, nil
 	}
-	return nil, errors.New("sort does not exist")
+	return nil, errors.New("欄目不存在")
 }
 
 // BatchAddSorts creates multiple sorts from comma-separated names
@@ -144,7 +144,7 @@ func (s *ContentSortService) UpdateSortByScode(scode string, updates map[string]
 			return res2.Error
 		}
 		if res2.RowsAffected == 0 {
-			return errors.New("sort does not exist")
+			return errors.New("欄目不存在")
 		}
 	}
 	return nil
@@ -176,7 +176,7 @@ func validateAndNormalizeFilenameUpdate(updates map[string]interface{}, excludeW
 // UpdateSortByScodeField updates a single field by scode with whitelist validation, with id fallback
 func (s *ContentSortService) UpdateSortByScodeField(scode, field, value string) error {
 	if !allowedSortSingleFields[field] {
-		return errors.New("field not allowed: " + field)
+		return errors.New("不允許修改的欄位: " + field)
 	}
 	res := model.DB.Model(&model.ContentSort{}).Where("scode = ?", scode).Update(field, value)
 	if res.Error != nil {
@@ -189,7 +189,7 @@ func (s *ContentSortService) UpdateSortByScodeField(scode, field, value string) 
 			return res2.Error
 		}
 		if res2.RowsAffected == 0 {
-			return errors.New("sort does not exist")
+			return errors.New("欄目不存在")
 		}
 	}
 	return nil
@@ -218,7 +218,7 @@ var allowedSortSingleFields = map[string]bool{
 // UpdateSortSingleField updates a single field with whitelist validation
 func (s *ContentSortService) UpdateSortSingleField(id int, field, value string) error {
 	if !allowedSortSingleFields[field] {
-		return errors.New("field not allowed: " + field)
+		return errors.New("不允許修改的欄位: " + field)
 	}
 	return model.DB.Model(&model.ContentSort{}).Where("id = ?", id).Update(field, value).Error
 }
@@ -241,7 +241,7 @@ func (s *ContentSortService) DeleteSortByScode(scode string) error {
 			return res2.Error
 		}
 		if res2.RowsAffected == 0 {
-			return errors.New("sort does not exist")
+			return errors.New("欄目不存在")
 		}
 	}
 	return nil
