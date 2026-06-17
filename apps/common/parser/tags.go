@@ -319,8 +319,14 @@ func (p *TagParser) processIfTags(content string) string {
 			condEnd := i - 1 // ')' 的位置
 			cond := content[condStart:condEnd]
 
+			// 消耗 ')' 後面的 '}'（{gboot:Xif(condition)} → '}' 是開啓標籤的一部分）
+			afterCondStart := condEnd + 1
+			if afterCondStart < len(content) && content[afterCondStart] == '}' {
+				afterCondStart++
+			}
+
 			// 找到 {/gboot:Xif}
-			afterCond := content[condEnd+1:]
+			afterCond := content[afterCondStart:]
 			closeIdx := strings.Index(afterCond, closeTag)
 			if closeIdx == -1 {
 				break
@@ -328,10 +334,13 @@ func (p *TagParser) processIfTags(content string) string {
 			fullContent := afterCond[:closeIdx]
 			remainder := afterCond[closeIdx+len(closeTag):]
 
-			// 分割 true/false 分支
+			// 分割 true/false 分支，支援帶前綴的 else（{2else} / {1else} 等）
 			trueBranch := fullContent
 			falseBranch := ""
-			elseTag := "{else}"
+			elseTag := fmt.Sprintf("{%selse}", prefix)
+			if prefix == "" {
+				elseTag = "{else}"
+			}
 			elseIdx := strings.Index(fullContent, elseTag)
 			if elseIdx != -1 {
 				trueBranch = fullContent[:elseIdx]
@@ -508,9 +517,9 @@ func (p *TagParser) preResolveSingleInPairParams(content string) string {
 		"commentsub", "mycomment", "loop", "select",
 	}
 	for _, name := range pairNames {
-		// Match opening like {gboot:NAME ...params...}
-		// The params end at the first } that closes the opening tag
-		pattern := regexp.MustCompile(`\{gboot:` + name + `\s+([^}]+)\}`)
+		// 支援參數中包含 {sort:tcode} 等單標籤（即允許 {...} 嵌套）
+		// 同時消耗尾巴的 } 作爲開啓標籤的閉合
+		pattern := regexp.MustCompile(`\{gboot:` + name + `\s+((?:[^}{]|\{[^}]*\})*)\}`)
 		content = pattern.ReplaceAllStringFunc(content, func(match string) string {
 			subs := pattern.FindStringSubmatch(match)
 			if len(subs) < 2 {

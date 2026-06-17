@@ -321,13 +321,19 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			current := 1
 			totalPages := 1
 			total := 0
-			if v, ok := ctx.Page["current_page"]; ok {
+			if v, ok := ctx.Page["current"]; ok {
+				current, _ = v.(int)
+			} else if v, ok := ctx.Page["current_page"]; ok {
 				current, _ = v.(int)
 			}
-			if v, ok := ctx.Page["total_pages"]; ok {
+			if v, ok := ctx.Page["count"]; ok {
+				totalPages, _ = v.(int)
+			} else if v, ok := ctx.Page["total_pages"]; ok {
 				totalPages, _ = v.(int)
 			}
-			if v, ok := ctx.Page["total"]; ok {
+			if v, ok := ctx.Page["rows"]; ok {
+				total, _ = v.(int)
+			} else if v, ok := ctx.Page["total"]; ok {
 				total, _ = v.(int)
 			}
 			if total == 0 {
@@ -335,10 +341,16 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			}
 			var sb strings.Builder
 			for i := 1; i <= totalPages; i++ {
+				link := fmt.Sprintf("?page=%d", i)
+				if baseP, ok := ctx.Page["basePath"]; ok {
+					if bp, ok2 := baseP.(string); ok2 && bp != "" {
+						link = bp + "page=" + strconv.Itoa(i)
+					}
+				}
 				if i == current {
-					sb.WriteString(fmt.Sprintf("<span class=\"current\">%d</span> ", i))
+					sb.WriteString(fmt.Sprintf("<a class=\"page-numbar-current\" href=\"%s\">%d</a>", link, i))
 				} else {
-					sb.WriteString(fmt.Sprintf("<a href=\"?page=%d\">%d</a> ", i))
+					sb.WriteString(fmt.Sprintf("<a class=\"page-numbar\" href=\"%s\">%d</a>", link, i))
 				}
 			}
 			return sb.String()
@@ -564,6 +576,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		ctx.Page["current"] = currentPage
 		ctx.Page["count"] = totalPages
 		ctx.Page["rows"] = int(total)
+		ctx.Page["basePath"] = basePath
 		ctx.Page["index"] = basePath + "page=1"
 		if currentPage > 1 {
 			ctx.Page["pre"] = fmt.Sprintf("%spage=%d", basePath, currentPage-1)
@@ -1009,6 +1022,31 @@ func getSortField(s *model.ContentSort, field string) string {
 			pcode = parent.Pcode
 		}
 		return code
+	case "toplink":
+		// 頂級父欄目的鏈接
+		tcode := getSortField(s, "tcode")
+		var topSort model.ContentSort
+		if err := model.DB.Where("scode = ?", tcode).First(&topSort).Error; err == nil {
+			if topSort.Outlink != "" {
+				return topSort.Outlink
+			}
+			if topSort.Filename != "" {
+				return "/" + topSort.Filename + ".html"
+			}
+			if topSort.URLName != "" {
+				return "/" + topSort.URLName + ".html"
+			}
+		}
+		return "/" + tcode + ".html"
+	case "toprows":
+		// 頂級父欄目及其所有子欄目的內容總數
+		tcode := getSortField(s, "tcode")
+		allScodes := findAllChildScodes(tcode)
+		var cnt int64
+		model.DB.Model(&model.Content{}).
+			Where("scode IN ? AND status = 1", allScodes).
+			Count(&cnt)
+		return strconv.FormatInt(cnt, 10)
 	case "link":
 		if s.Outlink != "" {
 			return s.Outlink
@@ -1243,15 +1281,22 @@ func sortToMap(s *model.ContentSort, index int) map[string]interface{} {
 	if pic != "" && !strings.HasPrefix(pic, "/") && !strings.HasPrefix(pic, "http") {
 		pic = "/" + pic
 	}
+	// 計算該欄目及其子欄目的內容數量
+	childScodes := findAllChildScodes(s.Scode)
+	var rowCount int64
+	model.DB.Model(&model.Content{}).
+		Where("scode IN ? AND status = 1", childScodes).
+		Count(&rowCount)
 	return map[string]interface{}{
-		"n":      index,
-		"i":      index + 1,
-		"scode":  s.Scode,
-		"name":   s.Name,
+		"n":       index,
+		"i":       index + 1,
+		"scode":   s.Scode,
+		"name":    s.Name,
 		"subname": s.Subname,
-		"ico":    ico,
-		"pic":    pic,
-		"link":   link,
+		"ico":     ico,
+		"pic":     pic,
+		"link":    link,
+		"rows":    int(rowCount),
 	}
 }
 
