@@ -256,6 +256,16 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 // Del - Delete sort
 func (csc *ContentSortController) Del(c *gin.Context) {
 	idStr := c.Query("id")
+	scodeStr := c.Query("scode")
+	// 優先檢查 ?scode=，對應 get_btn_del($value->scode,'scode')
+	if scodeStr != "" {
+		if err := csc.svc.DeleteSortByScode(scodeStr); err != nil {
+			csc.JSONFail(c, err.Error())
+			return
+		}
+		csc.JSONOKMsg(c, "刪除成功")
+		return
+	}
 	if idStr == "" {
 		// Try POST form array for batch delete
 		ids := c.PostFormArray("list[]")
@@ -268,18 +278,9 @@ func (csc *ContentSortController) Del(c *gin.Context) {
 		csc.JSONOKMsg(c, "刪除成功")
 		return
 	}
-	// get_btn_del 的 URL 可傳入 id 或 scode，根據參數類型自動判斷
-	// 數值 → DeleteSort(id)；非數值 → DeleteSortByScode(scode)
-	if _, err := strconv.Atoi(idStr); err == nil {
-		if err := csc.svc.DeleteSort(idStr); err != nil {
-			csc.JSONFail(c, err.Error())
-			return
-		}
-	} else {
-		if err := csc.svc.DeleteSortByScode(idStr); err != nil {
-			csc.JSONFail(c, err.Error())
-			return
-		}
+	if err := csc.svc.DeleteSort(idStr); err != nil {
+		csc.JSONFail(c, err.Error())
+		return
 	}
 	csc.JSONOKMsg(c, "刪除成功")
 }

@@ -506,7 +506,7 @@ func processPongo2Fun(html string) string {
 		}
 		var inner string
 		if fieldName == "scode" {
-			inner = "/admin/{{ C }}/del?id=" + valExpr
+			inner = "/admin/{{ C }}/del?scode=" + valExpr
 		} else {
 			inner = "/admin/{{ C }}/del/id/" + valExpr
 		}
