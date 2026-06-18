@@ -32,10 +32,14 @@ func SetupAdminRoutes(r *gin.Engine) {
 
 		cc := &content.ContentController{}
 		adminGroup.GET("/content/index", cc.Index)
+		adminGroup.GET("/content/index/*action", cc.IndexCatchAll)
 		adminGroup.GET("/content/add", cc.Add)
+		adminGroup.GET("/content/add/*action", cc.AddCatchAll)
 		adminGroup.POST("/content/add", cc.Add)
+		adminGroup.POST("/content/add/*action", cc.AddCatchAll)
 		adminGroup.Any("/content/mod/*action", cc.Mod)
 		adminGroup.POST("/content/del", cc.Del)
+		adminGroup.Any("/content/del/*action", cc.DelCatchAll)
 
 		csc := &content.ContentSortController{}
 		adminGroup.GET("/content/sort/index", csc.Index)
