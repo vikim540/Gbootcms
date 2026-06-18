@@ -233,13 +233,9 @@ layui.use(['form'], function(){
     var $ = layui.$;
     // 新增字段時，根據類型顯示/隱藏「選擇按鈕值」
     $(document).on('change', 'select[name="type"]', function(){
-        var val = $(this).val(); // 1=单行 2=多行 3=单选 4=多选 5=单图 6=附件 7=日期 8=编辑器 9=下拉 10=多图
-        var $row = $(this).closest('.layui-form-item').parent().find('.layui-form-item:has(textarea[name="value"])');
-        if (val === '3' || val === '4' || val === '9') {
-            $row.show();
-        } else {
-            $row.hide();
-        }
+        var val = $(this).val();
+        // 3=单选 4=多选 9=下拉 → 顯示；其他類型隱藏
+        $(this).closest('form').find('textarea[name="value"]').closest('.layui-form-item').toggle(val === '3' || val === '4' || val === '9');
     });
     // 初始化
     $('select[name="type"]').trigger('change');
