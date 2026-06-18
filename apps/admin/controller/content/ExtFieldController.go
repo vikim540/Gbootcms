@@ -30,7 +30,7 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 		name := c.PostForm("name")
 		typ := c.PostForm("type")
 		err := content.AddExtField(
-			c.PostForm("modelcode"),
+			c.PostForm("mcode"),
 			name,
 			c.PostForm("field"),
 			typ,
@@ -48,7 +48,11 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 		ef.JSONOKMsg(c, "新增成功")
 		return
 	}
-	common.Render(c, "content/extfield.html", gin.H{"action": "add"})
+	common.Render(c, "content/extfield.html", gin.H{
+		"action": "add",
+		"models": content.GetAllModels(),
+		"list":   true,
+	})
 }
 
 func (ef *ExtFieldController) Mod(c *gin.Context) {

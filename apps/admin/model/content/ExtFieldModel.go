@@ -53,7 +53,7 @@ func SqliteColumnTypeForExtType(typ string) string {
 
 type ExtField struct {
 	ID          uint   `gorm:"primaryKey" json:"id"`
-	ModelCode   string `gorm:"column:modelcode" json:"modelcode"`
+	Mcode       string `gorm:"column:modelcode" json:"modelcode"`
 	Name        string `gorm:"column:name" json:"name"`
 	Field       string `gorm:"column:field" json:"field"`
 	Type        string `gorm:"column:type" json:"type"`
