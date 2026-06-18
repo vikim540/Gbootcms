@@ -45,6 +45,11 @@ func StructToMap(obj interface{}) map[string]interface{} {
 	return result
 }
 
+// SnakeToPascal 導出版本，供外部包（如 Controller/Service）使用
+func SnakeToPascal(s string) string {
+	return snakeToPascal(s)
+}
+
 // GetAllModelsData returns all content models as a slice of maps (for $allmodels).
 func GetAllModelsData() []map[string]interface{} {
 	models := contentModel.GetAllModels()

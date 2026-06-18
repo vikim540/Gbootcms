@@ -21,19 +21,25 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
 		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
+		name := c.PostForm("name")
+		typ := c.PostForm("type")
 		err := content.AddExtField(
 			c.PostForm("modelcode"),
-			c.PostForm("name"),
+			name,
 			c.PostForm("field"),
-			c.PostForm("type"),
+			typ,
 			required,
 			sorting,
 		)
 		if err != nil {
-			ef.JSONFailMsg(c, "Add failed: "+err.Error())
+			ef.JSONFailMsg(c, "新增失敗: "+err.Error())
 			return
 		}
-		ef.JSONOKMsg(c, "Added successfully")
+		// 新增字段後，確保 ay_content_ext 表有對應物理列
+		if name != "" {
+			content.EnsureExtColumnExists(name, typ)
+		}
+		ef.JSONOKMsg(c, "新增成功")
 		return
 	}
 	common.Render(c, "content/extfield.html", gin.H{"action": "add"})
@@ -53,10 +59,10 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 		// 白名单：只允许修改 status 字段，防止 SQL 注入
 		if fieldName == "status" {
 			content.UpdateExtFieldSingleField(id, fieldName, fieldValue)
-			ef.JSONOKMsg(c, "Modified successfully")
+			ef.JSONOKMsg(c, "修改成功")
 			return
 		}
-		ef.JSONFailMsg(c, "Invalid field")
+		ef.JSONFailMsg(c, "不允許修改的欄位")
 		return
 	}
 
@@ -74,10 +80,10 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 			sorting,
 		)
 		if err != nil {
-			ef.JSONFailMsg(c, "Modify failed: "+err.Error())
+			ef.JSONFailMsg(c, "修改失敗: "+err.Error())
 			return
 		}
-		ef.JSONOKMsg(c, "Modified successfully")
+		ef.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -90,8 +96,8 @@ func (ef *ExtFieldController) Del(c *gin.Context) {
 	id, _ := strconv.Atoi(idStr)
 	err := content.DeleteExtField(id)
 	if err != nil {
-		ef.JSONFailMsg(c, "Delete failed: "+err.Error())
+		ef.JSONFailMsg(c, "刪除失敗: "+err.Error())
 		return
 	}
-	ef.JSONOKMsg(c, "Deleted successfully")
+	ef.JSONOKMsg(c, "刪除成功")
 }

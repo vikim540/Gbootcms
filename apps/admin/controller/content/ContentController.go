@@ -20,14 +20,14 @@ type ContentController struct {
 }
 
 // contentTemplateData returns common template data for content views.
-func (cc *ContentController) contentTemplateData(mcode string, sorts []model.ContentSort) gin.H {
+func (cc *ContentController) contentTemplateData(mcode string, sorts []model.ContentSort, contentMap map[string]interface{}) gin.H {
 	return gin.H{
 		"model_name":     helper.GetModelNameByMcode(mcode),
 		"sorts":          sorts,
 		"sort_select":    helper.BuildSearchSelectHTML(sorts, mcode),
 		"search_select":  helper.BuildSearchSelectHTML(sorts, mcode),
 		"subsort_select": helper.BuildSearchSelectHTML(sorts, mcode),
-		"extfield":       helper.GetExtFieldsByMcode(mcode),
+		"extfield":       cc.svc.BuildExtFieldTemplateData(mcode, contentMap),
 		"groups":         helper.BuildGroupsData(),
 	}
 }
@@ -48,7 +48,7 @@ func (cc *ContentController) Index(c *gin.Context) {
 	contents, total, _ := cc.svc.ListContents(mcode, scode, keyword, page, pageSize)
 	sorts, _ := cc.svc.GetAllSorts()
 
-	data := cc.contentTemplateData(mcode, sorts)
+	data := cc.contentTemplateData(mcode, sorts, nil)
 	data["contents"] = helper.AddSortName(contents, sorts)
 	data["list"] = true
 	data["scode"] = scode
@@ -129,16 +129,24 @@ func (cc *ContentController) Add(c *gin.Context) {
 			GType:       c.PostForm("gtype"),
 			Gnote:       c.PostForm("gnote"),
 		}
-		if err := cc.svc.CreateContent(&doc); err != nil {
+
+		// 收集擴展字段數據
+		extFields := helper.GetExtFieldsByMcode(mcode)
+		extData := cc.svc.CollectExtFieldData(extFields,
+			func(key string) string { return c.PostForm(key) },
+			func(key string) []string { return c.PostFormArray(key) },
+		)
+
+		if err := cc.svc.CreateContent(&doc, extData); err != nil {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "Added successfully")
+		cc.JSONOKMsg(c, "新增成功")
 		return
 	}
 
 	sorts, _ := cc.svc.GetAllSorts()
-	data := cc.contentTemplateData(mcode, sorts)
+	data := cc.contentTemplateData(mcode, sorts, nil)
 	data["list"] = true
 	common.Render(c, "content/content.html", data)
 }
@@ -183,7 +191,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "Modified successfully")
+		cc.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -193,7 +201,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "Modified successfully")
+		cc.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -202,7 +210,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "Copied successfully")
+		cc.JSONOKMsg(c, "複製成功")
 		return
 	}
 
@@ -211,19 +219,19 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "Moved successfully")
+		cc.JSONOKMsg(c, "移動成功")
 		return
 	}
 
 	if submit == "baiduzz" || submit == "baiduks" {
-		cc.JSONOKMsg(c, "Submitted successfully")
+		cc.JSONOKMsg(c, "提交成功")
 		return
 	}
 
 	if c.Request.Method == "POST" {
 		title := c.PostForm("title")
 		if title == "" {
-			cc.JSONFail(c, "Title cannot be empty")
+			cc.JSONFail(c, "標題不能為空")
 			return
 		}
 
@@ -287,15 +295,23 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			updates["gtype"] = stype
 		}
 
-		if err := cc.svc.UpdateContent(id, updates); err != nil {
+		// 收集擴展字段數據
+		extFields := helper.GetExtFieldsByMcode(mcode)
+		extData := cc.svc.CollectExtFieldData(extFields,
+			func(key string) string { return c.PostForm(key) },
+			func(key string) []string { return c.PostFormArray(key) },
+		)
+
+		if err := cc.svc.UpdateContent(id, updates, extData); err != nil {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "Modified successfully")
+		cc.JSONOKMsg(c, "修改成功")
 		return
 	}
 
-	doc, err := cc.svc.GetContent(id)
+	// GET: 加載內容及擴展數據用於表單回填
+	contentMap, err := cc.svc.GetContentWithExt(id)
 	if err != nil {
 		cc.JSONFail(c, err.Error())
 		return
@@ -304,15 +320,28 @@ func (cc *ContentController) Mod(c *gin.Context) {
 	// Get mcode from content's sort if not in query
 	if mcode == "" {
 		var sort model.ContentSort
-		if model.DB.Where("scode = ?", doc.Scode).First(&sort).Error == nil {
+		scodeVal, _ := contentMap["Scode"].(string)
+		if model.DB.Where("scode = ?", scodeVal).First(&sort).Error == nil {
 			mcode = sort.Mcode
 		}
 	}
 
 	sorts, _ := cc.svc.GetAllSorts()
-	data := cc.contentTemplateData(mcode, sorts)
-	data["content"] = doc
-	data["sort_select"] = helper.BuildSortSelectWithSelected(sorts, mcode, doc.Scode)
+	data := cc.contentTemplateData(mcode, sorts, contentMap)
+	data["content"] = contentMap
+	scodeVal, _ := contentMap["Scode"].(string)
+	data["sort_select"] = helper.BuildSortSelectWithSelected(sorts, mcode, scodeVal)
+	// 預處理 pics/picstitle 供模板多圖循環（替代殘留的 {php} explode/foreach）
+	if picsStr, ok := contentMap["Pics"].(string); ok && picsStr != "" {
+		data["pics"] = strings.Split(picsStr, ",")
+	} else {
+		data["pics"] = []string{}
+	}
+	if picstitleStr, ok := contentMap["Picstitle"].(string); ok && picstitleStr != "" {
+		data["picstitle"] = strings.Split(picstitleStr, ",")
+	} else {
+		data["picstitle"] = []string{}
+	}
 	data["mod"] = true
 	common.Render(c, "content/content.html", data)
 }
@@ -331,10 +360,10 @@ func (cc *ContentController) Del(c *gin.Context) {
 				cc.JSONFail(c, err.Error())
 				return
 			}
-			cc.JSONOKMsg(c, "Deleted successfully")
+			cc.JSONOKMsg(c, "刪除成功")
 			return
 		}
-		cc.JSONFail(c, "No items selected")
+		cc.JSONFail(c, "未選擇任何項目")
 		return
 	}
 	ids := strings.Split(idStr, ",")
@@ -342,44 +371,34 @@ func (cc *ContentController) Del(c *gin.Context) {
 		cc.JSONFail(c, err.Error())
 		return
 	}
-	cc.JSONOKMsg(c, "Deleted successfully")
+	cc.JSONOKMsg(c, "刪除成功")
 }
 
-// IndexCatchAll handles /content/index/*action paths like /mcode/2D1 or /mcode/2D1/pagesize/20
-// generated by PbootCMS template {url./admin/Content/index/mcode/...} syntax.
-func (cc *ContentController) IndexCatchAll(c *gin.Context) {
-	action := strings.TrimPrefix(c.Param("action"), "/")
-	if action != "" {
-		parts := strings.Split(action, "/")
-		for i := 0; i+1 < len(parts); i += 2 {
-			c.Request.URL.RawQuery += "&" + parts[i] + "=" + parts[i+1]
+// applyPathAction 將 /key/value/key2/value2 路徑參數轉為 query 參數
+func (cc *ContentController) applyPathAction(c *gin.Context) {
+	params := helper.ParseWildcardAction(c.Param("action"))
+	for k, v := range params {
+		if c.Request.URL.RawQuery != "" {
+			c.Request.URL.RawQuery += "&"
 		}
+		c.Request.URL.RawQuery += k + "=" + v
 	}
+}
+
+// IndexCatchAll handles /content/index/*action paths like /mcode/2D1
+func (cc *ContentController) IndexCatchAll(c *gin.Context) {
+	cc.applyPathAction(c)
 	cc.Index(c)
 }
 
 // AddCatchAll handles /content/add/*action paths like /mcode/2D1
-// generated by PbootCMS template {url./admin/Content/add/mcode/...} syntax.
 func (cc *ContentController) AddCatchAll(c *gin.Context) {
-	action := strings.TrimPrefix(c.Param("action"), "/")
-	if action != "" {
-		parts := strings.Split(action, "/")
-		for i := 0; i+1 < len(parts); i += 2 {
-			c.Request.URL.RawQuery += "&" + parts[i] + "=" + parts[i+1]
-		}
-	}
+	cc.applyPathAction(c)
 	cc.Add(c)
 }
 
 // DelCatchAll handles /content/del/*action paths like /id/42
-// generated by get_btn_del data-url attribute.
 func (cc *ContentController) DelCatchAll(c *gin.Context) {
-	action := strings.TrimPrefix(c.Param("action"), "/")
-	if action != "" {
-		parts := strings.Split(action, "/")
-		for i := 0; i+1 < len(parts); i += 2 {
-			c.Request.URL.RawQuery += "&" + parts[i] + "=" + parts[i+1]
-		}
-	}
+	cc.applyPathAction(c)
 	cc.Del(c)
 }

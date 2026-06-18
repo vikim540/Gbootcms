@@ -204,7 +204,7 @@ layui.use(['element','upload','laydate','form'], function(){
       var url = $btn.data('url');
 
       // 自動提取列表行中的名稱（第二個 td 的內容）
-      var targetName = $btn.closest('tr').find('td').eq(1).text().trim() || '此项';
+      var targetName = $btn.closest('tr').find('td').eq(1).text().trim() || '此項';
 
       layer.open({
           type: 1,
@@ -213,7 +213,7 @@ layui.use(['element','upload','laydate','form'], function(){
           shadeClose: true,
           anim: 2,
           shade: [0.4, '#000'],
-          btn: ['确认删除', '取消'],
+          btn: ['確認刪除', '取消'],
           btnAlign: 'c',
           yes: function(index) {
               $.ajax({
@@ -226,10 +226,10 @@ layui.use(['element','upload','laydate','form'], function(){
                   success: function(res) {
                       layer.closeAll('loading');
                       if (res.code == 1) {
-                          showNotify(res.msg || '删除成功', 'success');
+                          showNotify(res.msg || '刪除成功', 'success');
                           setTimeout(function(){ location.reload(); }, 1200);
                       } else {
-                          showNotify(res.data || res.msg || '删除失败', 'error');
+                          showNotify(res.data || res.msg || '刪除失敗', 'error');
                       }
                   },
                   error: function() {
@@ -248,15 +248,15 @@ layui.use(['element','upload','laydate','form'], function(){
                       '<span style="display:inline-flex;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#ff4d4f,#ff7875);box-shadow:0 6px 20px rgba(255,77,79,0.30);align-items:center;justify-content:center;">' +
                           '<i class="fa fa-trash" style="color:#fff;font-size:28px;"></i>' +
                       '</span>' +
-                      '<div style="margin-top:16px;font-size:18px;font-weight:700;color:#262626;">确认删除</div>' +
-                      '<div style="margin-top:6px;font-size:14px;color:#8c8c8c;">确定要删除 <strong style="color:#ff4d4f;">' + targetName + '</strong> 吗？</div>' +
+                      '<div style="margin-top:16px;font-size:18px;font-weight:700;color:#262626;">確認刪除</div>' +
+                      '<div style="margin-top:6px;font-size:14px;color:#8c8c8c;">確定要刪除 <strong style="color:#ff4d4f;">' + targetName + '</strong> 嗎？</div>' +
                   '</div>' +
                   /* 分隔線 */
                   '<div style="margin:0 24px;border-top:1px solid #f0f0f0;"></div>' +
                   /* 底部警告區域 */
                   '<div style="padding:16px 24px 22px;display:flex;align-items:flex-start;gap:10px;">' +
                       '<i class="fa fa-info-circle" style="color:#faad14;font-size:16px;flex-shrink:0;margin-top:1px;"></i>' +
-                      '<span style="font-size:13px;line-height:1.6;color:#8c8c8c;">此操作将永久删除该数据，<span style="color:#ff4d4f;font-weight:600;">不可撤销</span>。请在操作前确认已备份重要数据。</span>' +
+                      '<span style="font-size:13px;line-height:1.6;color:#8c8c8c;">此操作將永久刪除該數據，<span style="color:#ff4d4f;font-weight:600;">不可撤銷</span>。請在操作前確認已備份重要數據。</span>' +
                   '</div>' +
               '</div>'
       });

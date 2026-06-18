@@ -18,6 +18,9 @@ func Init() {
 }
 
 func SeedData() {
+	// 確保 ay_content_ext 基礎表存在（幂等操作，每次啟動都執行）
+	content.EnsureContentExtTable()
+
 	var user system.AdminUser
 	if model.DB.Where("1 = 1").First(&user).Error != gorm.ErrRecordNotFound {
 		// 用户表非空：跳过首次种子，但仍要确保菜单是最新版本
