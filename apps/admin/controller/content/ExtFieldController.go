@@ -14,7 +14,13 @@ type ExtFieldController struct {
 
 func (ef *ExtFieldController) Index(c *gin.Context) {
 	fields := content.GetAllExtFields()
-	common.Render(c, "content/extfield.html", gin.H{"fields": fields})
+	models := content.GetAllModels()
+	list := true
+	common.Render(c, "content/extfield.html", gin.H{
+		"extfields": fields,
+		"models":    models,
+		"list":      list,
+	})
 }
 
 func (ef *ExtFieldController) Add(c *gin.Context) {
@@ -88,7 +94,12 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 	}
 
 	field := content.GetExtFieldById(id)
-	common.Render(c, "content/extfield.html", gin.H{"field": field, "action": "mod"})
+	models := content.GetAllModels()
+	common.Render(c, "content/extfield.html", gin.H{
+		"extfield": field,
+		"models":   models,
+		"mod":      true,
+	})
 }
 
 func (ef *ExtFieldController) Del(c *gin.Context) {
