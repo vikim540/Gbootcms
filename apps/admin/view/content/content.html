@@ -174,6 +174,7 @@
 	  	   <div class="layui-tab-item">
 	  	  		<form action="{url./admin/Content/add/mcode/'.get('mcode').'}" method="post" class="layui-form" lay-filter="content" id="edit">
 		  	     	<input type="hidden" name="formcheck" value="{$formcheck}" > 
+		  	     	<input type="hidden" name="mcode" value="{$get.mcode}" > 
 		  	     	<div class="layui-tab">
 					  <ul class="layui-tab-title">
 					    <li class="layui-this">基本内容</li>
@@ -203,7 +204,7 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-block">
-				                    	<input type="text" name="[value->name]"  placeholder="请输入[value->description]"  class="layui-input">
+				                    	<input type="text" name="[value->field]"  placeholder="请输入[value->description]"  class="layui-input">
 				                	</div>
 				                </div>
 			                	{/if}
@@ -212,7 +213,7 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-block">
-				                		<textarea name="[value->name]" class="layui-textarea" placeholder="请输入[value->description]"></textarea>
+				                		<textarea name="[value->field]" class="layui-textarea" placeholder="请输入[value->description]"></textarea>
 				                	</div>
 				                </div>
 			                	{/if}
@@ -223,7 +224,7 @@
 			                		<div class="layui-input-block">
 				                		<div>
 				                			{% for opt in val1.Options %}
-				                			<input type="radio" name="{{ val1.Name }}" value="{{ opt }}" title="{{ opt }}">
+				                			<input type="radio" name="{{ val1.Field }}" value="{{ opt }}" title="{{ opt }}">
 				                			{% endfor %}
 					                    </div>
 				                	</div>
@@ -235,22 +236,25 @@
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-block">
 				                		<div>
-				                			<input name="{{ val1.Name }}" type="hidden">
+				                			<input name="{{ val1.Field }}" type="hidden">
 				                			{% for opt in val1.Options %}
-				                			<input type="checkbox" name="{{ val1.Name }}[]" value="{{ opt }}" title="{{ opt }}">
+				                			<input type="checkbox" name="{{ val1.Field }}[]" value="{{ opt }}" title="{{ opt }}">
 				                			{% endfor %}
+					                    </div>
+				                	</div>
+				                </div>
 			                	{/if}
 			                	
 			                	{if($value->type==5)}<!-- 图片 -->
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-inline">
-				                     	<input type="text" name="[value->name]" id="[value->name]" placeholder="请上传[value->description]"  class="layui-input">
+				                     	<input type="text" name="[value->field]" id="[value->field]" placeholder="请上传[value->description]"  class="layui-input">
 				                     </div>
-				                     <button type="button" class="layui-btn upload watermark" data-des="[value->name]">
+				                     <button type="button" class="layui-btn upload watermark" data-des="[value->field]">
 									 	 <i class="layui-icon">&#xe67c;</i>上传图片
 									 </button>
-									 <div id="[value->name]_box" class="pic"></div>
+									 <div id="[value->field]_box" class="pic"></div>
 				                </div>
 			                	{/if}
 			                	
@@ -258,12 +262,12 @@
 			                	 <div class="layui-form-item">
 				                     <label class="layui-form-label">[value->description]</label>
 				                     <div class="layui-input-inline">
-				                     	<input type="text" name="[value->name]" id="[value->name]" placeholder="请上传[value->description]"  class="layui-input">
+				                     	<input type="text" name="[value->field]" id="[value->field]" placeholder="请上传[value->description]"  class="layui-input">
 				                     </div>
-				                     <button type="button" class="layui-btn uploads watermark" data-des="[value->name]">
+				                     <button type="button" class="layui-btn uploads watermark" data-des="[value->field]">
 									 	 <i class="layui-icon">&#xe67c;</i>上传多图
 									 </button>
-									 <div id="[value->name]_box" class="pic addedit"><dl></dl> <!-- 规避空内容拖动bug --></div>
+									 <div id="[value->field]_box" class="pic addedit"><dl></dl> <!-- 规避空内容拖动bug --></div>
 				                </div>
 				                {/if}
 			                	
@@ -271,9 +275,9 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-inline">
-				                     	<input type="text" name="[value->name]" id="[value->name]" placeholder="请上传[value->description]"  class="layui-input">
+				                     	<input type="text" name="[value->field]" id="[value->field]" placeholder="请上传[value->description]"  class="layui-input">
 				                     </div>
-				                     <button type="button" class="layui-btn file" data-des="[value->name]">
+				                     <button type="button" class="layui-btn file" data-des="[value->field]">
 									 	 <i class="layui-icon">&#xe67c;</i>上传文件
 									 </button>
 				                </div>
@@ -283,7 +287,7 @@
 				                <div class="layui-form-item">
 				                     <label class="layui-form-label">[value->description]</label>
 				                     <div class="layui-input-block">
-				                     	<input type="text" name="[value->name]" readonly placeholder="请选择[value->description]"  class="layui-input datetime">
+				                     	<input type="text" name="[value->field]" readonly placeholder="请选择[value->description]"  class="layui-input datetime">
 				                     </div>
 				                </div>
 			                	{/if}
@@ -292,11 +296,11 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-block">
-				                		<script type="text/plain" id="editor_[value->name]" name="[value->name]" style="width:100%;height:240px;"></script>
+				                		<script type="text/plain" id="editor_[value->field]" name="[value->field]" style="width:100%;height:240px;"></script>
 				                		<script>
 											//初始化编辑器
 											$(document).ready(function (e) {
-												var ue = UE.getEditor('editor_[value->name]',{
+												var ue = UE.getEditor('editor_[value->field]',{
 													maximumWords:10000 
 												});
 											})
@@ -309,7 +313,7 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-block">
-			                			<select name="[value->name]">
+			                			<select name="[value->field]">
 			                				{% for opt in val1.Options %}
 			                				<option value="{{ opt }}">{{ opt }}</option>
 			                				{% endfor %}
@@ -514,6 +518,7 @@
 	  	<div class="layui-tab-item layui-show">
 	  		<form action="{url./admin/Content/mod/id/'.[$get.id].'}{$backurl}" method="post" class="layui-form" id="edit">
 	  			<input type="hidden" name="formcheck" value="{$formcheck}" > 
+	  			<input type="hidden" name="mcode" value="{$mcode}" >
 	  			<div class="layui-tab">
 					  <ul class="layui-tab-title">
 					    <li class="layui-this">基本内容</li>
@@ -543,7 +548,7 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-block">
-				                    	<input type="text" name="[value->name]" value="{{ val1.CurrentValue }}"  placeholder="请输入[value->description]"  class="layui-input">
+				                    	<input type="text" name="[value->field]" value="{{ val1.CurrentValue }}"  placeholder="请输入[value->description]"  class="layui-input">
 				                	</div>
 				                </div>
 			                	{/if}
@@ -552,7 +557,7 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-block">
-				                		<textarea name="[value->name]" class="layui-textarea" placeholder="请输入[value->description]">{{ val1.CurrentValueMultiline }}</textarea>
+				                		<textarea name="[value->field]" class="layui-textarea" placeholder="请输入[value->description]">{{ val1.CurrentValueMultiline }}</textarea>
 				                	</div>
 				                </div>
 			                	{/if}
@@ -563,7 +568,7 @@
 			                		<div class="layui-input-block">
 				                		<div>
 	            												{% for opt in val1.Options %}
-	            												<input type="radio" name="{{ val1.Name }}" value="{{ opt }}" title="{{ opt }}"{% if val1.CurrentValue == opt %} checked{% endif %}>
+	            												<input type="radio" name="{{ val1.Field }}" value="{{ opt }}" title="{{ opt }}"{% if val1.CurrentValue == opt %} checked{% endif %}>
 	            												{% endfor %}
 					                    </div>
 				                	</div>
@@ -575,9 +580,9 @@
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-block">
 				                		<div>
-	            												<input name="{{ val1.Name }}" type="hidden">
+	            												<input name="{{ val1.Field }}" type="hidden">
 	            												{% for opt in val1.Options %}
-	            												<input type="checkbox" name="{{ val1.Name }}[]" value="{{ opt }}" title="{{ opt }}"{% if opt in val1.SelectedValues %} checked{% endif %}>
+	            												<input type="checkbox" name="{{ val1.Field }}[]" value="{{ opt }}" title="{{ opt }}"{% if opt in val1.SelectedValues %} checked{% endif %}>
 	            												{% endfor %}
 					                    </div>
 				                	</div>
@@ -588,12 +593,12 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-inline">
-				                     	<input type="text" name="[value->name]" id="[value->name]" value="{{ val1.CurrentValue }}" placeholder="请上传[value->description]"  class="layui-input">
+				                     	<input type="text" name="[value->field]" id="[value->field]" value="{{ val1.CurrentValue }}" placeholder="请上传[value->description]"  class="layui-input">
 				                     </div>
-				                     <button type="button" class="layui-btn upload watermark" data-des="[value->name]">
+				                     <button type="button" class="layui-btn upload watermark" data-des="[value->field]">
 									 	 <i class="layui-icon">&#xe67c;</i>上传图片
 									 </button>
-									 <div id="[value->name]_box" class="pic">{% if val1.CurrentValue %}<dl><dt><img src='{SITE_DIR}{{ val1.CurrentValue }}' data-url="{{ val1.CurrentValue }}"></dt><dd>删除</dd></dl>{% endif %}</div>
+									 <div id="[value->field]_box" class="pic">{% if val1.CurrentValue %}<dl><dt><img src='{SITE_DIR}{{ val1.CurrentValue }}' data-url="{{ val1.CurrentValue }}"></dt><dd>删除</dd></dl>{% endif %}</div>
 				                </div>
 			                	{/if}
 			                	
@@ -601,12 +606,12 @@
 			                	 <div class="layui-form-item">
 				                     <label class="layui-form-label">[value->description]</label>
 				                     <div class="layui-input-inline">
-				                     	<input type="text" name="[value->name]" id="[value->name]" value="{{ val1.CurrentValue }}" placeholder="请上传[value->description]"  class="layui-input">
+				                     	<input type="text" name="[value->field]" id="[value->field]" value="{{ val1.CurrentValue }}" placeholder="请上传[value->description]"  class="layui-input">
 				                     </div>
-				                     <button type="button" class="layui-btn uploads watermark" data-des="[value->name]">
+				                     <button type="button" class="layui-btn uploads watermark" data-des="[value->field]">
 									 	 <i class="layui-icon">&#xe67c;</i>上传多图
 									 </button>
-									 <div id="[value->name]_box" class="pic addedit">
+									 <div id="[value->field]_box" class="pic addedit">
 									 	 <dl></dl> <!-- 规避空内容拖动bug -->
 	    							{% for pic in val1.Pics %}
 	    							<dl><dt><img src='{SITE_DIR}{{ pic }}' data-url="{{ pic }}"></dt><dd>删除</dd></dl>
@@ -620,9 +625,9 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-inline">
-				                     	<input type="text" name="[value->name]" id="[value->name]" value="{{ val1.CurrentValue }}" placeholder="请上传[value->description]"  class="layui-input">
+				                     	<input type="text" name="[value->field]" id="[value->field]" value="{{ val1.CurrentValue }}" placeholder="请上传[value->description]"  class="layui-input">
 				                     </div>
-				                     <button type="button" class="layui-btn file" data-des="[value->name]">
+				                     <button type="button" class="layui-btn file" data-des="[value->field]">
 									 	 <i class="layui-icon">&#xe67c;</i>上传文件
 									 </button>
 				                </div>
@@ -632,7 +637,7 @@
 				                <div class="layui-form-item">
 				                     <label class="layui-form-label">[value->description]</label>
 				                     <div class="layui-input-block">
-				                     	<input type="text" name="[value->name]" value="{{ val1.CurrentValue }}" readonly placeholder="请选择[value->description]"  class="layui-input datetime">
+				                     	<input type="text" name="[value->field]" value="{{ val1.CurrentValue }}" readonly placeholder="请选择[value->description]"  class="layui-input datetime">
 				                     </div>
 				                </div>
 			                	{/if}
@@ -641,11 +646,11 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-block">
-				                		<script type="text/plain" id="editor_[value->name]" name="[value->name]" style="width:100%;height:240px;">{{ val1.CurrentValue|safe }}</script>
+				                		<script type="text/plain" id="editor_[value->field]" name="[value->field]" style="width:100%;height:240px;">{{ val1.CurrentValue|safe }}</script>
 				                		<script>
 											//初始化编辑器
 											$(document).ready(function (e) {
-												var ue = UE.getEditor('editor_[value->name]',{
+												var ue = UE.getEditor('editor_[value->field]',{
 													maximumWords:10000 
 												});
 											})
@@ -658,7 +663,7 @@
 			                	<div class="layui-form-item">
 			                		<label class="layui-form-label">[value->description]</label>
 			                		<div class="layui-input-block">
-			                			<select name="[value->name]">
+			                			<select name="[value->field]">
 	                		{% for opt in val1.Options %}
 	                		<option value="{{ opt }}"{% if val1.CurrentValue == opt %} selected{% endif %}>{{ opt }}</option>
 	                		{% endfor %}

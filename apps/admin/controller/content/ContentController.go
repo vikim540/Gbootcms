@@ -166,6 +166,14 @@ func (cc *ContentController) Mod(c *gin.Context) {
 	if mcode == "" {
 		mcode = c.Query("mcode")
 	}
+	if mcode == "" {
+		mcode = c.PostForm("mcode")
+	}
+
+	// 確保 mcode 可用：從內容的欄目反推（MOD GET/POST 通用）
+	if mcode == "" && id > 0 {
+		mcode = cc.resolveMcodeByContentID(id)
+	}
 
 	// Handle single field update via URL path or query params
 	field := params["field"]
@@ -317,14 +325,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 		return
 	}
 
-	// Get mcode from content's sort if not in query
-	if mcode == "" {
-		var sort model.ContentSort
-		scodeVal, _ := contentMap["Scode"].(string)
-		if model.DB.Where("scode = ?", scodeVal).First(&sort).Error == nil {
-			mcode = sort.Mcode
-		}
-	}
+	// Get mcode from content's sort if not in query (已由上方 resolveMcodeByContentID 處理)
 
 	sorts, _ := cc.svc.GetAllSorts()
 	data := cc.contentTemplateData(mcode, sorts, contentMap)
@@ -343,6 +344,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 		data["picstitle"] = []string{}
 	}
 	data["mod"] = true
+	data["mcode"] = mcode
 	common.Render(c, "content/content.html", data)
 }
 
@@ -389,6 +391,19 @@ func (cc *ContentController) applyPathAction(c *gin.Context) {
 func (cc *ContentController) IndexCatchAll(c *gin.Context) {
 	cc.applyPathAction(c)
 	cc.Index(c)
+}
+
+// resolveMcodeByContentID 從內容的欄目反推 mcode，確保 MOD GET/POST 都能獲取擴展字段定義
+func (cc *ContentController) resolveMcodeByContentID(id int) string {
+	var doc model.Content
+	if model.DB.Select("scode").Where("id = ?", id).First(&doc).Error != nil {
+		return ""
+	}
+	var sort model.ContentSort
+	if model.DB.Select("mcode").Where("scode = ?", doc.Scode).First(&sort).Error != nil {
+		return ""
+	}
+	return sort.Mcode
 }
 
 // AddCatchAll handles /content/add/*action paths like /mcode/2D1

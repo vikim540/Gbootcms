@@ -87,21 +87,24 @@ func (s *ContentService) CollectExtFieldData(
 ) map[string]interface{} {
 	data := make(map[string]interface{})
 	for _, ef := range extFields {
-		name := ef.Name // e.g. "ext_price"
-		if name == "" {
+		fieldName := ef.Field // DB 列名
+		if fieldName == "" {
+			fieldName = ef.Name // 向後兼容舊數據
+		}
+		if fieldName == "" {
 			continue
 		}
 		// 多選 checkbox 提交時帶 [] 後綴
-		arr := postFormArray(name + "[]")
+		arr := postFormArray(fieldName + "[]")
 		if len(arr) > 0 {
-			data[name] = strings.Join(arr, ",")
+			data[fieldName] = strings.Join(arr, ",")
 		} else {
-			val := postForm(name)
+			val := postForm(fieldName)
 			// 多行文本：換行符替換為 <br>（與 PHP 一致）
 			if ef.Type == "2" {
-				data[name] = strings.ReplaceAll(val, "\r\n", "<br>")
+				data[fieldName] = strings.ReplaceAll(val, "\r\n", "<br>")
 			} else {
-				data[name] = val
+				data[fieldName] = val
 			}
 		}
 	}
@@ -277,7 +280,11 @@ func (s *ContentService) BuildExtFieldTemplateData(mcode string, contentMap map[
 
 		// 從 contentMap 中取當前值（編輯時）
 		if contentMap != nil {
-			pascalName := common.SnakeToPascal(ef.Name)
+			fieldName := ef.Field
+			if fieldName == "" {
+				fieldName = ef.Name // 向後兼容
+			}
+			pascalName := common.SnakeToPascal(fieldName)
 			if v, ok := contentMap[pascalName]; ok && v != nil {
 				item["CurrentValue"] = fmt.Sprintf("%v", v)
 			}

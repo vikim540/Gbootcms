@@ -22,6 +22,9 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 		data = gin.H{}
 	}
 
+	// Save controller-provided "C" override before it gets overwritten by extractController
+	controllerC, hasControllerC := data["C"]
+
 	// Inject session variables (session_xxx format for pongo2)
 	injectSessionData(c, data)
 
@@ -86,6 +89,13 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 
 	// Flatten struct fields for template access
 	data = flattenData(data)
+
+	// Re-apply controller override after flattenData (controller may set "C" to override extractController)
+	if hasControllerC {
+		if s, ok := controllerC.(string); ok && s != "" {
+			data["C"] = s
+		}
+	}
 
 	// Inject menu tree and models for logged-in users
 	uid := GetSessionInt(c, "admin_uid")

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	home "pbootcms-go/apps/home/controller"
 	"pbootcms-go/apps/admin/model"
@@ -73,11 +74,22 @@ func main() {
 	r.GET("/content/:id", fc.ContentByID)
 
 	r.NoRoute(func(c *gin.Context) {
-		// 先尝试 PbootCMS 原版 URL → Go 版路径重写，重写后用 HandleContext 重新分发
 		original := c.Request.URL.Path
+		// PbootCMS 模板生成的 URL 大小寫可能與 Go 路由不一致
+		// (e.g. /admin/Content/index vs /admin/content/index)
+		// 先嘗試 lowercase 歸一化
+		lower := strings.ToLower(original)
+		if strings.HasPrefix(lower, "/admin/") && lower != original {
+			newPath := middleware.RewriteAdminPath(lower)
+			c.Request.Header.Set("X-Original-Path", original)
+			c.Request.URL.Path = newPath
+			r.HandleContext(c)
+			return
+		}
+		// 嘗試 PbootCMS 原版 URL → Go 版路徑重寫
 		newPath := middleware.RewriteAdminPath(original)
 		if newPath != original {
-			c.Request.Header.Set("X-Original-Path", original) // 用请求头保存原始 URL（HandleContext 会清空 c.Keys）
+			c.Request.Header.Set("X-Original-Path", original)
 			c.Request.URL.Path = newPath
 			r.HandleContext(c)
 			return

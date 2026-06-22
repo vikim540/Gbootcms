@@ -1,6 +1,7 @@
 package content
 
 import (
+	"pbootcms-go/apps/admin/helper"
 	"pbootcms-go/apps/admin/model/content"
 	"pbootcms-go/apps/common"
 	"strconv"
@@ -20,6 +21,7 @@ func (ef *ExtFieldController) Index(c *gin.Context) {
 		"extfields": fields,
 		"models":    models,
 		"list":      list,
+		"C":         "extField",
 	})
 }
 
@@ -27,12 +29,17 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
 		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
-		name := c.PostForm("name")
+		description := c.PostForm("description")
+		field := c.PostForm("field")
+		if field == "" {
+			// 兜底：如果沒有填寫字段名稱，用描述代替
+			field = description
+		}
 		typ := c.PostForm("type")
 		err := content.AddExtField(
 			c.PostForm("mcode"),
-			name,
-			c.PostForm("field"),
+			description, // name 列存儲描述（與 description 列一致）
+			field,
 			typ,
 			required,
 			sorting,
@@ -42,8 +49,8 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 			return
 		}
 		// 新增字段後，確保 ay_content_ext 表有對應物理列
-		if name != "" {
-			content.EnsureExtColumnExists(name, typ)
+		if field != "" {
+			content.EnsureExtColumnExists(field, typ)
 		}
 		ef.JSONOKMsg(c, "新增成功")
 		return
@@ -52,19 +59,29 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 		"action": "add",
 		"models": content.GetAllModels(),
 		"list":   true,
+		"C":      "extField",
 	})
 }
 
 func (ef *ExtFieldController) Mod(c *gin.Context) {
-	idStr := c.Param("id")
+	// 解析萬用 action 參數: /id/42 或 /field/status/value/1
+	params := helper.ParseWildcardAction(c.Param("action"))
+
+	idStr := params["id"]
 	if idStr == "" {
 		idStr = c.Query("id")
 	}
 	id, _ := strconv.Atoi(idStr)
 
 	// === 双重人格路由：GET /field/status/value 模式单字段快速切换 ===
-	fieldName := c.Query("field")
-	fieldValue := c.Query("value")
+	fieldName := params["field"]
+	if fieldName == "" {
+		fieldName = c.Query("field")
+	}
+	fieldValue := params["value"]
+	if fieldValue == "" {
+		fieldValue = c.Query("value")
+	}
 	if c.Request.Method == "GET" && fieldName != "" && fieldValue != "" {
 		// 白名单：只允许修改 status 字段，防止 SQL 注入
 		if fieldName == "status" {
@@ -80,10 +97,11 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
 		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
+		description := c.PostForm("description")
 		err := content.UpdateExtField(
 			id,
-			c.PostForm("modelcode"),
-			c.PostForm("name"),
+			c.PostForm("mcode"),
+			description, // name 列存儲描述
 			c.PostForm("field"),
 			c.PostForm("type"),
 			required,
@@ -103,6 +121,7 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 		"extfield": field,
 		"models":   models,
 		"mod":      true,
+		"C":        "extField",
 	})
 }
 

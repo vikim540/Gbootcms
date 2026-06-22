@@ -138,8 +138,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.GET("/content/extField/index", ef.Index)
 		adminGroup.GET("/content/extField/add", ef.Add)
 		adminGroup.POST("/content/extField/add", ef.Add)
-		adminGroup.GET("/content/extField/mod/:id", ef.Mod)
-		adminGroup.POST("/content/extField/mod/:id", ef.Mod)
+		adminGroup.Any("/content/extField/mod/*action", ef.Mod)
 		adminGroup.POST("/content/extField/del", ef.Del)
 
 		mc := &system.MenuController{}
