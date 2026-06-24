@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -374,7 +375,35 @@ func ParseWildcardAction(action string) map[string]string {
 	}
 	// Key-value pairs
 	for i := 0; i+1 < len(parts); i += 2 {
-		result[parts[i]] = parts[i+1]
+		val := parts[i+1]
+		// Resolve function-call literals like "get(mcode)" — these are PbootCMS PHP
+		// URL-generation artifacts where the template wrote get(mcode) to mean
+		// "use the current GET parameter value". Keep the raw string; the caller
+		// (or ResolveActionGetParams) will resolve them against actual query params.
+		result[parts[i]] = val
 	}
 	return result
+}
+
+// ResolveActionGetParams resolves values in params that look like "get(X)" by
+// reading the actual value from the given gin request query/post/params.
+// For example, if params["mcode"] = "get(mcode)", it replaces it with c.Query("mcode").
+// This handles the PbootCMS PHP URL convention where {url./admin/.../mcode/get(mcode)/...}
+// produces literal "get(mcode)" text in the URL path.
+func ResolveActionGetParams(params map[string]string, c interface{ GetQuery(key string) (string, bool); PostForm(key string) string; Param(key string) string }) map[string]string {
+	getRe := regexp.MustCompile(`^get\((\w+)\)$`)
+	for k, v := range params {
+		if m := getRe.FindStringSubmatch(v); len(m) == 2 {
+			innerKey := m[1]
+			// Try query first, then post form, then path param
+			if qv, ok := c.GetQuery(innerKey); ok && qv != "" {
+				params[k] = qv
+			} else if pv := c.PostForm(innerKey); pv != "" {
+				params[k] = pv
+			} else if pv := c.Param(innerKey); pv != "" {
+				params[k] = pv
+			}
+		}
+	}
+	return params
 }

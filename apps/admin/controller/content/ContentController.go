@@ -155,6 +155,8 @@ func (cc *ContentController) Add(c *gin.Context) {
 func (cc *ContentController) Mod(c *gin.Context) {
 	// Parse wildcard action param: /mcode/1/id/123 or /id/123/field/status/value/0 or /123
 	params := helper.ParseWildcardAction(c.Param("action"))
+	// Resolve "get(xxx)" URL path literals against actual GET/POST params
+	params = helper.ResolveActionGetParams(params, c)
 
 	idStr := params["id"]
 	if idStr == "" {

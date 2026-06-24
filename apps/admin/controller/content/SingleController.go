@@ -77,6 +77,8 @@ func (sg *SingleController) IndexCatchAll(c *gin.Context) {
 func (sg *SingleController) Mod(c *gin.Context) {
 	// Parse wildcard action param: /id/123 or /123/field/status/value/0
 	params := helper.ParseWildcardAction(c.Param("action"))
+	// Resolve "get(xxx)" URL path literals against actual GET/POST params
+	params = helper.ResolveActionGetParams(params, c)
 
 	idStr := params["id"]
 	if idStr == "" {
