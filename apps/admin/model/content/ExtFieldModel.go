@@ -53,7 +53,7 @@ func SqliteColumnTypeForExtType(typ string) string {
 
 type ExtField struct {
 	ID          uint   `gorm:"primaryKey" json:"id"`
-	Mcode       string `gorm:"column:modelcode" json:"modelcode"`
+	Mcode       string `gorm:"column:mcode" json:"mcode"`
 	Name        string `gorm:"column:name" json:"name"`
 	Field       string `gorm:"column:field" json:"field"`
 	Type        string `gorm:"column:type" json:"type"`
@@ -66,7 +66,7 @@ type ExtField struct {
 
 func GetAllExtFields() []ExtField {
 	var list []ExtField
-	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(modelcode,'') AS modelcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield ORDER BY sorting ASC, id ASC").Scan(&list)
+	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield ORDER BY sorting ASC, id ASC").Scan(&list)
 	// 向後兼容：舊記錄的 field 列可能為空，此時 name 即為 DB 列名
 	for i := range list {
 		if list[i].Field == "" && list[i].Name != "" {
@@ -78,7 +78,7 @@ func GetAllExtFields() []ExtField {
 
 func GetExtFieldById(id int) ExtField {
 	var ef ExtField
-	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(modelcode,'') AS modelcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield WHERE id = ?", id).Scan(&ef)
+	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield WHERE id = ?", id).Scan(&ef)
 	// 向後兼容
 	if ef.Field == "" && ef.Name != "" {
 		ef.Field = ef.Name
@@ -88,7 +88,7 @@ func GetExtFieldById(id int) ExtField {
 
 func GetExtFieldsByModelCode(mcode string) []ExtField {
 	var list []ExtField
-	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(modelcode,'') AS modelcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield WHERE modelcode = ? AND COALESCE(status,1) = 1 ORDER BY sorting ASC, id ASC", mcode).Scan(&list)
+	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield WHERE mcode = ? AND COALESCE(status,1) = 1 ORDER BY sorting ASC, id ASC", mcode).Scan(&list)
 	// 向後兼容
 	for i := range list {
 		if list[i].Field == "" && list[i].Name != "" {
@@ -98,12 +98,12 @@ func GetExtFieldsByModelCode(mcode string) []ExtField {
 	return list
 }
 
-func AddExtField(modelcode, name, field, typ string, required, sorting int) error {
-	return db.DB.Exec("INSERT INTO ay_extfield (modelcode, name, field, type, description, required, sorting, status) VALUES (?, ?, ?, ?, ?, ?, ?, 1)", modelcode, name, field, typ, name, required, sorting).Error
+func AddExtField(mcode, name, field, typ string, required, sorting int) error {
+	return db.DB.Exec("INSERT INTO ay_extfield (mcode, name, field, type, description, required, sorting, status) VALUES (?, ?, ?, ?, ?, ?, ?, 1)", mcode, name, field, typ, name, required, sorting).Error
 }
 
-func UpdateExtField(id int, modelcode, name, field, typ string, required, sorting int) error {
-	return db.DB.Exec("UPDATE ay_extfield SET modelcode=?, name=?, field=?, type=?, description=?, required=?, sorting=? WHERE id=?", modelcode, name, field, typ, name, required, sorting, id).Error
+func UpdateExtField(id int, mcode, name, field, typ string, required, sorting int) error {
+	return db.DB.Exec("UPDATE ay_extfield SET mcode=?, name=?, field=?, type=?, description=?, required=?, sorting=? WHERE id=?", mcode, name, field, typ, name, required, sorting, id).Error
 }
 
 func UpdateExtFieldSingleField(id int, field, value string) error {
