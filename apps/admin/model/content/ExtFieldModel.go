@@ -88,7 +88,7 @@ func GetExtFieldById(id int) ExtField {
 
 func GetExtFieldsByModelCode(mcode string) []ExtField {
 	var list []ExtField
-	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(modelcode,'') AS modelcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield WHERE modelcode = ? AND status = 1 ORDER BY sorting ASC, id ASC", mcode).Scan(&list)
+	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(modelcode,'') AS modelcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield WHERE modelcode = ? AND COALESCE(status,1) = 1 ORDER BY sorting ASC, id ASC", mcode).Scan(&list)
 	// 向後兼容
 	for i := range list {
 		if list[i].Field == "" && list[i].Name != "" {
