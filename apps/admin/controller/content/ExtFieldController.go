@@ -36,11 +36,13 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 			field = description
 		}
 		typ := c.PostForm("type")
+		val := c.PostForm("value")
 		err := content.AddExtField(
 			c.PostForm("mcode"),
 			description, // name 列存儲描述（與 description 列一致）
 			field,
 			typ,
+			val,
 			required,
 			sorting,
 		)
@@ -98,12 +100,14 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
 		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
 		description := c.PostForm("description")
+		val := c.PostForm("value")
 		err := content.UpdateExtField(
 			id,
 			c.PostForm("mcode"),
 			description, // name 列存儲描述
 			c.PostForm("field"),
 			c.PostForm("type"),
+			val,
 			required,
 			sorting,
 		)

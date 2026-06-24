@@ -98,12 +98,12 @@ func GetExtFieldsByModelCode(mcode string) []ExtField {
 	return list
 }
 
-func AddExtField(mcode, name, field, typ string, required, sorting int) error {
-	return db.DB.Exec("INSERT INTO ay_extfield (mcode, name, field, type, description, required, sorting, status) VALUES (?, ?, ?, ?, ?, ?, ?, 1)", mcode, name, field, typ, name, required, sorting).Error
+func AddExtField(mcode, name, field, typ, value string, required, sorting int) error {
+	return db.DB.Exec("INSERT INTO ay_extfield (mcode, name, field, type, value, description, required, sorting, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)", mcode, name, field, typ, value, name, required, sorting).Error
 }
 
-func UpdateExtField(id int, mcode, name, field, typ string, required, sorting int) error {
-	return db.DB.Exec("UPDATE ay_extfield SET mcode=?, name=?, field=?, type=?, description=?, required=?, sorting=? WHERE id=?", mcode, name, field, typ, name, required, sorting, id).Error
+func UpdateExtField(id int, mcode, name, field, typ, value string, required, sorting int) error {
+	return db.DB.Exec("UPDATE ay_extfield SET mcode=?, name=?, field=?, type=?, value=?, description=?, required=?, sorting=? WHERE id=?", mcode, name, field, typ, value, name, required, sorting, id).Error
 }
 
 func UpdateExtFieldSingleField(id int, field, value string) error {
