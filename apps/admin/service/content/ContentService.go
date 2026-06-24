@@ -268,7 +268,7 @@ func (s *ContentService) BuildExtFieldTemplateData(mcode string, contentMap map[
 		item := map[string]interface{}{
 			"Name":           ef.Name,
 			"Field":          ef.Field,
-			"Type":           ef.Type,
+			"Type":           parseIntOrZero(ef.Type),
 			"Description":    ef.Description,
 			"Required":       ef.Required,
 			"Value":          ef.Value,
@@ -323,4 +323,12 @@ func (s *ContentService) BuildExtFieldTemplateData(mcode string, contentMap map[
 		result[i] = item
 	}
 	return result
+}
+
+// parseIntOrZero converts a string to int, returning 0 on any parse error.
+func parseIntOrZero(s string) int {
+	if v, err := strconv.Atoi(s); err == nil {
+		return v
+	}
+	return 0
 }
