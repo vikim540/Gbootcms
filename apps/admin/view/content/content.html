@@ -30,7 +30,7 @@
 	               
                 </form>
                 
-	  	   		<form action="{url./admin/Content/mod}" method="post" id="contentForm" name="contentForm" class="layui-form" onkeydown="if(event.keyCode==13) return false;">
+	  	   		<form action="{url./admin/content/mod}" method="post" id="contentForm" name="contentForm" class="layui-form" onkeydown="if(event.keyCode==13) return false;">
 		            <input type="hidden" name="formcheck" value="{$formcheck}" > 
 		            <table class="layui-table">
 		            	<thead>
@@ -159,7 +159,7 @@
 			     	 </div>
 			     	<script>
 			     		function setDelAction(){
-			     			document.contentForm.action = "{url./admin/Content/del}"; 
+			     			document.contentForm.action = "{url./admin/content/del}"; 
 			     			return confirm("您確定要刪除選中的內容麼？");
 			     		}
 			     	</script>
@@ -172,7 +172,7 @@
 	  	   </div>
 	  	   
 	  	   <div class="layui-tab-item">
-	  	  		<form action="{url./admin/Content/add/mcode/'.get('mcode').'}" method="post" class="layui-form" lay-filter="content" id="edit">
+	  	  		<form action="{url./admin/content/add/mcode/'.get('mcode').'}" method="post" class="layui-form" lay-filter="content" id="edit">
 		  	     	<input type="hidden" name="formcheck" value="{$formcheck}" > 
 		  	     	<input type="hidden" name="mcode" value="{$get.mcode}" > 
 		  	     	<div class="layui-tab">
@@ -394,7 +394,7 @@
 	  </ul>
 	  <div class="layui-tab-content">
 	  	<div class="layui-tab-item layui-show">
-	  		<form action="{url./admin/Content/mod/id/'.[$get.id].'}{$backurl}" method="post" class="layui-form" id="edit">
+	  		<form action="{url./admin/content/mod/id/'.[$get.id].'}{$backurl}" method="post" class="layui-form" id="edit">
 	  			<input type="hidden" name="formcheck" value="{$formcheck}" > 
 	  			<input type="hidden" name="mcode" value="{$mcode}" >
 	  			<div class="layui-tab">
