@@ -358,7 +358,11 @@ func ParseWildcardAction(action string) map[string]string {
 	parts := strings.Split(action, "/")
 	if len(parts) == 1 {
 		// Single segment: may be "123" or "123,scode" or "123,id"
-		seg := parts[0]
+		seg := strings.TrimSpace(parts[0])
+		// Strip trailing Backurl artifact ("12&mcode=3" → "12")
+		if idx := strings.IndexAny(seg, "&?"); idx >= 0 {
+			seg = seg[:idx]
+		}
 		if i := strings.Index(seg, ","); i >= 0 {
 			// "123,scode" → id=123, scode_marker present
 			result["id"] = seg[:i]
@@ -375,7 +379,15 @@ func ParseWildcardAction(action string) map[string]string {
 	}
 	// Key-value pairs
 	for i := 0; i+1 < len(parts); i += 2 {
-		val := parts[i+1]
+		val := strings.TrimSpace(parts[i+1])
+		// Strip trailing Backurl artifact: when the template appends
+		// {$backurl} (e.g. "&mcode=3") to the form action URL without
+		// a '?' prefix, the '&...' becomes part of the URL path segment
+		// instead of query string. This breaks strconv.Atoi on numeric IDs.
+		// Example: "12&mcode=3" → "12"
+		if idx := strings.IndexAny(val, "&?"); idx >= 0 {
+			val = val[:idx]
+		}
 		// Resolve function-call literals like "get(mcode)" — these are PbootCMS PHP
 		// URL-generation artifacts where the template wrote get(mcode) to mean
 		// "use the current GET parameter value". Keep the raw string; the caller
