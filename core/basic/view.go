@@ -1045,8 +1045,9 @@ func processUrlConcat(html string) string {
 			result.WriteString(html[start : j+1])
 		} else {
 			// Pre-replace get('xxx') with {{ GetXxx }} to avoid nested quote issues in splitUrlSegments
-			inner = regexp.MustCompile(`get\(['"](\w+)['"]\)`).ReplaceAllStringFunc(inner, func(m string) string {
-				subs := regexp.MustCompile(`get\(['"](\w+)['"]\)`).FindStringSubmatch(m)
+			reGetFn := regexp.MustCompile(`get\(['"](\w+)['"]\)`)
+			inner = reGetFn.ReplaceAllStringFunc(inner, func(m string) string {
+				subs := reGetFn.FindStringSubmatch(m)
 				if len(subs) < 2 {
 					return m
 				}
