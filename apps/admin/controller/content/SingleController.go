@@ -3,6 +3,8 @@ package content
 import (
 	"pbootcms-go/apps/admin/helper"
 	"pbootcms-go/apps/admin/model"
+	contentModel "pbootcms-go/apps/admin/model/content"
+	svc "pbootcms-go/apps/admin/service/content"
 	"pbootcms-go/apps/common"
 	"strings"
 	"time"
@@ -123,7 +125,7 @@ func (sg *SingleController) Mod(c *gin.Context) {
 			"source":      c.PostForm("source"),
 			"ico":         c.PostForm("ico"),
 			"pics":        c.PostForm("pics"),
-			"tags":        c.PostForm("tags"),
+			"tags":        strings.ReplaceAll(c.PostForm("tags"), "，", ","),
 			"titlecolor":  c.PostForm("titlecolor"),
 			"enclosure":   c.PostForm("enclosure"),
 		}
@@ -138,7 +140,17 @@ func (sg *SingleController) Mod(c *gin.Context) {
 		if v := c.PostForm("picstitle"); v != "" {
 			updates["picstitle"] = v
 		}
+		// 收集擴展字段數據
+		extFields := helper.GetExtFieldsByMcode(mcode)
+		extSvc := svc.ContentService{}
+		extData := extSvc.CollectExtFieldData(extFields,
+			func(key string) string { return c.PostForm(key) },
+			func(key string) []string { return c.PostFormArray(key) },
+		)
 		model.DB.Model(&model.Content{}).Where("id = ?", id).Updates(updates)
+		if len(extData) > 0 {
+			contentModel.UpsertContentExt(uint(id), extData)
+		}
 		sg.JSONOKMsg(c, "Modified successfully")
 		return
 	}

@@ -709,6 +709,16 @@ func convertPongo2Condition(cond string) string {
 		return "session_" + subs[1]
 	})
 
+	// Handle get('xxx') function calls → GetXxx (pongo2 variable for GET params)
+	getFuncRe := regexp.MustCompile(`get\(['"](\w+)['"]\)`)
+	cond = getFuncRe.ReplaceAllStringFunc(cond, func(m string) string {
+		subs := getFuncRe.FindStringSubmatch(m)
+		if len(subs) < 2 {
+			return m
+		}
+		return SnakeToPascal("get_" + subs[1])
+	})
+
 	dollarFieldRe := regexp.MustCompile(`\$([\w]+)->(\w+)`)
 	cond = dollarFieldRe.ReplaceAllStringFunc(cond, func(m string) string {
 		subs := dollarFieldRe.FindStringSubmatch(m)
@@ -1034,6 +1044,14 @@ func processUrlConcat(html string) string {
 			// Not a PHP concat URL, leave for reUrlPath or other handlers
 			result.WriteString(html[start : j+1])
 		} else {
+			// Pre-replace get('xxx') with {{ GetXxx }} to avoid nested quote issues in splitUrlSegments
+			inner = regexp.MustCompile(`get\(['"](\w+)['"]\)`).ReplaceAllStringFunc(inner, func(m string) string {
+				subs := regexp.MustCompile(`get\(['"](\w+)['"]\)`).FindStringSubmatch(m)
+				if len(subs) < 2 {
+					return m
+				}
+				return "{{ " + SnakeToPascal("get_" + subs[1]) + " }}"
+			})
 			// Parse dot-separated segments and convert
 			segments := splitUrlSegments(inner)
 			var parts []string

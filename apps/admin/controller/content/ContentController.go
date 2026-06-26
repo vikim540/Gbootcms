@@ -123,7 +123,7 @@ func (cc *ContentController) Add(c *gin.Context) {
 			Status:      helper.ParseInt(c.DefaultPostForm("status", "1")),
 			URLName:     urlname,
 			Outlink:     c.PostForm("outlink"),
-			Tags:        c.PostForm("tags"),
+			Tags:        strings.ReplaceAll(c.PostForm("tags"), "，", ","),
 			TitleColor:  c.PostForm("titlecolor"),
 			Enclosure:   c.PostForm("enclosure"),
 			Gid:         c.PostForm("gid"),
@@ -267,7 +267,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			"urlname":     urlname,
 			"outlink":     c.PostForm("outlink"),
 			"enclosure":   c.PostForm("enclosure"),
-			"tags":        c.PostForm("tags"),
+			"tags":        strings.ReplaceAll(c.PostForm("tags"), "，", ","),
 			"titlecolor":  c.PostForm("titlecolor"),
 			"gnote":       c.PostForm("gnote"),
 		}
@@ -288,6 +288,10 @@ func (cc *ContentController) Mod(c *gin.Context) {
 		}
 		if v := c.PostForm("status"); v != "" {
 			updates["status"] = helper.ParseInt(v)
+		}
+		// picstitle: PHP 用 implode(',', $picstitle) 處理數組
+		if pts := c.PostFormArray("picstitle"); len(pts) > 0 {
+			updates["picstitle"] = strings.Join(pts, ",")
 		}
 
 		dateStr := c.PostForm("date")
@@ -348,6 +352,12 @@ func (cc *ContentController) Mod(c *gin.Context) {
 	}
 	data["mod"] = true
 	data["mcode"] = mcode
+	// 預格式化日期供模板使用（pongo2 無 date 過濾器）
+	if dateVal, ok := contentMap["Date"].(time.Time); ok && !dateVal.IsZero() {
+		data["dateStr"] = dateVal.Format("2006-01-02 15:04:05")
+	} else {
+		data["dateStr"] = ""
+	}
 	common.Render(c, "content/content.html", data)
 }
 
