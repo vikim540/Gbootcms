@@ -51,6 +51,19 @@ func main() {
 
 	r := gin.Default()
 
+	// URL 規範化：剝離 .html 後綴（類似 nginx rewrite）
+	// 讓 /content/7.html 和 /content/7 都能訪問同一頁面
+	// gin 路由匹配先於中間件，需用 HandleContext 重新路由
+	r.Use(func(c *gin.Context) {
+		if strings.HasSuffix(c.Request.URL.Path, ".html") {
+			c.Request.URL.Path = strings.TrimSuffix(c.Request.URL.Path, ".html")
+			r.HandleContext(c)
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
+
 	r.Static("/static", cfg.App.StaticDir)
 	// PbootCMS 兼容: 前台模板靜態資源（CSS/JS/圖片）
 	r.Static("/template/default/static", "template/default/static")
