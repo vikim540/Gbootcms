@@ -34,11 +34,18 @@ func (lb *LabelController) Index(c *gin.Context) {
 
 func (lb *LabelController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
-		err := content.AddLabel(
+		typ := 1
+		if t := c.PostForm("type"); t != "" {
+			if v, err := strconv.Atoi(t); err == nil {
+				typ = v
+			}
+		}
+		err := content.AddLabelFull(
 			c.PostForm("name"),
 			c.PostForm("value"),
+			c.PostForm("description"),
 			"admin",
-			1,
+			typ,
 		)
 		if err != nil {
 			lb.JSONFailMsg(c, "Add failed: "+err.Error())

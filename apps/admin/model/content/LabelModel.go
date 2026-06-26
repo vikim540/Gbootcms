@@ -40,6 +40,12 @@ func AddLabel(name, value, updateUser string, typ int) error {
 	return db.DB.Exec("INSERT INTO ay_label (name, value, type, description, create_user, update_user, create_time, update_time) VALUES (?, ?, ?, '', ?, ?, ?, ?)", name, value, typ, updateUser, updateUser, now, now).Error
 }
 
+// AddLabelFull 新增標籤（含描述和類型）
+func AddLabelFull(name, value, description, updateUser string, typ int) error {
+	now := nowStr()
+	return db.DB.Exec("INSERT INTO ay_label (name, value, type, description, create_user, update_user, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", name, value, typ, description, updateUser, updateUser, now, now).Error
+}
+
 func UpdateLabel(id int, name, value, updateUser string) error {
 	return db.DB.Exec("UPDATE ay_label SET name=?, value=?, update_user=?, update_time=? WHERE id=?", name, value, updateUser, nowStr(), id).Error
 }

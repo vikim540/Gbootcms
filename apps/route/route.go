@@ -111,6 +111,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 
 		lb := &content.LabelController{}
 		adminGroup.GET("/content/label/index", lb.Index)
+		adminGroup.POST("/content/label/index", lb.Index)
 		adminGroup.GET("/content/label/add", lb.Add)
 		adminGroup.POST("/content/label/add", lb.Add)
 		adminGroup.GET("/content/label/mod/:id", lb.Mod)
