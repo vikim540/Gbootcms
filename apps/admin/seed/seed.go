@@ -117,7 +117,6 @@ func seedMenus(now time.Time) {
 
 		// ============ 全局配置 子菜单 (M156) ============
 		{Mcode: "M153", Pcode: "M156", Name: "配置参数", URL: "/admin/Config/index", Ico: "fa-sliders", Sorting: 201, Status: 1, Shortcut: 1, Type: 1},
-		{Mcode: "M136", Pcode: "M156", Name: "定制标签", URL: "/admin/Label/index", Ico: "fa-wrench", Sorting: 203, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M155", Pcode: "M156", Name: "模型管理", URL: "/admin/Model/index", Ico: "fa-codepen", Sorting: 204, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M158", Pcode: "M156", Name: "模型字段", URL: "/admin/ExtField/index", Ico: "fa-external-link", Sorting: 205, Status: 1, Shortcut: 0, Type: 1},
 
