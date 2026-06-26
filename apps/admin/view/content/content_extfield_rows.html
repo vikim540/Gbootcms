@@ -37,7 +37,7 @@
 			<div>
 				<input name="{{ val1.Field }}" type="hidden">
 				{% for opt in val1.Options %}
-				<input type="checkbox" name="{{ val1.Field }}[]" value="{{ opt }}" title="{{ opt }}" lay-skin="primary"{% if opt in val1.SelectedValues %} checked{% endif %}>
+				<input type="checkbox" name="{{ val1.Field }}[]" value="{{ opt }}" title="{{ opt }}"{% if opt in val1.SelectedValues %} checked{% endif %}>
 				{% endfor %}
             </div>
 		</div>
