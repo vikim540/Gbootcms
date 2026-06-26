@@ -172,6 +172,8 @@ layui.use(['element','upload','laydate','form'], function(){
 
       e.preventDefault();
       var formData = $form.serialize();
+      // serialize 不包含 submit 按鈕值，手動補上
+      formData += '&submit=sorting';
       $.ajax({
           type: $form.attr('method') || 'POST',
           url: $form.attr('action'),
