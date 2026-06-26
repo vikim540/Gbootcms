@@ -40,6 +40,7 @@
 		                        <th>欄目</th>
 		                        <th>標題</th>
 		                        <th>發佈時間</th>
+		                        <th>修改時間</th>
 		                        <th>排序</th>
 		                        <th>狀態</th>
 		                        <th>置頂</th>
@@ -73,6 +74,7 @@
 	                            {/if}
 		                        </td>
 		                        <td>[value->date]</td>
+		                        <td>[value->update_time]</td>
 		                        <td class="table-input"><input type="text" lay-ignore class="layui-input" name="sorting[]" value="[value->sorting]"></td>
 		                        <td>
 		                        {if($value->status)}
@@ -148,12 +150,12 @@
 				     	{/if}
 				     	
 				     	{if(check_level('mod'))}
-				     		<button type="submit" name="submit" value="sorting" class="layui-btn layui-btn-sm">保存排序</button>
+				     		<button type="submit" lay-submit name="submit" value="sorting" class="layui-btn layui-btn-sm">保存排序</button>
 					     	{if([$baidu_zz_token])}
-					     		<button type="submit" name="submit" value="baiduzz" class="layui-btn layui-btn-sm">百度普通推送</button>
+					     		<button type="submit" lay-submit name="submit" value="baiduzz" class="layui-btn layui-btn-sm">百度普通推送</button>
 					     	{/if}
 					     	{if([$baidu_ks_token])}
-					     		<button type="submit" name="submit" value="baiduks" class="layui-btn layui-btn-sm">百度快速推送</button>
+					     		<button type="submit" lay-submit name="submit" value="baiduks" class="layui-btn layui-btn-sm">百度快速推送</button>
 					     	{/if}
 				     	 {/if}
 			     	 </div>

@@ -239,6 +239,11 @@ func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[stri
 		} else {
 			m["Date"] = ""
 		}
+		if !c.UpdateTime.IsZero() {
+			m["UpdateTime"] = c.UpdateTime.Format("2006-01-02 15:04:05")
+		} else {
+			m["UpdateTime"] = ""
+		}
 		result[i] = m
 	}
 	return result

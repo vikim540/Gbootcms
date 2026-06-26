@@ -2,7 +2,9 @@ package common
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 
 	"pbootcms-go/core/db"
 	"pbootcms-go/core/mediaplugin"
@@ -33,8 +35,9 @@ func (bc *BaseController) IsBatchSort(c *gin.Context) bool {
 }
 
 func (bc *BaseController) BatchSort(c *gin.Context, modelPtr interface{}, sortColumn string, defaultSort int) {
-	idList := c.PostFormArray("listall[]")
-	sortList := c.PostFormArray("sorting[]")
+	// 兼容 listall[] 和 listall[0] 兩種鍵名格式
+	idList := extractIndexedArray(c, "listall")
+	sortList := extractIndexedArray(c, "sorting")
 
 	if len(idList) == 0 {
 		bc.JSONFail(c, "没有排序数据")
@@ -74,6 +77,39 @@ func (bc *BaseController) BatchSort(c *gin.Context, modelPtr interface{}, sortCo
 		return
 	}
 	bc.JSONOKMsg(c, NoticeSortSaved(updated))
+}
+
+// extractIndexedArray 從 POST 表單提取數組字段，兼容 name[] 和 name[0] 兩種格式
+func extractIndexedArray(c *gin.Context, field string) []string {
+	// 先嘗試標準格式 name[]
+	vals := c.PostFormArray(field + "[]")
+	if len(vals) > 0 {
+		return vals
+	}
+	// 回退：收集 name[0], name[1], ... 並按索引排序
+	idxMap := map[int]string{}
+	for key, vs := range c.Request.PostForm {
+		prefix := field + "["
+		if strings.HasPrefix(key, prefix) && len(vs) > 0 {
+			idxStr := key[len(prefix) : len(key)-1]
+			if idx, err := strconv.Atoi(idxStr); err == nil {
+				idxMap[idx] = vs[0]
+			}
+		}
+	}
+	if len(idxMap) == 0 {
+		return nil
+	}
+	indices := make([]int, 0, len(idxMap))
+	for k := range idxMap {
+		indices = append(indices, k)
+	}
+	sort.Ints(indices)
+	result := make([]string, 0, len(indices))
+	for _, idx := range indices {
+		result = append(result, idxMap[idx])
+	}
+	return result
 }
 
 func (bc *BaseController) JSONOK(c *gin.Context, data interface{}) {

@@ -120,6 +120,9 @@ layui.use(['element','upload','laydate','form'], function(){
   // 原因：layui 驗證通過後調用 formElem.submit()（原生方法），不觸發 jQuery delegated submit 事件
   form.on('submit()', function(data) {
       var $form = $(data.form);
+      if (!$form.length && data.elem) {
+          $form = $(data.elem).closest('form');
+      }
       if ($form.attr('id') === 'dologin') return true; // 跳過登錄表單
       // GET 表單（搜索/篩選）直接原生提交，跳過 LayUI AJAX 處理
       var method = ($form.attr('method') || 'POST').toUpperCase();
@@ -131,13 +134,10 @@ layui.use(['element','upload','laydate','form'], function(){
       var $btn = $(data.elem);
       if ($btn.attr('lay-filter')) return true;
 
-      var formData = $form.serialize();
-
-      // 確保被點擊的 submit 按鈕值被包含
-      var clickedBtn = $form.find('button[lay-submit]._clicked, button[type=submit]._clicked');
-      if (!clickedBtn.length) clickedBtn = $form.find('button[lay-submit], button[type=submit]').last();
-      if (clickedBtn.length && clickedBtn.attr('name')) {
-          formData += '&' + encodeURIComponent(clickedBtn.attr('name')) + '=' + encodeURIComponent(clickedBtn.val());
+      // 用 FormData 保持 array 字段名原樣（listall[] 而非 listall[0]）
+      var formData = new FormData($form[0]);
+      if ($btn.attr('name')) {
+          formData.append($btn.attr('name'), $btn.val());
       }
 
       $.ajax({
@@ -145,6 +145,8 @@ layui.use(['element','upload','laydate','form'], function(){
           url: $form.attr('action'),
           dataType: 'json',
           data: formData,
+          processData: false,
+          contentType: false,
           success: function(res) {
               if (res.code == 1) {
                   showNotify(res.msg || '操作成功', 'success');
