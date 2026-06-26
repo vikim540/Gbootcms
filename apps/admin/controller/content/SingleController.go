@@ -5,6 +5,7 @@ import (
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -127,7 +128,9 @@ func (sg *SingleController) Mod(c *gin.Context) {
 			"enclosure":   c.PostForm("enclosure"),
 		}
 		if v := c.PostForm("date"); v != "" {
-			updates["date"] = v
+			if t, err := time.Parse("2006-01-02 15:04:05", v); err == nil {
+				updates["date"] = t
+			}
 		}
 		if v := c.PostForm("status"); v != "" {
 			updates["status"] = helper.ParseInt(v)
@@ -151,6 +154,12 @@ func (sg *SingleController) Mod(c *gin.Context) {
 		}
 	}
 
+	// 預格式化日期供模板使用（pongo2 無 date 過濾器）
+	dateStr := ""
+	if !doc.Date.IsZero() {
+		dateStr = doc.Date.Format("2006-01-02 15:04:05")
+	}
+
 	common.Render(c, "content/single.html", gin.H{
 		"content":    doc,
 		"mod":        true,
@@ -158,6 +167,7 @@ func (sg *SingleController) Mod(c *gin.Context) {
 		"mcode":      mcode,
 		"extfield":   helper.GetExtFieldsByMcode(mcode),
 		"picsList":   splitPics(doc.Pics),
+		"dateStr":    dateStr,
 	})
 }
 

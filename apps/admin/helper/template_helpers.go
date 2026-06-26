@@ -233,9 +233,11 @@ func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[stri
 		m := StructToMap(c)
 		m["Sortname"] = sortMap[c.Scode]
 		m["SortUrlname"] = sortURLMap[c.Scode]
-		// Format date for display
+		// Format date for display: zero time shows empty string
 		if !c.Date.IsZero() {
 			m["Date"] = c.Date.Format("2006-01-02 15:04:05")
+		} else {
+			m["Date"] = ""
 		}
 		result[i] = m
 	}
