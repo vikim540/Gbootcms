@@ -392,6 +392,35 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		return ""
 	})
 
+	// buildSortChain 從當前欄目向上遞歸到根欄目，返回從根到當前的有序鏈
+	buildSortChain := func(scode string) []model.ContentSort {
+		var chain []model.ContentSort
+		current := scode
+		for current != "" && current != "0" {
+			var s model.ContentSort
+			if err := model.DB.Where("scode = ?", current).First(&s).Error; err != nil {
+				break
+			}
+			chain = append(chain, s)
+			current = s.Pcode
+		}
+		for i, j := 0, len(chain)-1; i < j; i, j = i+1, j-1 {
+			chain[i], chain[j] = chain[j], chain[i]
+		}
+		return chain
+	}
+
+	// sortLink 生成欄目鏈接：filename > urlname > /sort/scode
+	sortLink := func(s *model.ContentSort) string {
+		if s.Filename != "" {
+			return "/" + s.Filename
+		}
+		if s.URLName != "" {
+			return "/" + s.URLName
+		}
+		return fmt.Sprintf("/sort/%s", s.Scode)
+	}
+
 	p.Register("position", func(tagName string, params map[string]string, inner string) string {
 		sep := params["separator"]
 		if sep == "" {
@@ -399,15 +428,21 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		}
 		idxText := params["indextext"]
 		if idxText == "" {
-			idxText = "首页"
+			idxText = "首頁"
 		}
 		parts := []string{fmt.Sprintf(`<a href="/">%s</a>`, idxText)}
 		if ctx.Sort != nil && ctx.Sort.Name != "" {
-			link := "/" + ctx.Sort.URLName
-			if ctx.Sort.URLName == "" {
-				link = fmt.Sprintf("/sort/%s", ctx.Sort.Scode)
+			// 遍歷父級欄目鏈（當前欄目 → pcode 向上 → 根欄目）
+			chain := buildSortChain(ctx.Sort.Scode)
+			// 去重：根欄目可能和當前欄目相同
+			seen := map[string]bool{}
+			for _, s := range chain {
+				if seen[s.Scode] {
+					continue
+				}
+				seen[s.Scode] = true
+				parts = append(parts, fmt.Sprintf(`<a href="%s">%s</a>`, sortLink(&s), s.Name))
 			}
-			parts = append(parts, fmt.Sprintf(`<a href="%s">%s</a>`, link, ctx.Sort.Name))
 		}
 		return strings.Join(parts, sep)
 	})

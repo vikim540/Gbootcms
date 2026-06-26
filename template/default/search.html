@@ -1,4 +1,4 @@
-{include file=comm/head.html}
+﻿{include file=comm/head.html}
 
 {include file=comm/top.html}
 
@@ -20,15 +20,15 @@
         {/gboot:search}
     </div>
 
-    <!-- 分页 -->
+    <!-- 分頁 -->
     {gboot:if({page:rows}>0)}
 	   <nav aria-label="page navigation" class="my-4">
 	     <div class="pagination justify-content-center">
-	     	<a class="page-item page-link" href="{page:index}">首页</a>
-	     	<a class="page-item page-link" href="{page:pre}">上一页</a>
-	      	{page:numbar}<!-- 数字条，小屏幕时自动隐藏-->
-	      	<a class="page-item page-link" href="{page:next}">下一页</a>
-	      	<a class="page-item page-link" href="{page:last}">尾页</a>
+	     	<a class="page-item page-link" href="{page:index}">首頁</a>
+	     	<a class="page-item page-link" href="{page:pre}">上一頁</a>
+	      	{page:numbar}<!-- 數字条，小屏幕时自動隱藏-->
+	      	<a class="page-item page-link" href="{page:next}">下一頁</a>
+	      	<a class="page-item page-link" href="{page:last}">尾頁</a>
 	     </div>
 	   </nav>	
 	{else}
@@ -38,7 +38,7 @@
      <!-- 搜索-->
      <form class="form-inline mb-5 justify-content-center" action="{gboot:scaction}"  method="get">
 		  <div class="form-group mx-sm-3 mb-2">
-		    <input type="text" name="keyword" class="form-control" placeholder="请输入关键字">
+		    <input type="text" name="keyword" class="form-control" placeholder="請輸入關鍵字">
 		  </div>
 		  <button type="submit" class="btn btn-info mb-2">搜索</button>
      </form>

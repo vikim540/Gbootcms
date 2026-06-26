@@ -1,6 +1,6 @@
-{include file=comm/head.html}
+﻿{include file=comm/head.html}
 
-<!-- 幻灯片 -->
+<!-- 幻燈片 -->
 <div class="swiper-container">
     <div class="swiper-wrapper">
     	{gboot:slide num=5 gid=1}
@@ -21,12 +21,12 @@
         	</div>
         {/gboot:slide} 
     </div>
-    <div class="swiper-button-prev d-none d-md-block"></div><!--左箭头-->
-    <div class="swiper-button-next d-none d-md-block"></div><!--右箭头-->
+    <div class="swiper-button-prev d-none d-md-block"></div><!--左箭頭-->
+    <div class="swiper-button-next d-none d-md-block"></div><!--右箭頭-->
     <div class="swiper-pagination"></div>
 </div>
 
-<!--产品推荐-->
+<!--產品推薦-->
 <div class="bg-white py-5">
     <div class="container">
     
@@ -44,13 +44,13 @@
                     <h5 class="card-title"><a href="[list:link]">[list:title lencn=12]</a></h5>
                     <p class="card-text">
 	                    {gboot:if([list:istop]==1)}
-	                		<span class="badge badge-danger">置顶</span>
+	                		<span class="badge badge-danger">置頂</span>
 	                	{/gboot:if}
 	                	{gboot:if([list:isrecommend]==1)}
-	                		<span class="badge badge-warning">推荐</span>
+	                		<span class="badge badge-warning">推薦</span>
 	                	{/gboot:if}
 	                	{gboot:if([list:isheadline]==1)}
-	                		<span class="badge badge-info">头条</span>
+	                		<span class="badge badge-info">頭條</span>
 	                	{/gboot:if}
 	                	[list:content drophtml=1 dropblank=1 len=50]
                 	</p>
@@ -65,7 +65,7 @@
     </div>
 </div>
 
-<!-- 关于我们 -->
+<!-- 關於我們 -->
 <div class="bg-light py-5">
     <div class="container">
       {gboot:sort scode=1}
@@ -82,7 +82,7 @@
     </div>
 </div>
 
-<!-- 新闻动态 -->
+<!-- 新聞動態 -->
 <div class="bg-white py-5">
     <div class="container">
       {gboot:sort scode=2}
@@ -121,13 +121,13 @@
      },
      
     
-    // 如果需要分页器
+    // 如果需要分頁器
     pagination: {
       el: '.swiper-pagination',
       clickable :true,
     },
     
-    // 如果需要前进后退按钮
+    // 如果需要前進後退按鈕
     navigation: {
       nextEl: '.swiper-button-next',
       prevEl: '.swiper-button-prev',
