@@ -95,43 +95,70 @@
 			 <div class="layui-input-block">
 			    <button class="layui-btn" lay-submit>立即提交</button>
 			    <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+			    <button type="button" class="layui-btn layui-btn-normal" id="toggleLabelBtn">自定義標籤</button>
 			 </div>
 		</div>
-			 
+		 
   		</form>
   	</div>
   </div>
 </div>
 
-<div class="layui-card">
-	<div class="layui-card-header">自定義標籤</div>
-	<div class="layui-card-body">
-		<form action="{url./admin/Label/index}" method="post" class="layui-form">
-			<input type="hidden" name="formcheck" value="{$formcheck}">
-			{foreach $labels(key,value)}
-			<div class="layui-form-item">
-				<label class="layui-form-label">[value->description]</label>
-				<div class="layui-input-block">
-					{if($value->type==1)}
-					<input type="text" name="[value->name]" value="[value->value]" placeholder="請輸入[value->description]" class="layui-input">
-					{elseif($value->type==2)}
-					<input type="text" name="[value->name]" value="[value->value]" placeholder="請選擇時間" class="layui-input datetime" readonly>
-					{elseif($value->type==7)}
-					<textarea name="[value->name]" placeholder="請輸入[value->description]" class="layui-textarea">[value->value]</textarea>
-					{else}
-					<input type="text" name="[value->name]" value="[value->value]" placeholder="請輸入[value->description]" class="layui-input">
-					{/if}
-					<div class="layui-form-mid layui-word-aux">前台標籤：<span class="layui-badge layui-bg-gray">{label:[value->name]}</span></div>
-				</div>
-			</div>
-			{/foreach}
-			<div class="layui-form-item">
-				<div class="layui-input-block">
-					<button class="layui-btn" lay-submit>保存標籤</button>
-				</div>
-			</div>
-		</form>
+<form action="{url ./admin/Label/index}" method="post" class="layui-form" lay-filter="labelForm" style="margin-top:15px;">
+	<input type="hidden" name="formcheck" value="{$formcheck}">
+	{foreach $labels(key,value)}
+	<div class="layui-form-item">
+		<label class="layui-form-label">[value->description]</label>
+		<div class="layui-input-block">
+			{if($value->type==1)}
+			<input type="text" name="[value->name]" value="[value->value]" placeholder="請輸入[value->description]" class="layui-input">
+			{elseif($value->type==2)}
+			<input type="text" name="[value->name]" value="[value->value]" placeholder="請選擇時間" class="layui-input datetime" readonly>
+			{elseif($value->type==7)}
+			<textarea name="[value->name]" placeholder="請輸入[value->description]" class="layui-textarea">[value->value]</textarea>
+			{else}
+			<input type="text" name="[value->name]" value="[value->value]" placeholder="請輸入[value->description]" class="layui-input">
+			{/if}
+			<div class="layui-form-mid layui-word-aux">前台標籤：<span class="layui-badge layui-bg-gray">{label:[value->name]}</span></div>
+		</div>
 	</div>
-</div>
+	{/foreach}
+	<div id="addLabelArea" style="display:none">
+		<div class="layui-form-item">
+			<label class="layui-form-label">標籤名稱</label>
+			<div class="layui-input-block">
+				<input type="text" name="name" placeholder="請輸入標籤名稱（英文字母）" class="layui-input" lay-verify="required">
+				<div class="layui-form-mid layui-word-aux">前台使用 {label:名稱} 引用</div>
+			</div>
+		</div>
+		<div class="layui-form-item">
+			<label class="layui-form-label">標籤描述</label>
+			<div class="layui-input-block">
+				<input type="text" name="description" placeholder="請輸入標籤描述" class="layui-input">
+			</div>
+		</div>
+		<div class="layui-form-item">
+			<label class="layui-form-label">標籤類型</label>
+			<div class="layui-input-block">
+				<select name="type">
+					<option value="1">單行文本</option>
+					<option value="2">時間</option>
+					<option value="7">多行文本</option>
+				</select>
+			</div>
+		</div>
+	</div>
+	<div class="layui-form-item">
+		<div class="layui-input-block">
+			<button class="layui-btn" lay-submit lay-filter="labelSubmit">保存標籤</button>
+		</div>
+	</div>
+</form>
+
+<script>
+$('#toggleLabelBtn').on('click', function(){
+	$('#addLabelArea').slideToggle();
+});
+</script>
 
 {include file='common/foot.html'}

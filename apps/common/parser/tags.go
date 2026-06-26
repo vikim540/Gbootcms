@@ -388,6 +388,16 @@ func AdjustValue(val string, params map[string]string) string {
 	if len(params) == 0 {
 		return val
 	}
+	// drophtml/dropblank 必須在 len/lencn 截取之前執行，否則截取會截斷 HTML 標籤產生不完整標籤
+	if params["drophtml"] == "1" {
+		re := regexp.MustCompile(`<[^>]*>`)
+		val = re.ReplaceAllString(val, "")
+	}
+	if params["dropblank"] == "1" {
+		re := regexp.MustCompile(`[\s]+`)
+		val = re.ReplaceAllString(val, " ")
+		val = strings.TrimSpace(val)
+	}
 	if l, err := strconv.Atoi(params["len"]); err == nil && l > 0 {
 		runes := []rune(val)
 		if len(runes) > l {
@@ -414,15 +424,6 @@ func AdjustValue(val string, params map[string]string) string {
 			more := params["more"]
 			val = string(runes[:end]) + more
 		}
-	}
-	if params["drophtml"] == "1" {
-		re := regexp.MustCompile(`<[^>]*>`)
-		val = re.ReplaceAllString(val, "")
-	}
-	if params["dropblank"] == "1" {
-		re := regexp.MustCompile(`[\s]+`)
-		val = re.ReplaceAllString(val, " ")
-		val = strings.TrimSpace(val)
 	}
 	if style, ok := params["style"]; ok && style != "" {
 		val = FormatDate(val, style)
