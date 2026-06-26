@@ -22,6 +22,7 @@ type ContentController struct {
 // contentTemplateData returns common template data for content views.
 func (cc *ContentController) contentTemplateData(mcode string, sorts []model.ContentSort, contentMap map[string]interface{}) gin.H {
 	return gin.H{
+		"mcode":          mcode,
 		"model_name":     helper.GetModelNameByMcode(mcode),
 		"sorts":          sorts,
 		"sort_select":    helper.BuildSearchSelectHTML(sorts, mcode),
