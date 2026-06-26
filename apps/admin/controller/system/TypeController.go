@@ -1,4 +1,4 @@
-package system
+﻿package system
 
 import (
 	"pbootcms-go/apps/admin/model"
@@ -31,7 +31,7 @@ func (tp *TypeController) Add(c *gin.Context) {
 			Sorting: sorting,
 			Status:  1,
 		})
-		tp.JSONOKMsg(c, "Added successfully")
+		tp.JSONOKMsg(c, "新增成功")
 		return
 	}
 	common.Render(c, "system/type.html", gin.H{"action": "add"})
@@ -52,7 +52,7 @@ func (tp *TypeController) Mod(c *gin.Context) {
 			"name":    c.PostForm("name"),
 			"sorting": sorting,
 		})
-		tp.JSONOKMsg(c, "Modified successfully")
+		tp.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -65,5 +65,5 @@ func (tp *TypeController) Mod(c *gin.Context) {
 func (tp *TypeController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.DictType{}, idStr)
-	tp.JSONOKMsg(c, "Deleted successfully")
+	tp.JSONOKMsg(c, "刪除成功")
 }

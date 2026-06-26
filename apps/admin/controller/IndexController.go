@@ -1,4 +1,4 @@
-package admin
+﻿package admin
 
 import (
 	"crypto/md5"
@@ -308,13 +308,13 @@ func (ic *IndexController) ClearCache(c *gin.Context) {
 	os.MkdirAll("runtime/cache", 0755)
 	os.MkdirAll("runtime/compile", 0755)
 	os.MkdirAll("runtime/config", 0755)
-	ic.JSONOKMsg(c, "缓存清理成功！")
+	ic.JSONOKMsg(c, "緩存清理成功")
 }
 
 func (ic *IndexController) Area(c *gin.Context) {
 	code := c.PostForm("code")
 	common.SetSession(c, "area_code", code)
-	ic.JSONOKMsg(c, "切换成功！")
+	ic.JSONOKMsg(c, "切換成功")
 }
 
 func (ic *IndexController) CheckCode(c *gin.Context) {

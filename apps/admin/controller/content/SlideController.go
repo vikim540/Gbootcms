@@ -1,4 +1,4 @@
-package content
+﻿package content
 
 import (
 	"pbootcms-go/apps/admin/helper"
@@ -73,7 +73,7 @@ func (sl *SlideController) Add(c *gin.Context) {
 			CreateTime: now,
 			UpdateTime: now,
 		})
-		sl.JSONOKMsg(c, "Added successfully")
+		sl.JSONOKMsg(c, "新增成功")
 		return
 	}
 	// GET: redirect to index (the add form is in the Index tabs)
@@ -98,7 +98,7 @@ func (sl *SlideController) Mod(c *gin.Context) {
 	// Handle status toggle: /mod/id/123/field/status/value/0
 	if field, ok := params["field"]; ok && field == "status" {
 		// Slides don't have a status field in current model; ignore gracefully
-		sl.JSONOKMsg(c, "OK")
+		sl.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -123,7 +123,7 @@ func (sl *SlideController) Mod(c *gin.Context) {
 			"update_user": "admin",
 			"update_time": now,
 		})
-		sl.JSONOKMsg(c, "Modified successfully")
+		sl.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -154,5 +154,5 @@ func (sl *SlideController) Del(c *gin.Context) {
 			model.DB.Delete(&model.Slide{}, id)
 		}
 	}
-	sl.JSONOKMsg(c, "Deleted successfully")
+	sl.JSONOKMsg(c, "刪除成功")
 }

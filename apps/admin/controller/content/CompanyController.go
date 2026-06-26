@@ -1,4 +1,4 @@
-package content
+﻿package content
 
 import (
 	"pbootcms-go/apps/admin/model"
@@ -44,5 +44,5 @@ func (co *CompanyController) Mod(c *gin.Context) {
 		co.JSONFail(c, "修改失败: "+result.Error.Error())
 		return
 	}
-	co.JSONOKMsg(c, "Modified successfully")
+	co.JSONOKMsg(c, "修改成功")
 }

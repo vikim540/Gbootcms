@@ -1,4 +1,4 @@
-package content
+﻿package content
 
 import (
 	"pbootcms-go/apps/admin/helper"
@@ -62,7 +62,7 @@ func (lk *LinkController) Add(c *gin.Context) {
 			Title:   c.PostForm("title"),
 			Sorting: sorting,
 		})
-		lk.JSONOKMsg(c, "Added successfully")
+		lk.JSONOKMsg(c, "新增成功")
 		return
 	}
 	common.Render(c, "content/link.html", gin.H{"list": true, "gids": lk.getGids()})
@@ -86,7 +86,7 @@ func (lk *LinkController) Mod(c *gin.Context) {
 	if field, ok := params["field"]; ok && field == "status" {
 		value := params["value"]
 		model.DB.Model(&model.Link{}).Where("id = ?", id).Update("status", value)
-		lk.JSONOKMsg(c, "OK")
+		lk.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -106,7 +106,7 @@ func (lk *LinkController) Mod(c *gin.Context) {
 			"title":   c.PostForm("title"),
 			"sorting": sorting,
 		})
-		lk.JSONOKMsg(c, "Modified successfully")
+		lk.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -137,5 +137,5 @@ func (lk *LinkController) Del(c *gin.Context) {
 			model.DB.Delete(&model.Link{}, id)
 		}
 	}
-	lk.JSONOKMsg(c, "Deleted successfully")
+	lk.JSONOKMsg(c, "刪除成功")
 }

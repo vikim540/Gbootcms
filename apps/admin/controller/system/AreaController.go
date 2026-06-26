@@ -1,4 +1,4 @@
-package system
+﻿package system
 
 import (
 	"pbootcms-go/apps/admin/model"
@@ -31,7 +31,7 @@ func (ar *AreaController) Add(c *gin.Context) {
 			Sorting: sorting,
 			Status:  1,
 		})
-		ar.JSONOKMsg(c, "Added successfully")
+		ar.JSONOKMsg(c, "新增成功")
 		return
 	}
 	common.Render(c, "system/area.html", gin.H{"action": "add"})
@@ -52,7 +52,7 @@ func (ar *AreaController) Mod(c *gin.Context) {
 			"name":    c.PostForm("name"),
 			"sorting": sorting,
 		})
-		ar.JSONOKMsg(c, "Modified successfully")
+		ar.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -65,5 +65,5 @@ func (ar *AreaController) Mod(c *gin.Context) {
 func (ar *AreaController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Area{}, idStr)
-	ar.JSONOKMsg(c, "Deleted successfully")
+	ar.JSONOKMsg(c, "刪除成功")
 }

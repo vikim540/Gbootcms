@@ -1,4 +1,4 @@
-package system
+﻿package system
 
 import (
 	"pbootcms-go/apps/admin/model"
@@ -23,5 +23,5 @@ func (sl *SyslogController) Index(c *gin.Context) {
 // Clear - Clear logs
 func (sl *SyslogController) Clear(c *gin.Context) {
 	model.DB.Where("1 = 1").Delete(&model.Syslog{})
-	sl.JSONOKMsg(c, "Cleared successfully")
+	sl.JSONOKMsg(c, "清理成功")
 }

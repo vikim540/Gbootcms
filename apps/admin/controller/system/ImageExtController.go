@@ -1,4 +1,4 @@
-package system
+﻿package system
 
 import (
 	"os"
@@ -157,7 +157,7 @@ func (ie *ImageExtController) DoExt(c *gin.Context) {
 				os.Rename(srcPath, dstPath)
 			}
 		}
-		ie.JSONOKMsg(c, "Cleaned successfully")
+		ie.JSONOKMsg(c, "清理成功")
 		return
 	}
 
@@ -219,7 +219,7 @@ func (ie *ImageExtController) DoExt(c *gin.Context) {
 			}
 			return nil
 		})
-		ie.JSONOKMsg(c, "All cleaned successfully")
+		ie.JSONOKMsg(c, "全部清理成功")
 		return
 	}
 

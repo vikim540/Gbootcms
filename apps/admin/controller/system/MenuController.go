@@ -1,4 +1,4 @@
-package system
+﻿package system
 
 import (
 	"pbootcms-go/apps/admin/model"
@@ -35,7 +35,7 @@ func (mc *MenuController) Add(c *gin.Context) {
 			Status:   1,
 			Shortcut: 0,
 		})
-		mc.JSONOKMsg(c, "Added successfully")
+		mc.JSONOKMsg(c, "新增成功")
 		return
 	}
 	var menus []model.Menu
@@ -69,7 +69,7 @@ func (mc *MenuController) Mod(c *gin.Context) {
 			"sorting": sorting,
 			"status":  status,
 		})
-		mc.JSONOKMsg(c, "Modified successfully")
+		mc.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -84,5 +84,5 @@ func (mc *MenuController) Mod(c *gin.Context) {
 func (mc *MenuController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Menu{}, idStr)
-	mc.JSONOKMsg(c, "Deleted successfully")
+	mc.JSONOKMsg(c, "刪除成功")
 }

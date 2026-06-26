@@ -1,4 +1,4 @@
-package member
+﻿package member
 
 import (
 	"pbootcms-go/apps/admin/model"
@@ -32,7 +32,7 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		ischeck, _ := strconv.Atoi(c.DefaultPostForm("ischeck", "1"))
 		model.DB.Model(&model.Comment{}).Where("id = ?", id).Update("ischeck", ischeck)
-		mc.JSONOKMsg(c, "Operation successful")
+		mc.JSONOKMsg(c, "操作成功")
 		return
 	}
 
@@ -45,5 +45,5 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 func (mc *MemberCommentController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Comment{}, idStr)
-	mc.JSONOKMsg(c, "Deleted successfully")
+	mc.JSONOKMsg(c, "刪除成功")
 }

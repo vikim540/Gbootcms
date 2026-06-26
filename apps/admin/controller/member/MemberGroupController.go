@@ -1,4 +1,4 @@
-package member
+﻿package member
 
 import (
 	"pbootcms-go/apps/admin/model"
@@ -28,7 +28,7 @@ func (mg *MemberGroupController) Add(c *gin.Context) {
 			Name:   c.PostForm("name"),
 			Status: 1,
 		})
-		mg.JSONOKMsg(c, "Added successfully")
+		mg.JSONOKMsg(c, "新增成功")
 		return
 	}
 	common.Render(c, "member/group.html", gin.H{"action": "add"})
@@ -47,7 +47,7 @@ func (mg *MemberGroupController) Mod(c *gin.Context) {
 			"code": c.PostForm("code"),
 			"name": c.PostForm("name"),
 		})
-		mg.JSONOKMsg(c, "Modified successfully")
+		mg.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -60,7 +60,7 @@ func (mg *MemberGroupController) Mod(c *gin.Context) {
 func (mg *MemberGroupController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.MemberGroup{}, idStr)
-	mg.JSONOKMsg(c, "Deleted successfully")
+	mg.JSONOKMsg(c, "刪除成功")
 }
 
 // parseInt - String to integer

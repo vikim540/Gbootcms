@@ -1,4 +1,4 @@
-package member
+﻿package member
 
 import (
 	"crypto/md5"
@@ -39,7 +39,7 @@ func (mb *MemberController) Add(c *gin.Context) {
 			GID:      gid,
 			Status:   1,
 		})
-		mb.JSONOKMsg(c, "Added successfully")
+		mb.JSONOKMsg(c, "新增成功")
 		return
 	}
 	var groups []model.MemberGroup
@@ -67,7 +67,7 @@ func (mb *MemberController) Mod(c *gin.Context) {
 			updates["password"] = fmt.Sprintf("%x", md5.Sum([]byte(password)))
 		}
 		model.DB.Model(&model.Member{}).Where("id = ?", id).Updates(updates)
-		mb.JSONOKMsg(c, "Modified successfully")
+		mb.JSONOKMsg(c, "修改成功")
 		return
 	}
 
@@ -82,5 +82,5 @@ func (mb *MemberController) Mod(c *gin.Context) {
 func (mb *MemberController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Member{}, idStr)
-	mb.JSONOKMsg(c, "Deleted successfully")
+	mb.JSONOKMsg(c, "刪除成功")
 }
