@@ -96,6 +96,22 @@ func (s *ContentService) CollectExtFieldData(
 		}
 		// 多選 checkbox 提交時帶 [] 後綴
 		arr := postFormArray(fieldName + "[]")
+		// Layui form.on('submit') 會將 checkbox name 從 ext_type[] 改為 ext_type[0]、ext_type[1]...
+		// 所以 PostFormArray("ext_type[]") 返回空。此時需逐個讀取索引形式。
+		if len(arr) == 0 {
+			for i := 0; ; i++ {
+				val := postForm(fmt.Sprintf("%s[%d]", fieldName, i))
+				if val == "" && i > 0 {
+					break
+				}
+				if val != "" {
+					arr = append(arr, val)
+				}
+				if i > 100 {
+					break // 安全上限
+				}
+			}
+		}
 		if len(arr) > 0 {
 			data[fieldName] = strings.Join(arr, ",")
 		} else {
