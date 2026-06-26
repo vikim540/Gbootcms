@@ -1,4 +1,4 @@
-package content
+﻿package content
 
 import (
 	"fmt"
@@ -142,7 +142,7 @@ func (cc *ContentController) Add(c *gin.Context) {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "新增成功")
+		cc.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 
@@ -202,7 +202,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "修改成功")
+		cc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -212,7 +212,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "修改成功")
+		cc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -221,7 +221,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "複製成功")
+		cc.JSONOKMsg(c, common.NoticeCopy)
 		return
 	}
 
@@ -230,12 +230,12 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "移動成功")
+		cc.JSONOKMsg(c, common.NoticeMove)
 		return
 	}
 
 	if submit == "baiduzz" || submit == "baiduks" {
-		cc.JSONOKMsg(c, "提交成功")
+		cc.JSONOKMsg(c, common.NoticeSubmit)
 		return
 	}
 
@@ -321,7 +321,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			cc.JSONFail(c, err.Error())
 			return
 		}
-		cc.JSONOKMsg(c, "修改成功")
+		cc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -375,7 +375,7 @@ func (cc *ContentController) Del(c *gin.Context) {
 				cc.JSONFail(c, err.Error())
 				return
 			}
-			cc.JSONOKMsg(c, "刪除成功")
+			cc.JSONOKMsg(c, common.NoticeDelete)
 			return
 		}
 		cc.JSONFail(c, "未選擇任何項目")
@@ -386,7 +386,7 @@ func (cc *ContentController) Del(c *gin.Context) {
 		cc.JSONFail(c, err.Error())
 		return
 	}
-	cc.JSONOKMsg(c, "刪除成功")
+	cc.JSONOKMsg(c, common.NoticeDelete)
 }
 
 // applyPathAction 將 /key/value/key2/value2 路徑參數轉為 query 參數

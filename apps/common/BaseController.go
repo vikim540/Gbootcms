@@ -66,14 +66,14 @@ func (bc *BaseController) BatchSort(c *gin.Context, modelPtr interface{}, sortCo
 	}
 
 	if updated == 0 {
-		bc.JSONOKMsg(c, "排序未變化 ("+strconv.Itoa(unchanged)+" 條)")
+		bc.JSONOKMsg(c, NoticeSortNoChange(unchanged))
 		return
 	}
 	if unchanged > 0 {
-		bc.JSONOKMsg(c, "排序已保存 ("+strconv.Itoa(updated)+" 條，"+strconv.Itoa(unchanged)+" 條無變化)")
+		bc.JSONOKMsg(c, NoticeSortSavedPartial(updated, unchanged))
 		return
 	}
-	bc.JSONOKMsg(c, "排序已保存 ("+strconv.Itoa(updated)+" 條)")
+	bc.JSONOKMsg(c, NoticeSortSaved(updated))
 }
 
 func (bc *BaseController) JSONOK(c *gin.Context, data interface{}) {

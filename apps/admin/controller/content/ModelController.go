@@ -1,4 +1,4 @@
-package content
+﻿package content
 
 import (
 	"pbootcms-go/apps/admin/helper"
@@ -53,7 +53,7 @@ func (md *ModelController) Add(c *gin.Context) {
 			md.JSONFail(c, "新增失敗: "+err.Error())
 			return
 		}
-		md.JSONOKMsg(c, "新增成功")
+		md.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 
@@ -88,7 +88,7 @@ func (md *ModelController) Mod(c *gin.Context) {
 	if field != "" && value != "" {
 		if field == "status" {
 			content.UpdateModelSingleField(id, field, value, "admin")
-			md.JSONOKMsg(c, "修改成功")
+			md.JSONOKMsg(c, common.NoticeModify)
 			return
 		}
 		md.JSONFail(c, "不允許修改的字段")
@@ -127,7 +127,7 @@ func (md *ModelController) Mod(c *gin.Context) {
 			md.JSONFail(c, "修改失敗: "+err.Error())
 			return
 		}
-		md.JSONOKMsg(c, "修改成功")
+		md.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -158,5 +158,5 @@ func (md *ModelController) Del(c *gin.Context) {
 		md.JSONFail(c, err.Error())
 		return
 	}
-	md.JSONOKMsg(c, "刪除成功")
+	md.JSONOKMsg(c, common.NoticeDelete)
 }

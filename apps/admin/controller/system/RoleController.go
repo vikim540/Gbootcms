@@ -33,7 +33,7 @@ func (rc *RoleController) Add(c *gin.Context) {
 			Levels: levels,
 			Status: 1,
 		})
-		rc.JSONOKMsg(c, "新增成功")
+		rc.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 	var menus []model.Menu
@@ -55,7 +55,7 @@ func (rc *RoleController) Mod(c *gin.Context) {
 			"name":   c.PostForm("name"),
 			"levels": c.PostForm("levels"),
 		})
-		rc.JSONOKMsg(c, "修改成功")
+		rc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -70,5 +70,5 @@ func (rc *RoleController) Mod(c *gin.Context) {
 func (rc *RoleController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Role{}, idStr)
-	rc.JSONOKMsg(c, "刪除成功")
+	rc.JSONOKMsg(c, common.NoticeDelete)
 }

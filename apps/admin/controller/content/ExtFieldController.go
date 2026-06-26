@@ -1,4 +1,4 @@
-package content
+﻿package content
 
 import (
 	"pbootcms-go/apps/admin/helper"
@@ -54,7 +54,7 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 		if field != "" {
 			content.EnsureExtColumnExists(field, typ)
 		}
-		ef.JSONOKMsg(c, "新增成功")
+		ef.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 	common.Render(c, "content/extfield.html", gin.H{
@@ -88,7 +88,7 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 		// 白名单：只允许修改 status 字段，防止 SQL 注入
 		if fieldName == "status" {
 			content.UpdateExtFieldSingleField(id, fieldName, fieldValue)
-			ef.JSONOKMsg(c, "修改成功")
+			ef.JSONOKMsg(c, common.NoticeModify)
 			return
 		}
 		ef.JSONFailMsg(c, "不允許修改的欄位")
@@ -115,7 +115,7 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 			ef.JSONFailMsg(c, "修改失敗: "+err.Error())
 			return
 		}
-		ef.JSONOKMsg(c, "修改成功")
+		ef.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -137,5 +137,5 @@ func (ef *ExtFieldController) Del(c *gin.Context) {
 		ef.JSONFailMsg(c, "刪除失敗: "+err.Error())
 		return
 	}
-	ef.JSONOKMsg(c, "刪除成功")
+	ef.JSONOKMsg(c, common.NoticeDelete)
 }

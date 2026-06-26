@@ -34,7 +34,7 @@ func (mf *MemberFieldController) Add(c *gin.Context) {
 			Sorting:  sorting,
 			Status:   1,
 		})
-		mf.JSONOKMsg(c, "新增成功")
+		mf.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 	common.Render(c, "member/field.html", gin.H{"action": "add"})
@@ -58,7 +58,7 @@ func (mf *MemberFieldController) Mod(c *gin.Context) {
 			"required": required,
 			"sorting":  sorting,
 		})
-		mf.JSONOKMsg(c, "修改成功")
+		mf.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -71,5 +71,5 @@ func (mf *MemberFieldController) Mod(c *gin.Context) {
 func (mf *MemberFieldController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.MemberField{}, idStr)
-	mf.JSONOKMsg(c, "刪除成功")
+	mf.JSONOKMsg(c, common.NoticeDelete)
 }

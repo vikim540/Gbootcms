@@ -32,7 +32,7 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		ischeck, _ := strconv.Atoi(c.DefaultPostForm("ischeck", "1"))
 		model.DB.Model(&model.Comment{}).Where("id = ?", id).Update("ischeck", ischeck)
-		mc.JSONOKMsg(c, "操作成功")
+		mc.JSONOKMsg(c, common.NoticeOperation)
 		return
 	}
 
@@ -45,5 +45,5 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 func (mc *MemberCommentController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Comment{}, idStr)
-	mc.JSONOKMsg(c, "刪除成功")
+	mc.JSONOKMsg(c, common.NoticeDelete)
 }

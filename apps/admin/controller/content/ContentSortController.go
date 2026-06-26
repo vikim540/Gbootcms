@@ -1,4 +1,4 @@
-package content
+﻿package content
 
 import (
 	"pbootcms-go/apps/admin/helper"
@@ -46,7 +46,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 				csc.JSONFail(c, err.Error())
 				return
 			}
-			csc.JSONOKMsg(c, "批量新增成功")
+			csc.JSONOKMsg(c, common.NoticeBatchAdd)
 			return
 		}
 
@@ -89,7 +89,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 			csc.JSONFail(c, err.Error())
 			return
 		}
-		csc.JSONOKMsg(c, "新增成功")
+		csc.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 
@@ -139,7 +139,7 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 				return
 			}
 		}
-		csc.JSONOKMsg(c, "修改成功")
+		csc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -220,7 +220,7 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 			}
 		}
 
-		csc.JSONOKMsg(c, "修改成功")
+		csc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -263,7 +263,7 @@ func (csc *ContentSortController) Del(c *gin.Context) {
 			csc.JSONFail(c, err.Error())
 			return
 		}
-		csc.JSONOKMsg(c, "刪除成功")
+		csc.JSONOKMsg(c, common.NoticeDelete)
 		return
 	}
 	if idStr == "" {
@@ -275,12 +275,12 @@ func (csc *ContentSortController) Del(c *gin.Context) {
 		for _, scode := range ids {
 			csc.svc.DeleteSortByScode(scode)
 		}
-		csc.JSONOKMsg(c, "刪除成功")
+		csc.JSONOKMsg(c, common.NoticeDelete)
 		return
 	}
 	if err := csc.svc.DeleteSort(idStr); err != nil {
 		csc.JSONFail(c, err.Error())
 		return
 	}
-	csc.JSONOKMsg(c, "刪除成功")
+	csc.JSONOKMsg(c, common.NoticeDelete)
 }

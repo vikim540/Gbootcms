@@ -56,7 +56,7 @@ func (cf *ConfigController) Index(c *gin.Context) {
 				model.DB.Model(&config).Update("value", val)
 			}
 		}
-		cf.JSONOKMsg(c, "保存成功")
+		cf.JSONOKMsg(c, common.NoticeSave)
 		return
 	}
 

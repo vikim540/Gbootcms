@@ -24,7 +24,7 @@ func (lb *LabelController) Index(c *gin.Context) {
 			}
 		}
 		updated := content.BatchUpdateLabelValues(postForm, "admin")
-		lb.JSONOKMsg(c, "標籤已保存 ("+strconv.Itoa(updated)+" 個)")
+		lb.JSONOKMsg(c, common.NoticeLabelSaved(updated))
 		return
 	}
 
@@ -51,7 +51,7 @@ func (lb *LabelController) Add(c *gin.Context) {
 			lb.JSONFailMsg(c, "Add failed: "+err.Error())
 			return
 		}
-		lb.JSONOKMsg(c, "新增成功")
+		lb.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 	common.Render(c, "content/label.html", gin.H{"action": "add"})
@@ -75,7 +75,7 @@ func (lb *LabelController) Mod(c *gin.Context) {
 			lb.JSONFailMsg(c, "Modify failed: "+err.Error())
 			return
 		}
-		lb.JSONOKMsg(c, "修改成功")
+		lb.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -91,5 +91,5 @@ func (lb *LabelController) Del(c *gin.Context) {
 		lb.JSONFailMsg(c, "Delete failed: "+err.Error())
 		return
 	}
-	lb.JSONOKMsg(c, "刪除成功")
+	lb.JSONOKMsg(c, common.NoticeDelete)
 }

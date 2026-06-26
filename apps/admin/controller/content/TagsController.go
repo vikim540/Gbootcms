@@ -59,7 +59,7 @@ func (tg *TagsController) Add(c *gin.Context) {
 			Name: name,
 			Link: link,
 		})
-		tg.JSONOKMsg(c, "新增成功")
+		tg.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 	common.Render(c, "content/tags.html", gin.H{"action": "add"})
@@ -73,7 +73,7 @@ func (tg *TagsController) Del(c *gin.Context) {
 		return
 	}
 	model.DB.Delete(&model.Tags{}, idStr)
-	tg.JSONOKMsg(c, "刪除成功")
+	tg.JSONOKMsg(c, common.NoticeDelete)
 }
 
 // Mod - Modify tag
@@ -92,7 +92,7 @@ func (tg *TagsController) Mod(c *gin.Context) {
 	value := c.Query("value")
 	if field != "" {
 		model.DB.Model(&model.Tags{}).Where("id = ?", id).Update(field, value)
-		tg.JSONOKMsg(c, "修改成功")
+		tg.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -114,7 +114,7 @@ func (tg *TagsController) Mod(c *gin.Context) {
 			"name": name,
 			"link": link,
 		})
-		tg.JSONOKMsg(c, "修改成功")
+		tg.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 

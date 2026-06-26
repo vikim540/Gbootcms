@@ -82,7 +82,7 @@ func (db *DatabaseController) optimizeTables(c *gin.Context) {
 			model.DB.Exec("OPTIMIZE TABLE " + t)
 		}
 	}
-	db.JSONOKMsg(c, "優化成功")
+	db.JSONOKMsg(c, common.NoticeOptimize)
 }
 
 func (db *DatabaseController) repairTables(c *gin.Context) {
@@ -101,7 +101,7 @@ func (db *DatabaseController) repairTables(c *gin.Context) {
 	for _, t := range tables {
 		model.DB.Exec("REPAIR TABLE " + t)
 	}
-	db.JSONOKMsg(c, "修復成功")
+	db.JSONOKMsg(c, common.NoticeRepair)
 }
 
 func (db *DatabaseController) backupTableAction(c *gin.Context) {
@@ -123,7 +123,7 @@ func (db *DatabaseController) backupTableAction(c *gin.Context) {
 	filename := fmt.Sprintf("pbootcms_%s_%s.sql", strings.Join(tables, "_"), time.Now().Format("20060102150405"))
 	filePath := filepath.Join(backupDir, filename)
 	db.writeFile(filePath, sqlContent)
-	db.JSONOKMsg(c, "備份成功")
+	db.JSONOKMsg(c, common.NoticeBackup)
 }
 
 func (db *DatabaseController) backupDBAction(c *gin.Context) {
@@ -149,7 +149,7 @@ func (db *DatabaseController) backupDBAction(c *gin.Context) {
 	filename := fmt.Sprintf("pbootcms_db_%s.sql", time.Now().Format("20060102150405"))
 	filePath := filepath.Join(backupDir, filename)
 	db.writeFile(filePath, sqlContent)
-	db.JSONOKMsg(c, "備份成功")
+	db.JSONOKMsg(c, common.NoticeBackup)
 }
 
 func (db *DatabaseController) backupSQLiteAction(c *gin.Context) {
@@ -185,7 +185,7 @@ func (db *DatabaseController) backupSQLiteAction(c *gin.Context) {
 		db.JSONFail(c, "复制数据库文件失败！")
 		return
 	}
-	db.JSONOKMsg(c, "備份成功")
+	db.JSONOKMsg(c, common.NoticeBackup)
 }
 
 func (db *DatabaseController) header() string {

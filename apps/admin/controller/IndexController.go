@@ -298,7 +298,7 @@ func (ic *IndexController) UcenterMod(c *gin.Context) {
 	encNew1 := fmt.Sprintf("%x", md5.Sum([]byte(newPwd)))
 	encNew := fmt.Sprintf("%x", md5.Sum([]byte(encNew1)))
 	model.DB.Model(&user).Update("password", encNew)
-	ic.JSONOKMsg(c, "密码修改成功！")
+	ic.JSONOKMsg(c, common.NoticePassword)
 }
 
 func (ic *IndexController) ClearCache(c *gin.Context) {
@@ -308,13 +308,13 @@ func (ic *IndexController) ClearCache(c *gin.Context) {
 	os.MkdirAll("runtime/cache", 0755)
 	os.MkdirAll("runtime/compile", 0755)
 	os.MkdirAll("runtime/config", 0755)
-	ic.JSONOKMsg(c, "緩存清理成功")
+	ic.JSONOKMsg(c, common.NoticeCacheCleaned)
 }
 
 func (ic *IndexController) Area(c *gin.Context) {
 	code := c.PostForm("code")
 	common.SetSession(c, "area_code", code)
-	ic.JSONOKMsg(c, "切換成功")
+	ic.JSONOKMsg(c, common.NoticeSwitch)
 }
 
 func (ic *IndexController) CheckCode(c *gin.Context) {

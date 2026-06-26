@@ -37,7 +37,7 @@ func (uc *UserController) Add(c *gin.Context) {
 			Rcodes:   c.PostForm("rcodes"),
 			Status:   1,
 		})
-		uc.JSONOKMsg(c, "新增成功")
+		uc.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 	var roles []model.Role
@@ -63,7 +63,7 @@ func (uc *UserController) Mod(c *gin.Context) {
 			updates["password"] = fmt.Sprintf("%x", md5.Sum([]byte(password)))
 		}
 		model.DB.Model(&model.AdminUser{}).Where("id = ?", id).Updates(updates)
-		uc.JSONOKMsg(c, "修改成功")
+		uc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -78,5 +78,5 @@ func (uc *UserController) Mod(c *gin.Context) {
 func (uc *UserController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.AdminUser{}, idStr)
-	uc.JSONOKMsg(c, "刪除成功")
+	uc.JSONOKMsg(c, common.NoticeDelete)
 }

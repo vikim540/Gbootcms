@@ -36,7 +36,7 @@ func (ms *MessageController) Mod(c *gin.Context) {
 			"replydate":    time.Now(),
 			"status":       1,
 		})
-		ms.JSONOKMsg(c, "回覆成功")
+		ms.JSONOKMsg(c, common.NoticeReply)
 		return
 	}
 
@@ -49,11 +49,11 @@ func (ms *MessageController) Mod(c *gin.Context) {
 func (ms *MessageController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Message{}, idStr)
-	ms.JSONOKMsg(c, "刪除成功")
+	ms.JSONOKMsg(c, common.NoticeDelete)
 }
 
 // Clear - Clear messages
 func (ms *MessageController) Clear(c *gin.Context) {
 	model.DB.Where("1 = 1").Delete(&model.Message{})
-	ms.JSONOKMsg(c, "清理成功")
+	ms.JSONOKMsg(c, common.NoticeClean)
 }

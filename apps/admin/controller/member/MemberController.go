@@ -39,7 +39,7 @@ func (mb *MemberController) Add(c *gin.Context) {
 			GID:      gid,
 			Status:   1,
 		})
-		mb.JSONOKMsg(c, "新增成功")
+		mb.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 	var groups []model.MemberGroup
@@ -67,7 +67,7 @@ func (mb *MemberController) Mod(c *gin.Context) {
 			updates["password"] = fmt.Sprintf("%x", md5.Sum([]byte(password)))
 		}
 		model.DB.Model(&model.Member{}).Where("id = ?", id).Updates(updates)
-		mb.JSONOKMsg(c, "修改成功")
+		mb.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -82,5 +82,5 @@ func (mb *MemberController) Mod(c *gin.Context) {
 func (mb *MemberController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Member{}, idStr)
-	mb.JSONOKMsg(c, "刪除成功")
+	mb.JSONOKMsg(c, common.NoticeDelete)
 }

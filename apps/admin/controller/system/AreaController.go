@@ -31,7 +31,7 @@ func (ar *AreaController) Add(c *gin.Context) {
 			Sorting: sorting,
 			Status:  1,
 		})
-		ar.JSONOKMsg(c, "新增成功")
+		ar.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 	common.Render(c, "system/area.html", gin.H{"action": "add"})
@@ -52,7 +52,7 @@ func (ar *AreaController) Mod(c *gin.Context) {
 			"name":    c.PostForm("name"),
 			"sorting": sorting,
 		})
-		ar.JSONOKMsg(c, "修改成功")
+		ar.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -65,5 +65,5 @@ func (ar *AreaController) Mod(c *gin.Context) {
 func (ar *AreaController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Area{}, idStr)
-	ar.JSONOKMsg(c, "刪除成功")
+	ar.JSONOKMsg(c, common.NoticeDelete)
 }

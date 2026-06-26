@@ -35,7 +35,7 @@ func (mc *MenuController) Add(c *gin.Context) {
 			Status:   1,
 			Shortcut: 0,
 		})
-		mc.JSONOKMsg(c, "新增成功")
+		mc.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 	var menus []model.Menu
@@ -69,7 +69,7 @@ func (mc *MenuController) Mod(c *gin.Context) {
 			"sorting": sorting,
 			"status":  status,
 		})
-		mc.JSONOKMsg(c, "修改成功")
+		mc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -84,5 +84,5 @@ func (mc *MenuController) Mod(c *gin.Context) {
 func (mc *MenuController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Menu{}, idStr)
-	mc.JSONOKMsg(c, "刪除成功")
+	mc.JSONOKMsg(c, common.NoticeDelete)
 }

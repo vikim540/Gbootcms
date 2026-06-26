@@ -157,7 +157,7 @@ func (ie *ImageExtController) DoExt(c *gin.Context) {
 				os.Rename(srcPath, dstPath)
 			}
 		}
-		ie.JSONOKMsg(c, "清理成功")
+		ie.JSONOKMsg(c, common.NoticeClean)
 		return
 	}
 
@@ -219,7 +219,7 @@ func (ie *ImageExtController) DoExt(c *gin.Context) {
 			}
 			return nil
 		})
-		ie.JSONOKMsg(c, "全部清理成功")
+		ie.JSONOKMsg(c, common.NoticeCleanAll)
 		return
 	}
 

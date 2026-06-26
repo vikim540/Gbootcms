@@ -25,24 +25,48 @@ func (co *CompanyController) Mod(c *gin.Context) {
 	var company model.Company
 	model.DB.FirstOrCreate(&company, model.Company{ID: 1})
 
+	// 臟檢測：比對提交數據與現有數據
+	newName := c.PostForm("name")
+	newAddress := c.PostForm("address")
+	newPostcode := c.PostForm("postcode")
+	newContact := c.PostForm("contact")
+	newMobile := c.PostForm("mobile")
+	newPhone := c.PostForm("phone")
+	newFax := c.PostForm("fax")
+	newEmail := c.PostForm("email")
+	newQQ := c.PostForm("qq")
+	newWeixin := c.PostForm("weixin")
+	newIcp := c.PostForm("icp")
+	newBlicense := c.PostForm("blicense")
+	newOther := c.PostForm("other")
+
+	if company.Name == newName && company.Address == newAddress && company.Postcode == newPostcode &&
+		company.Contact == newContact && company.Mobile == newMobile && company.Phone == newPhone &&
+		company.Fax == newFax && company.Email == newEmail && company.Qq == newQQ &&
+		company.Weixin == newWeixin && company.ICP == newIcp && company.Blicense == newBlicense &&
+		company.Other == newOther {
+		co.JSONOKMsg(c, common.NoticeNoChange)
+		return
+	}
+
 	result := model.DB.Model(&company).Updates(map[string]interface{}{
-		"name":     c.PostForm("name"),
-		"address":  c.PostForm("address"),
-		"postcode": c.PostForm("postcode"),
-		"contact":  c.PostForm("contact"),
-		"mobile":   c.PostForm("mobile"),
-		"phone":    c.PostForm("phone"),
-		"fax":      c.PostForm("fax"),
-		"email":    c.PostForm("email"),
-		"qq":       c.PostForm("qq"),
-		"weixin":   c.PostForm("weixin"),
-		"icp":      c.PostForm("icp"),
-		"blicense": c.PostForm("blicense"),
-		"other":    c.PostForm("other"),
+		"name":     newName,
+		"address":  newAddress,
+		"postcode": newPostcode,
+		"contact":  newContact,
+		"mobile":   newMobile,
+		"phone":    newPhone,
+		"fax":      newFax,
+		"email":    newEmail,
+		"qq":       newQQ,
+		"weixin":   newWeixin,
+		"icp":      newIcp,
+		"blicense": newBlicense,
+		"other":    newOther,
 	})
 	if result.Error != nil {
 		co.JSONFail(c, "修改失败: "+result.Error.Error())
 		return
 	}
-	co.JSONOKMsg(c, "修改成功")
+	co.JSONOKMsg(c, common.NoticeModify)
 }

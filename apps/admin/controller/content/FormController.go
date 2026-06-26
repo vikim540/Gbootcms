@@ -142,7 +142,7 @@ func (fm *FormController) Add(c *gin.Context) {
 				") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
 		}
 
-		fm.JSONOKMsg(c, "表單新增成功")
+		fm.JSONOKMsg(c, common.NoticeFormAdd)
 
 	case "addfield":
 		fcode := c.PostForm("fcode")
@@ -185,7 +185,7 @@ func (fm *FormController) Add(c *gin.Context) {
 		}
 		model.DB.Exec("ALTER TABLE `" + tableName + "` ADD COLUMN `" + fieldName + "` VARCHAR(" + length + ") NULL")
 
-		fm.JSONOKMsg(c, "字段新增成功")
+		fm.JSONOKMsg(c, common.NoticeFieldAdd)
 
 	default:
 		fm.JSONFail(c, "Unknown operation")
@@ -218,7 +218,7 @@ func (fm *FormController) Del(c *gin.Context) {
 		model.DB.Where("fcode = ?", fcode).Delete(&model.FormField{})
 		model.DB.Where("fcode = ?", fcode).Delete(&model.Form{})
 
-		fm.JSONOKMsg(c, "表單刪除成功")
+		fm.JSONOKMsg(c, common.NoticeFormDelete)
 
 	case "deldata":
 		fcode := c.Query("fcode")
@@ -240,7 +240,7 @@ func (fm *FormController) Del(c *gin.Context) {
 		}
 		model.DB.Exec("DELETE FROM `"+tableName+"` WHERE id = ?", id)
 
-		fm.JSONOKMsg(c, "數據刪除成功")
+		fm.JSONOKMsg(c, common.NoticeDataDelete)
 
 	default:
 		idStr := c.Query("id")
@@ -270,7 +270,7 @@ func (fm *FormController) Del(c *gin.Context) {
 		}
 
 		model.DB.Delete(&formField)
-		fm.JSONOKMsg(c, "字段刪除成功")
+		fm.JSONOKMsg(c, common.NoticeFieldDelete)
 	}
 }
 
@@ -294,7 +294,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 		} else {
 			model.DB.Model(&model.FormField{}).Where("id = ?", idStr).Update(field, value)
 		}
-		fm.JSONOKMsg(c, "修改成功")
+		fm.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -335,7 +335,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 			Status:  1,
 		})
 
-		fm.JSONOKMsg(c, "菜單新增成功")
+		fm.JSONOKMsg(c, common.NoticeMenuAdd)
 
 	case "modform":
 		fcode := c.PostForm("fcode")
@@ -351,7 +351,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 		}
 
 		model.DB.Model(&model.Form{}).Where("fcode = ?", fcode).Update("form_name", formName)
-		fm.JSONOKMsg(c, "表單修改成功")
+		fm.JSONOKMsg(c, common.NoticeFormModify)
 
 	default:
 		idStr := c.PostForm("id")
@@ -374,7 +374,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 		}
 
 		model.DB.Model(&model.FormField{}).Where("id = ?", id).Updates(updates)
-		fm.JSONOKMsg(c, "字段修改成功")
+		fm.JSONOKMsg(c, common.NoticeFieldModify)
 	}
 }
 
@@ -401,5 +401,5 @@ func (fm *FormController) Clear(c *gin.Context) {
 	}
 	model.DB.Exec("DELETE FROM `" + tableName + "`")
 
-	fm.JSONOKMsg(c, "表單數據清理成功")
+	fm.JSONOKMsg(c, common.NoticeFormDataClear)
 }

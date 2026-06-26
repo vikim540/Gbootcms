@@ -110,7 +110,7 @@ func (sg *SingleController) Mod(c *gin.Context) {
 			return
 		}
 		model.DB.Model(&model.Content{}).Where("id = ?", id).Update(field, value)
-		sg.JSONOKMsg(c, "修改成功")
+		sg.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -151,7 +151,7 @@ func (sg *SingleController) Mod(c *gin.Context) {
 		if len(extData) > 0 {
 			contentModel.UpsertContentExt(uint(id), extData)
 		}
-		sg.JSONOKMsg(c, "修改成功")
+		sg.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -191,7 +191,7 @@ func (sg *SingleController) Del(c *gin.Context) {
 		return
 	}
 	model.DB.Delete(&model.Content{}, idStr)
-	sg.JSONOKMsg(c, "刪除成功")
+	sg.JSONOKMsg(c, common.NoticeDelete)
 }
 
 // splitPics splits comma-separated pics string into a slice for template rendering.

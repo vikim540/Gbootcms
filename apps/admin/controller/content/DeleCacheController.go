@@ -30,13 +30,13 @@ func (dc *DeleCacheController) Index(c *gin.Context) {
 		case "1":
 			dc.deleIndex(cacheDir)
 			dc.deleSort(cacheDir, "")
-			dc.JSONOKMsg(c, "首頁及欄目已更新")
+			dc.JSONOKMsg(c, common.NoticeCacheHomepage)
 		case "2":
 			dc.deleSortAll(cacheDir, scode)
-			dc.JSONOKMsg(c, "全部欄目列表已更新")
+			dc.JSONOKMsg(c, common.NoticeCacheSortList)
 		case "3":
 			dc.deleContent(cacheDir, idMinStr, idMaxStr)
-			dc.JSONOKMsg(c, "內容已更新")
+			dc.JSONOKMsg(c, common.NoticeCacheContent)
 		default:
 			dc.JSONFail(c, "Invalid parameter")
 		}
