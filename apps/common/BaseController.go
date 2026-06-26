@@ -85,7 +85,7 @@ func (bc *BaseController) JSONOKMsg(c *gin.Context, msg string) {
 }
 
 func (bc *BaseController) JSONFail(c *gin.Context, msg string) {
-	c.JSON(http.StatusOK, gin.H{"code": 0, "data": msg})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": msg})
 }
 
 func (bc *BaseController) JSONFailMsg(c *gin.Context, msg string) {

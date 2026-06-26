@@ -153,7 +153,7 @@ layui.use(['element','upload','laydate','form'], function(){
                       setTimeout(function(){ window.location.href = returnto; }, 1500);
                   }
               } else {
-                  showNotify(res.data || res.msg || '操作失败', 'error');
+                  showNotify(res.msg || '操作失敗', 'error');
               }
           },
           error: function() {
@@ -181,7 +181,7 @@ layui.use(['element','upload','laydate','form'], function(){
               if (res.code == 1) {
                   showNotify(res.msg || '操作成功', 'success');
               } else {
-                  showNotify(res.data || res.msg || '操作失败', 'error');
+                  showNotify(res.msg || '操作失敗', 'error');
               }
           },
           error: function() {
@@ -229,7 +229,7 @@ layui.use(['element','upload','laydate','form'], function(){
                           showNotify(res.msg || '刪除成功', 'success');
                           setTimeout(function(){ location.reload(); }, 1200);
                       } else {
-                          showNotify(res.data || res.msg || '刪除失敗', 'error');
+                          showNotify(res.msg || '刪除失敗', 'error');
                       }
                   },
                   error: function() {
