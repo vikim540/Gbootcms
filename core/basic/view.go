@@ -198,7 +198,7 @@ func convertPbootToPongo2(html string) string {
 
 func fixRemainingArrowSyntax(html string) string {
 	// Find {% if ... %} blocks and fix -> inside them
-	re := regexp.MustCompile(`\{%\s*(if|elseif)\s+([^%]+)%\}`)
+	re := regexp.MustCompile(`\{%\s*(if|elif)\s+([^%]+)%\}`)
 	html = re.ReplaceAllStringFunc(html, func(match string) string {
 		subs := re.FindStringSubmatch(match)
 		if len(subs) < 3 {
@@ -582,7 +582,7 @@ func processPongo2Fun(html string) string {
 
 func processPongo2If(html string) string {
 	html = replacePongo2IfTag(html, "{if(", "{% if ", " %}")
-	html = replacePongo2IfTag(html, "{elseif(", "{% elseif ", " %}")
+	html = replacePongo2IfTag(html, "{elseif(", "{% elif ", " %}")
 	return html
 }
 

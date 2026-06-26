@@ -2,6 +2,7 @@ package content
 
 import (
 	"pbootcms-go/apps/admin/model"
+	"pbootcms-go/apps/admin/model/content"
 	"pbootcms-go/apps/common"
 
 	"github.com/gin-gonic/gin"
@@ -17,7 +18,10 @@ type SiteController struct {
 func (si *SiteController) Index(c *gin.Context) {
 	var site model.Site
 	model.DB.FirstOrCreate(&site, model.Site{ID: 1})
-	common.Render(c, "content/site.html", gin.H{"sites": site})
+	common.Render(c, "content/site.html", gin.H{
+		"sites":  site,
+		"labels": content.GetAllLabels(),
+	})
 }
 
 // Mod - Modify site information
