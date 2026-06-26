@@ -1130,6 +1130,20 @@ func getSortField(s *model.ContentSort, field string) string {
 	}
 }
 
+// contentURL 生成內容鏈接：outlink > filename > urlname > /content/id
+func contentURL(c *model.Content) string {
+	if c.Outlink != "" {
+		return c.Outlink
+	}
+	if c.Filename != "" {
+		return "/" + c.Filename + ".html"
+	}
+	if c.URLName != "" {
+		return "/" + c.URLName + ".html"
+	}
+	return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
+}
+
 func getContentField(ctx *Context, field string, params map[string]string) string {
 	c := ctx.Content
 	if c == nil {
@@ -1183,19 +1197,7 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 	case "id":
 		return strconv.Itoa(int(c.ID))
 	case "link":
-		if c.Outlink != "" {
-			return c.Outlink
-		}
-		// 優先用內容自定義 URL 名稱 (filename)
-		if c.Filename != "" {
-			return "/" + c.Filename + ".html"
-		}
-		// fallback 用 model 的 urlname
-		if c.URLName != "" {
-			return "/" + c.URLName + ".html"
-		}
-		// 最後 fallback 到動態 id 路由
-		return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
+		return contentURL(c)
 	case "istop":
 		return strconv.Itoa(c.IsTop)
 	case "isrecommend":
@@ -1208,16 +1210,16 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 		// 上一篇：同欄目下 ID 小於當前的最大記錄
 		var prev model.Content
 		if err := model.DB.Where("scode = ? AND id < ?", c.Scode, c.ID).Order("id desc").First(&prev).Error; err == nil {
-			return fmt.Sprintf("<a href=\"%s\">%s</a>", "/"+prev.URLName+".html", prev.Title)
+			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(&prev), prev.Title)
 		}
-		return "没有了"
+		return "沒有了"
 	case "nextcontent":
 		// 下一篇：同欄目下 ID 大於當前的最小記錄
 		var next model.Content
 		if err := model.DB.Where("scode = ? AND id > ?", c.Scode, c.ID).Order("id asc").First(&next).Error; err == nil {
-			return fmt.Sprintf("<a href=\"%s\">%s</a>", "/"+next.URLName+".html", next.Title)
+			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(&next), next.Title)
 		}
-		return "没有了"
+		return "沒有了"
 	default:
 		if strings.HasPrefix(field, "ext_") {
 			// TODO: 擴展字段需要 Content 模型支持 Extra JSON 字段
