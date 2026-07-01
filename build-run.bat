@@ -13,6 +13,7 @@ echo.
 :: ---- Step 1: Build ----
 echo [Step 1/3] Building...
 cd /d "%APP_DIR%"
+set GOPROXY=https://goproxy.cn,direct
 go build -o "%BIN_PATH%" . 2>&1
 if %ERRORLEVEL% neq 0 (
     echo.
