@@ -1,148 +1,150 @@
-{include file='common/head.html'}
+{include file=comm/head.html}
 
 <div class="layui-body">
-	{if([$list])}
-	<div class="layui-tab layui-tab-brief" lay-filter="tab">
-	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">留言列表</li>
-	  </ul>
-	  <div class="layui-tab-content">
-		  <form method="get" name="contentForm" >
-	  	   <div class="layui-tab-item layui-show">
-	  	   		{foreach $messages(key,value,num)}
-	  	   		<table class="layui-table table-two">
-	  	   			<thead>
-				  		<tr>
-					  		<th colspan="2">
-								<input type="checkbox" name="checkbox" title="选择" lay-skin="primary" class="check" value="[value->id]">
-								<input type="hidden" name="listall[]" value="[value->id]">
-								在线留言-[num]
-					  			<span style="float:right">
-						  			{if($value->status)}
-		                            <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/status/value/0}"><i class='fa fa-toggle-on' title="点击前端隐藏" style="vertical-align:middle"></i></a>
-		                            {else}
-		                            <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/status/value/1}"><i class='fa fa-toggle-off' title="点击前端显示" style="vertical-align:middle"></i></a>
-		                            {/if}
-						  			{fun=get_btn_mod($value->id,'id','回复')}
-						  			{fun=get_btn_del($value->id)}
-					  			</span>
-					  		</th>
-					  	</tr>
-				    </thead>
-	  	   			<tbody>
-		  	   			{foreach $fields(key2,value2,num2)}
-			  	   			<tr>
-						      	<th>[value2->description]</th>
-						      	{php} $field=$value2->name {/php}
-						      	<td>[value->$field]</td>
-						    </tr>
-		  	   			{/foreach}
-		  	   			<tr>
-					      	<th>时间</th>
-					      	<td>[value->create_time]</td>
-					    </tr>
-					    <tr>
-					      	<th>访客信息</th>
-					      	<td>
-					      		IP:<a href="http://ip.taobao.com/ipSearch.html?ipAddr={fun=long2ip($value->user_ip)}" target="_blank" title="点击查看归属地">{fun=long2ip($value->user_ip)}</a>；
-								浏览器:[value->user_bs]；
-								操作系统:[value->user_os]
-							</td>
-					    </tr>
-					    {if($value->username)}
-					    <tr>
-					      	<th>会员账号</th>
-					      	<td>[value->username]([value->nickname])</td>
-					    </tr>
-					    {/if}
-					    <tr>
-					      	<th>回复内容</th>
-					      	<td>[value->recontent]</td>
-					    </tr>
-	  	   			</tbody>
-	            </table>
-	            {/foreach}
-	            
-	            {if(session('ucode')==10001 && [$messages])}
-			     	<a href="{url./admin/Message/clear}"  onclick='return confirm("您确定要全部清空么？")' class="layui-btn layui-btn-sm">清空全部记录</a>
-			   		<a href="javascript:" onclick="selectall('checkbox')" class="layui-btn layui-btn-sm">全选</a>
-			   		<a href="javascript:" onclick="delselect(this);return false" class="layui-btn layui-btn-sm">清空选中记录</a>
-			    {/if}
-			    
-			    {if([$messages])}
-			    <a href="{url./admin/Message/index/export/1}" class="layui-btn layui-btn-sm">导出记录</a>
-			    {/if}
-			    
-	            <div class="page">{$pagebar}</div>
-	  	   </div>
-		  </form>
-	  	 </div>
-	</div>
-	{/if}
-	
-	{if([$mod])}
-	
-	<div class="layui-tab layui-tab-brief" lay-filter="tab">
-	  <ul class="layui-tab-title">
-	    <li class="layui-this">留言回复</li>
-	  </ul>
-	  <div class="layui-tab-content">
-	  	<div class="layui-tab-item layui-show">
-	  		 <form action="{url./admin/Message/mod/id/'.[$get.id].'}{$backurl}" method="post" class="layui-form">
-	  		 	<input type="hidden" name="formcheck" value="{$formcheck}" > 
-	  		 	<div class="layui-form-item">
-                     <label class="layui-form-label">回复内容</label>
-                     <div class="layui-input-block">
-                     	<textarea name="recontent" placeholder="请输入回复内容" class="layui-textarea">{$message->recontent}</textarea>
-                     </div>
+    {include file=comm/menu.html}
+    <div class="layui-tab layui-tab-brief" lay-filter="tab">
+        <ul class="layui-tab-title">
+            <li class="layui-this">留言列表</li>
+            <li>留言回覆</li>
+        </ul>
+        <div class="layui-tab-content">
+            <!-- 列表 -->
+            <div class="layui-tab-item layui-show">
+                <form action="/admin/content/message/clear" method="post" id="msgForm" class="layui-form">
+                    <table class="layui-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" lay-skin="primary" id="checkAll"></th>
+                                <th>序號</th>
+                                <th>聯繫人</th>
+                                <th>手機</th>
+                                <th>留言內容</th>
+                                <th>IP</th>
+                                <th>瀏覽器</th>
+                                <th>操作系統</th>
+                                <th>留言時間</th>
+                                <th>狀態</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if list %}
+                            {% for index, msg in messages %}
+                            <tr>
+                                <td><input type="checkbox" lay-skin="primary" name="ids" value="{{msg.ID}}"></td>
+                                <td>{{index | Add: 1}}</td>
+                                <td>{{msg.Contacts}}</td>
+                                <td>{{msg.Mobile}}</td>
+                                <td>{{msg.Content}}</td>
+                                <td>
+                                    {% if msg.IP %}
+                                    <a href="https://ip.taobao.com/ipSearch?ip={{msg.IP}}" target="_blank">{{msg.IP}}</a>
+                                    {% endif %}
+                                </td>
+                                <td>{{msg.Browser}}</td>
+                                <td>{{msg.OS}}</td>
+                                <td>{{msg.AskDateStr}}</td>
+                                <td>
+                                    {% if msg.Status == 1 %}
+                                    <a href="/admin/content/message?field=status&id={{msg.ID}}&value=0" class="layui-btn layui-btn-xs layui-btn-normal">已審核</a>
+                                    {% else %}
+                                    <a href="/admin/content/message?field=status&id={{msg.ID}}&value=1" class="layui-btn layui-btn-xs layui-btn-warm">待審核</a>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/admin/content/message/mod/{{msg.ID}}" class="layui-btn layui-btn-xs">回覆</a>
+                                    <a href="/admin/content/message/del?id={{msg.ID}}" class="layui-btn layui-btn-xs layui-btn-danger" onclick="return confirm('確認刪除？')">刪除</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% else %}
+                            <tr><td colspan="11" class="text-center">暫無留言記錄</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </form>
+                {% if list %}
+                <div class="layui-btn-container">
+                    <button type="button" class="layui-btn layui-btn-sm layui-btn-danger" onclick="batchClear()">批量刪除</button>
                 </div>
-                
+                {% endif %}
+            </div>
+
+            <!-- 回覆 -->
+            <div class="layui-tab-item">
+                {% if mod %}
+                <form action="/admin/content/message/mod/{{get_id}}" method="post" class="layui-form">
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">聯繫人</label>
+                        <div class="layui-input-block">
+                            <input type="text" class="layui-input" value="{{message.Contacts}}" disabled>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">手機</label>
+                        <div class="layui-input-block">
+                            <input type="text" class="layui-input" value="{{message.Mobile}}" disabled>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">留言內容</label>
+                        <div class="layui-input-block">
+                            <textarea class="layui-textarea" disabled>{{message.Content}}</textarea>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">回覆內容</label>
+                        <div class="layui-input-block">
+                            <textarea name="replycontent" class="layui-textarea" placeholder="請輸入回覆內容">{{message.ReplyContent}}</textarea>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">狀態</label>
+                        <div class="layui-input-block">
+                            <select name="status">
+                                <option value="0" {% if message.Status == 0 %}selected{% endif %}>待審核</option>
+                                <option value="1" {% if message.Status == 1 %}selected{% endif %}>已審核</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <div class="layui-input-block">
+                            <button type="submit" class="layui-btn">保存回覆</button>
+                            <a href="/admin/content/message" class="layui-btn layui-btn-primary">返回</a>
+                        </div>
+                    </div>
+                </form>
+                {% else %}
                 <div class="layui-form-item">
-                    <label class="layui-form-label">状态</label>
                     <div class="layui-input-block">
-                    	<input type="radio" name="status" value="1" title="显示" {if([$message->status]==1)}checked="checked"{/if}>
-						<input type="radio" name="status" value="0" title="隐藏" {if([$message->status]==0)}checked="checked"{/if}>
+                        <p class="text-center text-muted">請從列表中點擊「回覆」進入</p>
                     </div>
                 </div>
-                
-	  		 	<div class="layui-form-item">
-				 <div class="layui-input-block">
-				    <button class="layui-btn" lay-submit lay-filter="formDemo">立即提交</button>
-				    <button type="reset" class="layui-btn layui-btn-primary">重置</button>
-				    {fun=get_btn_back()}
-				 </div>
-			   </div>
-			   
-	  		 </form>
-	  	</div>
-	  </div>
-	 </div>
-
-	{/if} 
-	
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
+
 <script>
+// 全選/反選
+$("#checkAll").click(function(){
+    $("input[name='ids']").prop("checked", this.checked);
+});
 
-	function selectall(objName){
-		var objNameList=document.getElementsByName(objName);
-		if(null!=objNameList){
-			for(var i=0;i<objNameList.length;i++){
-				objNameList[i].checked="checked";
-			}
-		}
-	}
-
-	function delselect(obj){
-		if(confirm("您确定要删除选中的内容么？")){
-			var check_list = [];
-			$('input[name="checkbox"]:checked').each(function (){
-				check_list.push($(this).val());
-			});
-			var url = $(obj).attr("href");
-			var str = check_list.join("and");
-			// $(obj).attr("href", url + "" + str);
-			location.href = "{url./admin/Message/clear}/ids/" + str;
-		}
-	}
+// 批量刪除
+function batchClear() {
+    var ids = [];
+    $("input[name='ids']:checked").each(function(){
+        ids.push($(this).val());
+    });
+    if (ids.length == 0) {
+        layer.msg("請選擇要刪除的記錄");
+        return;
+    }
+    if (!confirm("確認刪除選中的 " + ids.length + " 條記錄？")) return;
+    window.location.href = "/admin/content/message/clear?ids=" + ids.join("and");
+}
 </script>
-{include file='common/foot.html'}
+
+{include file=comm/foot.html}

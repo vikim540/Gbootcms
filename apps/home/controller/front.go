@@ -1,15 +1,91 @@
 package controller
 
 import (
+	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
+	"math/rand"
 	"net/http"
 	"pbootcms-go/apps/admin/model"
+	"pbootcms-go/apps/admin/model/content"
+	"pbootcms-go/apps/common/mail"
 	"pbootcms-go/apps/common/parser"
+	"pbootcms-go/apps/common/webhook"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+// 留言驗證碼存儲（前台用，與後台 checkCodeStore 分離）
+var messageCodeStore = make(map[string]string)
+
+// 留言防頻繁提交：IP → 上次提交時間
+var messageRateLimit = make(map[string]time.Time)
+
+// gboot:if 安全過濾正則（遞歸清除模板標籤注入）
+var gbootIfRegex = regexp.MustCompile(`(?i)gboot:if`)
+
+// parseUserOS 從 User-Agent 解析操作系統
+func parseUserOS(ua string) string {
+	ua = strings.ToLower(ua)
+	switch {
+	case strings.Contains(ua, "windows nt 10"):
+		return "Windows 10"
+	case strings.Contains(ua, "windows nt 6.3"):
+		return "Windows 8.1"
+	case strings.Contains(ua, "windows nt 6.2"):
+		return "Windows 8"
+	case strings.Contains(ua, "windows nt 6.1"):
+		return "Windows 7"
+	case strings.Contains(ua, "windows nt 6.0"):
+		return "Windows Vista"
+	case strings.Contains(ua, "windows nt 5.1"):
+		return "Windows XP"
+	case strings.Contains(ua, "android"):
+		return "Android"
+	case strings.Contains(ua, "iphone"):
+		return "iPhone"
+	case strings.Contains(ua, "ipad"):
+		return "iPad"
+	case strings.Contains(ua, "mac"):
+		return "Mac"
+	case strings.Contains(ua, "linux"):
+		return "Linux"
+	default:
+		return "Other"
+	}
+}
+
+// parseUserBrowser 從 User-Agent 解析瀏覽器
+func parseUserBrowser(ua string) string {
+	ua = strings.ToLower(ua)
+	switch {
+	case strings.Contains(ua, "micromessenger"):
+		return "Weixin"
+	case strings.Contains(ua, "qq"):
+		return "QQ"
+	case strings.Contains(ua, "weibo"):
+		return "Weibo"
+	case strings.Contains(ua, "alipayclient"):
+		return "Alipay"
+	case strings.Contains(ua, "edg"):
+		return "Edge"
+	case strings.Contains(ua, "firefox"):
+		return "Firefox"
+	case strings.Contains(ua, "chrome") || strings.Contains(ua, "android"):
+		return "Chrome"
+	case strings.Contains(ua, "safari"):
+		return "Safari"
+	default:
+		return "Other"
+	}
+}
 
 type FrontController struct {
 	Store *parser.TemplateStore
@@ -136,14 +212,85 @@ func (fc *FrontController) Tags(c *gin.Context) {
 
 func (fc *FrontController) Message(c *gin.Context) {
 	if c.Request.Method == "POST" {
+		// 留言開關檢查
+		if model.GetConfigValue("message_status", "1") == "0" {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "留言功能已關閉"})
+			return
+		}
+
+		// 防頻繁提交：同一 IP 10 秒內只能提交一次
+		clientIP := c.ClientIP()
+		if submitTime, ok := messageRateLimit[clientIP]; ok {
+			if time.Since(submitTime) < 10*time.Second {
+				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交太頻繁，請稍後再試"})
+				return
+			}
+		}
+
+		// pboot:if 安全過濾
+		filterGbootIf := func(s string) string {
+			return gbootIfRegex.ReplaceAllString(s, "")
+		}
+
+		// 區分 fcode：fcode=1 或無 fcode → 留言(ay_message)，fcode≥2 → 自定義表單(ay_diy_*)
+		fcode := c.PostForm("fcode")
+		if fcode != "" && fcode != "1" {
+			// 自定義表單提交
+			fc.handleFormSubmit(c, fcode, clientIP, filterGbootIf)
+			return
+		}
+
+		// 驗證碼校驗（message_check_code 非 '0' 時啟用）
+		if model.GetConfigValue("message_check_code", "1") != "0" {
+			checkcode := strings.ToLower(c.PostForm("checkcode"))
+			if checkcode == "" {
+				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "驗證碼不能為空"})
+				return
+			}
+			cookie, _ := c.Cookie("PbootGo")
+			savedCode, ok := messageCodeStore[cookie]
+			if !ok || strings.ToLower(savedCode) != checkcode {
+				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "驗證碼錯誤"})
+				return
+			}
+			delete(messageCodeStore, cookie)
+		}
+
 		msg := model.Message{
-			Contacts: c.PostForm("contacts"),
-			Mobile:   c.PostForm("mobile"),
-			Content:  c.PostForm("content"),
-			IP:       c.ClientIP(),
+			Contacts: filterGbootIf(c.PostForm("contacts")),
+			Mobile:   filterGbootIf(c.PostForm("mobile")),
+			Content:  filterGbootIf(c.PostForm("content")),
+			IP:       clientIP,
+			OS:       parseUserOS(c.Request.UserAgent()),
+			Browser:  parseUserBrowser(c.Request.UserAgent()),
+			AskDate:  time.Now(),
 			Status:   0,
 		}
-		model.DB.Create(&msg)
+		// 審核狀態：message_verify='0' 時直接通過
+		if model.GetConfigValue("message_verify", "1") == "0" {
+			msg.Status = 1
+		}
+
+		if err := model.DB.Create(&msg).Error; err != nil {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+			return
+		}
+
+		// 郵件通知 + Webhook 推送（message_send_mail=1 時啟用）
+		if model.GetConfigValue("message_send_mail", "0") == "1" {
+			notifyFields := []map[string]string{
+				{"label": "聯繫人", "value": msg.Contacts},
+				{"label": "手機", "value": msg.Mobile},
+				{"label": "內容", "value": msg.Content},
+				{"label": "IP", "value": msg.IP},
+				{"label": "操作系統", "value": msg.OS},
+				{"label": "瀏覽器", "value": msg.Browser},
+			}
+			mail.SendNotifyMail("在線留言", notifyFields)
+			webhook.Send("在線留言", msg.IP, msg.OS, msg.Browser, notifyFields)
+		}
+
+		messageRateLimit[clientIP] = time.Now()
 		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "提交成功"})
 		return
 	}
@@ -156,6 +303,83 @@ func (fc *FrontController) Message(c *gin.Context) {
 	c.String(http.StatusOK, content)
 }
 
+// handleFormSubmit 處理自定義表單提交（fcode≥2，寫入動態表 ay_diy_*）
+func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP string, filterGbootIf func(string) string) {
+	// 查 ay_form 獲取 table_name
+	form := content.GetFormByCode(fcode)
+	if form == nil || form.Table == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "表單不存在"})
+		return
+	}
+	tableName := form.Table
+
+	// 驗證碼校驗（form_check_code 非 '0' 時啟用，預設關閉）
+	if model.GetConfigValue("form_check_code", "0") != "0" {
+		checkcode := strings.ToLower(c.PostForm("checkcode"))
+		if checkcode == "" {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "驗證碼不能為空"})
+			return
+		}
+		cookie, _ := c.Cookie("PbootGo")
+		savedCode, ok := messageCodeStore[cookie]
+		if !ok || strings.ToLower(savedCode) != checkcode {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "驗證碼錯誤"})
+			return
+		}
+		delete(messageCodeStore, cookie)
+	}
+
+	// 查 ay_form_field 獲取字段定義
+	fields := content.GetFormFieldByCode(fcode)
+	if len(fields) == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "表單字段不存在"})
+		return
+	}
+
+	// 動態收集 POST 數據 + 必填校驗
+	cols := []string{"create_time"}
+	vals := []interface{}{time.Now().Format("2006-01-02 15:04:05")}
+	placeholders := []string{"?"}
+	var notifyFields []map[string]string
+
+	for _, f := range fields {
+		fieldName := f.Name
+		if fieldName == "" {
+			continue
+		}
+		val := filterGbootIf(c.PostForm(fieldName))
+		// 多選框轉逗號分隔
+		if arr := c.PostFormArray(fieldName + "[]"); len(arr) > 0 {
+			val = strings.Join(arr, ",")
+		}
+		if f.Required == 1 && val == "" {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": f.Field + "不能為空"})
+			return
+		}
+		cols = append(cols, fieldName)
+		vals = append(vals, val)
+		placeholders = append(placeholders, "?")
+		notifyFields = append(notifyFields, map[string]string{"label": f.Field, "value": val})
+	}
+
+	// 動態 INSERT（參數化查詢）
+	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		tableName, strings.Join(cols, ","), strings.Join(placeholders, ","))
+	if err := model.DB.Exec(sql, vals...).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+		return
+	}
+
+	// 郵件通知 + Webhook 推送（form_send_mail=1 時啟用）
+	if model.GetConfigValue("form_send_mail", "0") == "1" {
+		mail.SendNotifyMail(form.FormName, notifyFields)
+		webhook.Send(form.FormName, clientIP, "", "", notifyFields)
+	}
+
+	messageRateLimit[clientIP] = time.Now()
+	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "提交成功"})
+}
+
 func (fc *FrontController) Visits(c *gin.Context) {
 	idStr := c.Query("id")
 	id, _ := strconv.Atoi(idStr)
@@ -164,6 +388,61 @@ func (fc *FrontController) Visits(c *gin.Context) {
 			UpdateColumn("visits", gorm.Expr("visits + 1"))
 	}
 	c.String(http.StatusOK, "ok")
+}
+
+// CheckCode 前台驗證碼生成（存入 messageCodeStore，供留言校驗）
+func (fc *FrontController) CheckCode(c *gin.Context) {
+	a := randInt(9) + 1
+	b := randInt(9) + 1
+	op := randInt(2)
+	var expr string
+	var answer int
+	if op == 0 {
+		expr = fmt.Sprintf("%d + %d = ?", a, b)
+		answer = a + b
+	} else {
+		if a < b {
+			a, b = b, a
+		}
+		expr = fmt.Sprintf("%d - %d = ?", a, b)
+		answer = a - b
+	}
+
+	sessionID := fc.getCookie(c, "PbootGo")
+	if sessionID == "" {
+		sessionID = fc.generateSessionID()
+		fc.setCookie(c, "PbootGo", sessionID, 86400)
+	}
+	messageCodeStore[sessionID] = fmt.Sprintf("%d", answer)
+
+	width := 200
+	height := 70
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	bgColor := color.RGBA{245, 250, 255, 255}
+	draw.Draw(img, img.Bounds(), &image.Uniform{bgColor}, image.Point{}, draw.Src)
+	for i := 0; i < 80; i++ {
+		x := randInt(width)
+		y := randInt(height)
+		r := uint8(180 + randInt(60))
+		g := uint8(180 + randInt(60))
+		b2 := uint8(180 + randInt(60))
+		img.Set(x, y, color.RGBA{r, g, b2, 255})
+	}
+	for i := 0; i < 4; i++ {
+		x1 := randInt(width)
+		y1 := randInt(height)
+		x2 := randInt(width)
+		y2 := randInt(height)
+		lineColor := color.RGBA{uint8(100 + randInt(100)), uint8(100 + randInt(100)), uint8(100 + randInt(100)), 255}
+		drawLine(img, x1, y1, x2, y2, lineColor)
+	}
+	addLabel(img, expr, width, height)
+
+	c.Header("Content-Type", "image/png")
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
+	png.Encode(c.Writer, img)
 }
 
 // SortByScode renders the list page for a sort identified by its scode
@@ -282,4 +561,122 @@ func (fc *FrontController) buildContext(c *gin.Context) *parser.Context {
 
 func trimSuffix(s string) string {
 	return strings.TrimSuffix(strings.TrimSuffix(s, ".html"), ".htm")
+}
+
+// randInt 返回 0~max-1 的隨機整數
+func randInt(max int) int {
+	return rand.Intn(max)
+}
+
+// getCookie 安全讀取 cookie
+func (fc *FrontController) getCookie(c *gin.Context, name string) string {
+	if cookie, err := c.Cookie(name); err == nil {
+		return cookie
+	}
+	return ""
+}
+
+// setCookie 設置 cookie
+func (fc *FrontController) setCookie(c *gin.Context, name, value string, maxAge int) {
+	c.SetCookie(name, value, maxAge, "/", "", false, true)
+}
+
+// generateSessionID 生成唯一 session ID
+func (fc *FrontController) generateSessionID() string {
+	return fmt.Sprintf("%d%d", time.Now().UnixNano(), rand.Intn(1000000))
+}
+
+// addLabel 在圖片上繪製文字（簡易版，用 basicfont）
+func addLabel(img *image.RGBA, label string, width, height int) {
+	// 用簡易點陣字體繪製，每個字符約 12px 寬
+	charWidth := 12
+	startX := (width - len(label)*charWidth) / 2
+	startY := height / 2
+	for i, ch := range label {
+		drawChar(img, startX+i*charWidth, startY-10, byte(ch))
+	}
+}
+
+// drawChar 繪製單個字符（簡易 5x7 點陣）
+func drawChar(img *image.RGBA, x, y int, ch byte) {
+	color := color.RGBA{30, 80, 160, 255}
+	// 簡易實現：用固定字體繪製
+	font := getBasicFont()
+	rows, ok := font[ch]
+	if !ok {
+		return
+	}
+	for ry, row := range rows {
+		for cx := 0; cx < len(row); cx++ {
+			if row[cx] == '1' {
+				for dy := 0; dy < 2; dy++ {
+					for dx := 0; dx < 2; dx++ {
+						px := x + cx*2 + dx
+						py := y + ry*2 + dy
+						if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+							img.Set(px, py, color)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// drawLine 繪製干擾線
+func drawLine(img *image.RGBA, x1, y1, x2, y2 int, col color.Color) {
+	dx := abs(x2 - x1)
+	dy := abs(y2 - y1)
+	sx := 1
+	sy := 1
+	if x1 > x2 {
+		sx = -1
+	}
+	if y1 > y2 {
+		sy = -1
+	}
+	err := dx - dy
+	for {
+		img.Set(x1, y1, col)
+		if x1 == x2 && y1 == y2 {
+			break
+		}
+		e2 := 2 * err
+		if e2 > -dy {
+			err -= dy
+			x1 += sx
+		}
+		if e2 < dx {
+			err += dx
+			y1 += sy
+		}
+	}
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// getBasicFont 返回簡易 5x7 點陣字體（數字和運算符）
+func getBasicFont() map[byte][]string {
+	return map[byte][]string{
+		'0': {"01110", "10001", "10011", "10101", "11001", "10001", "01110"},
+		'1': {"00100", "01100", "00100", "00100", "00100", "00100", "01110"},
+		'2': {"01110", "10001", "00001", "00010", "00100", "01000", "11111"},
+		'3': {"11111", "00010", "00100", "00010", "00001", "10001", "01110"},
+		'4': {"00010", "00110", "01010", "10010", "11111", "00010", "00010"},
+		'5': {"11111", "10000", "11110", "00001", "00001", "10001", "01110"},
+		'6': {"00110", "01000", "10000", "11110", "10001", "10001", "01110"},
+		'7': {"11111", "00001", "00010", "00100", "01000", "01000", "01000"},
+		'8': {"01110", "10001", "10001", "01110", "10001", "10001", "01110"},
+		'9': {"01110", "10001", "10001", "01111", "00001", "00010", "01100"},
+		' ': {"00000", "00000", "00000", "00000", "00000", "00000", "00000"},
+		'+': {"00000", "00100", "00100", "11111", "00100", "00100", "00000"},
+		'-': {"00000", "00000", "00000", "11111", "00000", "00000", "00000"},
+		'=': {"00000", "00000", "11111", "00000", "11111", "00000", "00000"},
+		'?': {"01110", "10001", "00001", "00010", "00100", "00000", "00100"},
+	}
 }

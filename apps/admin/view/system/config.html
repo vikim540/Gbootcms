@@ -266,6 +266,13 @@
 		                     </div>
 		                </div>
 		                
+		                <div class="layui-form-item">
+		                     <label class="layui-form-label">Webhook推送</label>
+		                     <div class="layui-input-block">
+		                     	<input type="text" name="webhook_url"  value="{$configs.webhook_url.value}" placeholder="请输入Webhook推送地址（留空则不推送），如 https://example.com/webhook"  class="layui-input">
+		                     </div>
+		                </div>
+		                
 						 <div class="layui-form-item">
 							 <div class="layui-input-block">
 							    <button class="layui-btn" lay-submit name="submit" value="email">立即提交</button>

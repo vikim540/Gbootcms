@@ -3,6 +3,7 @@
 import (
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
+	"pbootcms-go/apps/common/mail"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +16,24 @@ type ConfigController struct {
 
 // Index - Configuration page
 func (cf *ConfigController) Index(c *gin.Context) {
+	// 測試郵件發送
+	if action := c.Query("action"); action == "sendemail" {
+		to := c.Query("to")
+		if to == "" {
+			to = model.GetConfigValue("smtp_username_test", "")
+		}
+		if to == "" {
+			cf.JSONFail(c, "請先設置測試收件郵箱")
+			return
+		}
+		if err := mail.SendTestMail(to); err != nil {
+			cf.JSONFail(c, "發送失敗："+err.Error())
+			return
+		}
+		cf.JSONOKMsg(c, "測試郵件發送成功")
+		return
+	}
+
 	if c.Request.Method == "POST" {
 		submit := c.PostForm("submit")
 		names := []string{
@@ -37,6 +56,7 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			"smtp_server", "smtp_port", "smtp_ssl", "smtp_username",
 			"smtp_password", "smtp_username_test", "message_send_mail",
 			"form_send_mail", "comment_send_mail", "message_send_to",
+			"webhook_url",
 			"baidu_zz_token", "baidu_ks_token",
 			"api_open", "api_auth", "api_appid", "api_secret",
 			"watermark_open", "watermark_text", "watermark_text_font",

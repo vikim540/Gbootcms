@@ -157,7 +157,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		case "commentcodestatus":
 			return "0" // 0=關閉評論驗證碼
 		case "msgcodestatus":
-			return "0" // 0=關閉留言驗證碼
+			return model.GetConfigValue("message_check_code", "1")
 		case "httpurl":
 			return "/" // 簡化實現
 		// Company 字段路由: {gboot:companyname} → company.name
@@ -913,7 +913,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			num = n
 		}
 		var messages []model.Message
-		model.DB.Where("status >= 0").Order("id DESC").Limit(num).Find(&messages)
+		model.DB.Where("status = 1").Order("id DESC").Limit(num).Find(&messages)
 		var sb strings.Builder
 		for i, m := range messages {
 			data := map[string]interface{}{
@@ -939,7 +939,37 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 	})
 
 	p.Register("formlist", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		fcode := params["fcode"]
+		if fcode == "" {
+			return ""
+		}
+		num := 10
+		if n, err := strconv.Atoi(params["num"]); err == nil && n > 0 {
+			num = n
+		}
+		// 查 ay_form 獲取 table_name
+		tableName := content.GetFormTableByCode(fcode)
+		if tableName == "" {
+			return ""
+		}
+		// 查動態表數據
+		var rows []map[string]interface{}
+		model.DB.Raw("SELECT * FROM " + tableName + " ORDER BY id DESC LIMIT " + strconv.Itoa(num)).Scan(&rows)
+		if len(rows) == 0 {
+			return ""
+		}
+		var sb strings.Builder
+		for i, row := range rows {
+			data := make(map[string]interface{})
+			for k, v := range row {
+				data[k] = fmt.Sprintf("%v", v)
+			}
+			data["i"] = strconv.Itoa(i + 1)
+			data["date"] = data["create_time"]
+			rowHTML := ReplaceInnerTags(inner, "form", data)
+			sb.WriteString(rowHTML)
+		}
+		return sb.String()
 	})
 
 	p.Register("search", func(tagName string, params map[string]string, inner string) string {
