@@ -12,7 +12,7 @@ import (
 )
 
 // MessageController - 留言管理控制器
-// 對應 PHP: apps/admin/controller/MessageController.php
+// 對應 PHP: apps/admin/controller/content/MessageController.php
 type MessageController struct {
 	common.BaseController
 }
@@ -35,7 +35,7 @@ func (ms *MessageController) Index(c *gin.Context) {
 	}
 
 	var messages []model.Message
-	model.DB.Order("askdate DESC").Find(&messages)
+	model.DB.Order("id DESC").Find(&messages)
 
 	// 獲取留言字段定義（fcode=1）
 	fields := content.GetFormFieldByCode("1")
@@ -43,18 +43,17 @@ func (ms *MessageController) Index(c *gin.Context) {
 	// 處理時間格式
 	type msgRow struct {
 		model.Message
-		AskDateStr    string
-		ReplyDateStr  string
 		CreateTimeStr string
+		UpdateTimeStr string
 	}
 	var rows []msgRow
 	for _, m := range messages {
 		row := msgRow{Message: m}
-		if !m.AskDate.IsZero() {
-			row.AskDateStr = m.AskDate.Format("2006-01-02 15:04:05")
+		if !m.CreateTime.IsZero() {
+			row.CreateTimeStr = m.CreateTime.Format("2006-01-02 15:04:05")
 		}
-		if !m.ReplyDate.IsZero() {
-			row.ReplyDateStr = m.ReplyDate.Format("2006-01-02 15:04:05")
+		if !m.UpdateTime.IsZero() {
+			row.UpdateTimeStr = m.UpdateTime.Format("2006-01-02 15:04:05")
 		}
 		rows = append(rows, row)
 	}
@@ -76,9 +75,10 @@ func (ms *MessageController) Mod(c *gin.Context) {
 
 	if c.Request.Method == "POST" {
 		model.DB.Model(&model.Message{}).Where("id = ?", id).Updates(map[string]interface{}{
-			"replycontent": c.PostForm("replycontent"),
-			"replydate":    time.Now(),
-			"status":       c.PostForm("status"),
+			"recontent":   c.PostForm("replycontent"),
+			"status":      c.PostForm("status"),
+			"update_time": time.Now().Format("2006-01-02 15:04:05"),
+			"update_user": "admin",
 		})
 		ms.JSONOKMsg(c, common.NoticeReply)
 		return

@@ -257,14 +257,17 @@ func (fc *FrontController) Message(c *gin.Context) {
 		}
 
 		msg := model.Message{
-			Contacts: filterGbootIf(c.PostForm("contacts")),
-			Mobile:   filterGbootIf(c.PostForm("mobile")),
-			Content:  filterGbootIf(c.PostForm("content")),
-			IP:       clientIP,
-			OS:       parseUserOS(c.Request.UserAgent()),
-			Browser:  parseUserBrowser(c.Request.UserAgent()),
-			AskDate:  time.Now(),
-			Status:   0,
+			Acode:      "cn",
+			Contacts:   filterGbootIf(c.PostForm("contacts")),
+			Mobile:     filterGbootIf(c.PostForm("mobile")),
+			Content:    filterGbootIf(c.PostForm("content")),
+			IP:         clientIP,
+			OS:         parseUserOS(c.Request.UserAgent()),
+			Browser:    parseUserBrowser(c.Request.UserAgent()),
+			CreateTime: time.Now(),
+			Status:     0,
+			CreateUser: "guest",
+			UpdateUser: "guest",
 		}
 		// 審核狀態：message_verify='0' 時直接通過
 		if model.GetConfigValue("message_verify", "1") == "0" {

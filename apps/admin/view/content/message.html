@@ -43,7 +43,7 @@
                                 </td>
                                 <td>{{msg.Browser}}</td>
                                 <td>{{msg.OS}}</td>
-                                <td>{{msg.AskDateStr}}</td>
+                                <td>{{msg.CreateTimeStr}}</td>
                                 <td>
                                     {% if msg.Status == 1 %}
                                     <a href="javascript:;" onclick="toggleStatus({{msg.ID}}, 0)" class="layui-btn layui-btn-xs layui-btn-normal">已審核</a>
@@ -95,7 +95,7 @@
                     <div class="layui-form-item">
                         <label class="layui-form-label">回覆內容</label>
                         <div class="layui-input-block">
-                            <textarea name="replycontent" class="layui-textarea" placeholder="請輸入回覆內容">{{message.ReplyContent}}</textarea>
+                            <textarea name="replycontent" class="layui-textarea" placeholder="請輸入回覆內容">{{message.ReContent}}</textarea>
                         </div>
                     </div>
                     <div class="layui-form-item">

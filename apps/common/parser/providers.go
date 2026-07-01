@@ -917,20 +917,18 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		var sb strings.Builder
 		for i, m := range messages {
 			data := map[string]interface{}{
-				"n":             i,
-				"i":             i + 1,
-				"contacts":      m.Contacts,
-				"mobile":        m.Mobile,
-				"content":       m.Content,
-				"askdate":       m.AskDate.Format("2006-01-02"),
-				"status":        m.Status,
-				"nickname":      m.Nickname,
-				"headpic":       m.HeadPic,
-				"replycontent":  m.ReplyContent,
-				"recontent":     m.ReplyContent, // 兼容模板中 [message:recontent]
-				"replydate":     m.ReplyDate.Format("2006-01-02"),
-				"os":            m.OS,
-				"bs":            m.Browser,
+				"n":            i,
+				"i":            i + 1,
+				"contacts":     m.Contacts,
+				"mobile":       m.Mobile,
+				"content":      m.Content,
+				"create_time":  m.CreateTime.Format("2006-01-02"),
+				"status":       m.Status,
+				"recontent":    m.ReContent,
+				"update_time":  m.UpdateTime.Format("2006-01-02"),
+				"os":           m.OS,
+				"bs":           m.Browser,
+				"ip":           m.IP,
 			}
 			row := ReplaceInnerTags(inner, "message", data)
 			sb.WriteString(row)
