@@ -951,10 +951,84 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		if n, err := strconv.Atoi(params["num"]); err == nil && n > 0 {
 			num = n
 		}
-		var contents []model.Content
 		like := "%" + keyword + "%"
-		model.DB.Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like).
-			Order("date DESC").Limit(num).Find(&contents)
+		query := model.DB.Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
+
+		// scode 過濾（可選）
+		scode := params["scode"]
+		if scode != "" {
+			query = query.Where("scode IN ?", findAllChildScodes(scode))
+		}
+
+		order := params["order"]
+		if order == "" {
+			order = "date"
+		}
+		switch order {
+		case "sorting":
+			query = query.Order("sorting ASC, date DESC")
+		case "visits":
+			query = query.Order("visits DESC")
+		default:
+			query = query.Order("date DESC")
+		}
+
+		// 分頁支援
+		pageEnabled := params["page"] == "1"
+		var total int64
+		currentPage := 1
+
+		var contents []model.Content
+		if pageEnabled {
+			if ctx.CurrentPage > 0 {
+				currentPage = ctx.CurrentPage
+			}
+			offset := (currentPage - 1) * num
+			query.Offset(offset).Limit(num).Find(&contents)
+
+			countQuery := model.DB.Model(&model.Content{}).
+				Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
+			if scode != "" {
+				countQuery = countQuery.Where("scode IN ?", findAllChildScodes(scode))
+			}
+			countQuery.Count(&total)
+		} else {
+			query.Limit(num).Find(&contents)
+			countQuery := model.DB.Model(&model.Content{}).
+				Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
+			if scode != "" {
+				countQuery = countQuery.Where("scode IN ?", findAllChildScodes(scode))
+			}
+			countQuery.Count(&total)
+		}
+
+		// 設置分頁資訊
+		totalPages := int(total) / num
+		if int(total)%num > 0 {
+			totalPages++
+		}
+		if totalPages < 1 {
+			totalPages = 1
+		}
+
+		basePath := "/search?keyword=" + urlEncode(keyword) + "&"
+		ctx.Page["current"] = currentPage
+		ctx.Page["count"] = totalPages
+		ctx.Page["rows"] = int(total)
+		ctx.Page["basePath"] = basePath
+		ctx.Page["index"] = basePath + "page=1"
+		if currentPage > 1 {
+			ctx.Page["pre"] = fmt.Sprintf("%spage=%d", basePath, currentPage-1)
+		} else {
+			ctx.Page["pre"] = ""
+		}
+		if currentPage < totalPages {
+			ctx.Page["next"] = fmt.Sprintf("%spage=%d", basePath, currentPage+1)
+		} else {
+			ctx.Page["next"] = ""
+		}
+		ctx.Page["last"] = fmt.Sprintf("%spage=%d", basePath, totalPages)
+
 		var sb strings.Builder
 		for i, c := range contents {
 			data := contentToMap(&c, i)

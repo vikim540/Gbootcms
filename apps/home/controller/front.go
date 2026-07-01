@@ -113,6 +113,9 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 func (fc *FrontController) Search(c *gin.Context) {
 	ctx := fc.buildContext(c)
 	ctx.Keyword = c.Query("keyword")
+	if p, err := strconv.Atoi(c.Query("page")); err == nil && p > 0 {
+		ctx.CurrentPage = p
+	}
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
 	content := fc.Store.Render("search.html")

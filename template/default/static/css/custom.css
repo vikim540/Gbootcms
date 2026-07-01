@@ -1,4 +1,17 @@
+/* 首頁幻燈片：限制容器高度 400px */
+.swiper-container {
+    max-height: 400px;
+    overflow: hidden;
+}
+.swiper-wrapper {
+    max-height: 400px;
+}
+.swiper-slide {
+    max-height: 400px;
+    overflow: hidden;
+}
 .slideshow {
-    height: 400px;
+    max-height: 400px;
     object-fit: cover;
+    width: 100%;
 }
