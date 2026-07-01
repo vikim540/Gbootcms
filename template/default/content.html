@@ -12,7 +12,7 @@
     <div class="breadcrumb">{gboot:position separator=/}</div>
 
     <article class="content-detail">
-        <h1>{content:title}</h1>
+        <h1 {gboot:if('{content:titlecolor}'!='')}style="color: {content:titlecolor};"{/gboot:if}>{content:title}</h1>
         <div class="meta">
             <span>作者：{content:author}</span>
             <span>時間：{content:date style=Y-m-d}</span>

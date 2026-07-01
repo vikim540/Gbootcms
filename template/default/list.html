@@ -20,7 +20,7 @@
                 {gboot:if('[list:ico]'!='')}
                 <img src="[list:ico]" alt="[list:title]">
                 {/gboot:if}
-                <h3>[list:title]</h3>
+                <h3 {gboot:if('[list:titlecolor]'!='')}style="color: [list:titlecolor]"{/gboot:if}>[list:title]</h3>
                 <span>[list:date style=Y-m-d]</span>
             </a>
         </div>

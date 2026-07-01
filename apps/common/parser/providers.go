@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"net/url"
 	"pbootcms-go/apps/admin/model"
+	"pbootcms-go/apps/admin/model/content"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,6 +21,7 @@ type Context struct {
 	Member      *model.Member
 	Keyword     string
 	CurrentPage int
+	Filters     map[string]string // ext_ 篩選參數 (ext_type=基礎版 等)
 }
 
 // addLeadingSlash 為本地路徑添加前導 /
@@ -563,6 +566,14 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		var total int64
 		currentPage := 1
 
+		// ext_ 篩選：使用 JOIN 方式過濾（比子查詢在 GORM 中更可靠）
+		if len(ctx.Filters) > 0 {
+			query = query.Joins("JOIN ay_content_ext ON ay_content.id = ay_content_ext.contentid")
+			for field, value := range ctx.Filters {
+				query = query.Where("ay_content_ext."+field+" LIKE ?", "%"+value+"%")
+			}
+		}
+
 		// 先取數，再獨立取總數（避免 GORM Count 污染查詢狀態）
 		var contents []model.Content
 		if pageEnabled {
@@ -572,17 +583,32 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			offset := (currentPage - 1) * num
 			query.Offset(offset).Limit(num).Find(&contents)
 
-			// 獨立查詢取總記錄數
-			model.DB.Model(&model.Content{}).
-				Where("status = 1").
-				Count(&total)
-		} else {
-			query.Limit(num).Find(&contents)
-			// 獨立查詢取總記錄數（含 scode 過濾）
+			// 獨立查詢取總記錄數（含 scode 過濾 + ext_ 篩選）
 			countQuery := model.DB.Model(&model.Content{}).
 				Where("status = 1")
 			if scode != "" {
 				countQuery = countQuery.Where("scode IN (?)", findAllChildScodes(scode))
+			}
+			if len(ctx.Filters) > 0 {
+				countQuery = countQuery.Joins("JOIN ay_content_ext ON ay_content.id = ay_content_ext.contentid")
+				for field, value := range ctx.Filters {
+					countQuery = countQuery.Where("ay_content_ext."+field+" LIKE ?", "%"+value+"%")
+				}
+			}
+			countQuery.Count(&total)
+		} else {
+			query.Limit(num).Find(&contents)
+			// 獨立查詢取總記錄數（含 scode 過濾 + ext_ 篩選）
+			countQuery := model.DB.Model(&model.Content{}).
+				Where("status = 1")
+			if scode != "" {
+				countQuery = countQuery.Where("scode IN (?)", findAllChildScodes(scode))
+			}
+			if len(ctx.Filters) > 0 {
+				countQuery = countQuery.Joins("JOIN ay_content_ext ON ay_content.id = ay_content_ext.contentid")
+				for field, value := range ctx.Filters {
+					countQuery = countQuery.Where("ay_content_ext."+field+" LIKE ?", "%"+value+"%")
+				}
 			}
 			countQuery.Count(&total)
 		}
@@ -603,6 +629,10 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			} else if ctx.Sort.URLName != "" {
 				basePath = "/" + ctx.Sort.URLName + "/?"
 			}
+		}
+		// 保留 ext_ 篩選參數，使分頁鏈接攜帶當前篩選條件
+		for k, v := range ctx.Filters {
+			basePath += k + "=" + urlEncode(v) + "&"
 		}
 
 		ctx.Page["current"] = currentPage
@@ -946,8 +976,63 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		return ""
 	})
 
+	// selectall: 生成「全部」連結（清除該欄位篩選）
+	p.Register("selectall", func(tagName string, params map[string]string, inner string) string {
+		field := params["field"]
+		if field == "" {
+			return ""
+		}
+		text := params["text"]
+		if text == "" {
+			text = "全部"
+		}
+		class := params["class"]
+		active := params["active"]
+		if active == "" {
+			active = class
+		}
+		// 當前是否有該欄位的篩選
+		currentVal := ctx.Filters[field]
+		cssClass := class
+		if currentVal == "" {
+			cssClass = active
+		}
+		// 生成清除該欄位的 URL（保留其他篩選參數）
+		link := buildFilterURL(ctx, field, "")
+		return fmt.Sprintf(`<a href="%s" class="%s">%s</a>`, link, cssClass, text)
+	})
+
+	// select: 遍歷擴展欄位的選項，渲染篩選按鈕
 	p.Register("select", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		field := params["field"]
+		if field == "" || inner == "" {
+			return ""
+		}
+		// 查 ay_extfield 取選項（表名 ay_extfield，非 GORM 默認推斷）
+		var ef content.ExtField
+		if err := model.DB.Raw("SELECT * FROM ay_extfield WHERE field = ? LIMIT 1", field).Scan(&ef).Error; err != nil {
+			return ""
+		}
+		if ef.Value == "" {
+			return ""
+		}
+		options := strings.Split(ef.Value, ",")
+		currentVal := ctx.Filters[field]
+		var buf strings.Builder
+		for _, opt := range options {
+			opt = strings.TrimSpace(opt)
+			if opt == "" {
+				continue
+			}
+			link := buildFilterURL(ctx, field, opt)
+			// 替換 inner 中的 [select:link] [select:value] [select:current]
+			row := inner
+			row = strings.ReplaceAll(row, "[select:link]", link)
+			row = strings.ReplaceAll(row, "[select:value]", opt)
+			row = strings.ReplaceAll(row, "[select:current]", currentVal)
+			buf.WriteString(row)
+		}
+		return buf.String()
 	})
 }
 
@@ -1144,6 +1229,41 @@ func contentURL(c *model.Content) string {
 	return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
 }
 
+// buildFilterURL 生成帶篩選參數的 URL（保留其他欄位的篩選）
+func buildFilterURL(ctx *Context, field, value string) string {
+	// 基礎路徑：當前欄目頁
+	base := "/"
+	if ctx.Sort != nil {
+		if ctx.Sort.Filename != "" {
+			base = "/" + ctx.Sort.Filename
+		} else if ctx.Sort.URLName != "" {
+			base = "/" + ctx.Sort.URLName
+		} else {
+			base = "/sort/" + ctx.Sort.Scode
+		}
+	}
+	// 構建查詢參數
+	var params []string
+	for k, v := range ctx.Filters {
+		if k == field {
+			continue // 跳過當前欄位（由 value 決定是否重新加入）
+		}
+		params = append(params, k+"="+urlEncode(v))
+	}
+	if value != "" {
+		params = append(params, field+"="+urlEncode(value))
+	}
+	if len(params) > 0 {
+		base += "?" + strings.Join(params, "&")
+	}
+	return base
+}
+
+// urlEncode 簡單 URL 編碼
+func urlEncode(s string) string {
+	return strings.ReplaceAll(url.QueryEscape(s), "+", "%20")
+}
+
 func getContentField(ctx *Context, field string, params map[string]string) string {
 	c := ctx.Content
 	if c == nil {
@@ -1152,6 +1272,8 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 	switch field {
 	case "title":
 		return AdjustValue(c.Title, params)
+	case "titlecolor":
+		return c.TitleColor
 	case "subtitle":
 		return c.Subtitle
 	case "keywords":
@@ -1222,8 +1344,13 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 		return "沒有了"
 	default:
 		if strings.HasPrefix(field, "ext_") {
-			// TODO: 擴展字段需要 Content 模型支持 Extra JSON 字段
-			// 目前返回空，待 Content 模型增加 Extra 字段後啟用
+			// 從 ay_content_ext 表讀取擴展字段
+			ext := content.GetContentExtByContentID(c.ID)
+			if ext != nil {
+				if v, ok := ext[field]; ok {
+					return fmt.Sprintf("%v", v)
+				}
+			}
 			return ""
 		}
 		return ""
@@ -1268,12 +1395,13 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 	if pics != "" && !strings.HasPrefix(pics, "/") && !strings.HasPrefix(pics, "http") {
 		pics = "/" + pics
 	}
-	return map[string]interface{}{
+	m := map[string]interface{}{
 		"n":           index,
 		"i":           index + 1,
 		"id":          c.ID,
 		"scode":       c.Scode,
 		"title":       c.Title,
+		"titlecolor":  c.TitleColor,
 		"subtitle":    c.Subtitle,
 		"keywords":    c.Keywords,
 		"description": c.Description,
@@ -1290,6 +1418,17 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 		"isheadline":  c.IsHeadline,
 		"link":        link,
 	}
+
+	// 注入擴展字段（ext_前綴），供列表頁 [list:ext_xxx] 使用
+	ext := content.GetContentExtByContentID(c.ID)
+	if ext != nil {
+		for k, v := range ext {
+			if strings.HasPrefix(k, "ext_") {
+				m[k] = fmt.Sprintf("%v", v)
+			}
+		}
+	}
+	return m
 }
 
 func sortToMap(s *model.ContentSort, index int) map[string]interface{} {

@@ -253,7 +253,15 @@ func (fc *FrontController) renderSortPage(c *gin.Context, sort *model.ContentSor
 
 func (fc *FrontController) buildContext(c *gin.Context) *parser.Context {
 	ctx := &parser.Context{
-		Page: make(map[string]interface{}),
+		Page:    make(map[string]interface{}),
+		Filters: make(map[string]string),
+	}
+
+	// 收集 ext_ 查詢參數供篩選使用
+	for key, vals := range c.Request.URL.Query() {
+		if strings.HasPrefix(key, "ext_") && len(vals) > 0 && vals[0] != "" {
+			ctx.Filters[key] = vals[0]
+		}
 	}
 
 	var site model.Site
