@@ -96,9 +96,12 @@ func SetupAdminRoutes(r *gin.Engine) {
 
 		ms := &content.MessageController{}
 		adminGroup.GET("/content/message/index", ms.Index)
+		adminGroup.GET("/content/message", ms.Index)
 		adminGroup.GET("/content/message/mod/:id", ms.Mod)
 		adminGroup.POST("/content/message/mod/:id", ms.Mod)
+		adminGroup.GET("/content/message/del", ms.Del)
 		adminGroup.POST("/content/message/del", ms.Del)
+		adminGroup.GET("/content/message/clear", ms.Clear)
 		adminGroup.POST("/content/message/clear", ms.Clear)
 
 		tg := &content.TagsController{}

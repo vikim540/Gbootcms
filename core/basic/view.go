@@ -68,6 +68,9 @@ func registerPongo2Filters() {
 		}
 		return pongo2.AsValue(s), nil
 	})
+	pongo2.RegisterFilter("add", func(in *pongo2.Value, param *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
+		return pongo2.AsValue(in.Integer() + param.Integer()), nil
+	})
 }
 
 func GetAdminView(tplPath string) (*pongo2.Template, error) {
