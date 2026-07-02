@@ -47,4 +47,6 @@ type CommentView struct {
 	// JOIN ay_member d（被回覆人，僅詳情頁使用）
 	Pusername string `gorm:"column:pusername" json:"pusername"`
 	Pnickname string `gorm:"column:pnickname" json:"pnickname"`
+	// 非資料庫欄位：格式化時間字串
+	CreateTimeStr string `gorm:"-" json:"create_time_str"`
 }

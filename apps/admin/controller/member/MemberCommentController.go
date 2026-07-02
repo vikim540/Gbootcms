@@ -15,6 +15,14 @@ type MemberCommentController struct {
 	common.BaseController
 }
 
+// allowedSearchFields 允許搜索的欄位白名單（防止SQL注入）
+var allowedSearchFields = map[string]bool{
+	"b.title":      true,
+	"a.comment":    true,
+	"c.username":   true,
+	"c.nickname":   true,
+}
+
 // Index - 評論列表/搜索/詳情
 func (mc *MemberCommentController) Index(c *gin.Context) {
 	// 詳情模式：帶 id 參數時顯示單條評論詳情
@@ -28,7 +36,10 @@ func (mc *MemberCommentController) Index(c *gin.Context) {
 			Joins("LEFT JOIN ay_member d ON a.puid=d.id").
 			Where("a.id = ?", id).
 			First(&comment)
-		common.Render(c, "member/comment.html", gin.H{"more": true, "comment": comment})
+		if !comment.CreateTime.IsZero() {
+			comment.CreateTimeStr = comment.CreateTime.Format("2006-01-02 15:04:05")
+		}
+		common.Render(c, "member/comment.html", gin.H{"more": true, "comment": comment, "C": "member/comment"})
 		return
 	}
 
@@ -42,13 +53,24 @@ func (mc *MemberCommentController) Index(c *gin.Context) {
 		Joins("LEFT JOIN ay_member c ON a.uid=c.id").
 		Order("a.id DESC")
 
-	if field != "" && keyword != "" {
+	// 白名單驗證 field（防止SQL注入）
+	if field != "" && keyword != "" && allowedSearchFields[field] {
 		query = query.Where(field+" LIKE ?", "%"+keyword+"%")
 	}
 
 	var comments []model.CommentView
 	query.Find(&comments)
-	common.Render(c, "member/comment.html", gin.H{"list": true, "comments": comments})
+	// 格式化時間
+	for i := range comments {
+		if !comments[i].CreateTime.IsZero() {
+			comments[i].CreateTimeStr = comments[i].CreateTime.Format("2006-01-02 15:04:05")
+		}
+	}
+	common.Render(c, "member/comment.html", gin.H{
+		"list":     true,
+		"comments": comments,
+		"C":        "member/comment",
+	})
 }
 
 // Mod - 修改評論（單字段切換/批量審核/批量禁用）
@@ -105,7 +127,12 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 		Joins("LEFT JOIN ay_member c ON a.uid=c.id").
 		Order("a.id DESC").
 		Find(&comments)
-	common.Render(c, "member/comment.html", gin.H{"list": true, "comments": comments})
+	for i := range comments {
+		if !comments[i].CreateTime.IsZero() {
+			comments[i].CreateTimeStr = comments[i].CreateTime.Format("2006-01-02 15:04:05")
+		}
+	}
+	common.Render(c, "member/comment.html", gin.H{"list": true, "comments": comments, "C": "member/comment"})
 }
 
 // Del - 刪除評論（單條/批量）

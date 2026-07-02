@@ -7,6 +7,7 @@ import (
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -89,18 +90,19 @@ func (mb *MemberController) Add(c *gin.Context) {
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 
 		model.DB.Create(&model.Member{
-			Ucode:       ucode,
-			Username:    username,
-			Nickname:    c.PostForm("nickname"),
-			Password:    encPwd,
-			Useremail:   c.PostForm("useremail"),
-			Usermobile:  c.PostForm("usermobile"),
-			Headpic:     c.PostForm("headpic"),
-			GID:         gid,
-			Score:       score,
-			Status:      status,
-			Activation:  1,
-			LoginCount:  0,
+			Ucode:        ucode,
+			Username:     username,
+			Nickname:     c.PostForm("nickname"),
+			Password:     encPwd,
+			Useremail:    c.PostForm("useremail"),
+			Usermobile:   c.PostForm("usermobile"),
+			Headpic:      c.PostForm("headpic"),
+			GID:          gid,
+			Score:        score,
+			Status:       status,
+			Activation:   1,
+			LoginCount:   0,
+			RegisterTime: time.Now(),
 		})
 		mb.JSONOKMsg(c, common.NoticeAdd)
 		return
