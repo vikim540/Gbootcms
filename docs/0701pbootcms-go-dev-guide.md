@@ -146,8 +146,40 @@ mg.JSONOKMsg(c, "新增成功")
 | 8 | 硬編碼通知消息 | 引用 notice.go 常量 | 低 |
 | 9 | 用簡體中文寫代碼/模板 | 全部繁體化（`/修改繁體文本`） | 中 |
 | 10 | 忘記傳遞 `list`/`mod` 標誌 | Render 時必須傳 `gin.H{"list": true}` | 高 |
+| 11 | 狀態切換鏈接缺少 `class="switch"` | 必須加 `class="switch"`（comm.js 用此選擇器攔截 AJAX） | 高 |
+| 12 | 前台默認頭像路徑不一致 | 統一用 `/static/admin/images/logo.png`（與留言板一致） | 中 |
 
-### 0.4 模板引擎速查（不要混淆）
+### 0.4 後台狀態切換速查（class="switch"）
+
+後台模板的狀態切換圖標**必須**加 `class="switch"`，否則 `comm.js` 無法攔截點擊事件，
+瀏覽器會直接訪問 URL 並顯示 JSON 文本 `{"code":1,"msg":"修改成功"}`。
+
+```html
+<!-- ❌ 錯誤：缺少 class="switch"，點擊後瀏覽器直接顯示 JSON -->
+<a href="/admin/xxx/mod/id/[value->id]/field/status/value/0"><i class='fa fa-toggle-on'></i></a>
+
+<!-- ✅ 正確：comm.js 用 $('.switch') 攔截，發 AJAX 請求，切換圖標，不跳轉 -->
+<a href="/admin/xxx/mod/id/[value->id]/field/status/value/0" class="switch"><i class='fa fa-toggle-on'></i></a>
+```
+
+**原理**：`static/admin/js/comm.js` 中 `$('.switch').on("click", ".fa-toggle-on", ...)` 用 `$.get()` 發送請求，然後修改 DOM 切換圖標狀態，`return false` 阻止跳轉。所有後台模板的狀態切換鏈接（status/required/istop/isrecommend 等）都必須加此 class。
+
+### 0.5 前台默認頭像速查
+
+前台所有用戶頭像為空時，統一使用 `/static/admin/images/logo.png`（與留言板 message provider 一致）：
+
+```go
+// ✅ 正確
+headpic := c.Headpic
+if headpic == "" {
+    headpic = "/static/admin/images/logo.png"
+}
+
+// ❌ 錯誤：路徑不一致
+headpic = "/static/images/logo.png"
+```
+
+### 0.6 模板引擎速查（不要混淆）
 
 | 場景 | 引擎 | 語法 | 轉換器 |
 |------|------|------|--------|
@@ -156,7 +188,7 @@ mg.JSONOKMsg(c, "新增成功")
 
 > **關鍵區別**：後台模板用 `{$var->field}` 語法（pongo2 轉譯），前台模板用 `{gboot:xxx}` 和 `[prefix:field]` 語法。
 
-### 0.5 會員系統速查
+### 0.7 會員系統速查
 
 #### Session 鍵名（前台會員）
 

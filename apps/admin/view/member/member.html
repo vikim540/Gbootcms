@@ -37,9 +37,9 @@
 	                        <td>[value->nickname]</td>
 	                        <td>
 	                       		{if($value->status)}
-		                        <a href="/admin/member/mod/id/[value->id]?field=status&value=0"><i class='fa fa-toggle-on' title="點擊禁用"></i></a>
+		                        <a href="/admin/member/mod/id/[value->id]/field/status/value/0" class="switch"><i class='fa fa-toggle-on' title="點擊禁用"></i></a>
 		                        {else}
-		                        <a href="/admin/member/mod/id/[value->id]?field=status&value=1"><i class='fa fa-toggle-off' title="點擊啟用"></i></a>
+		                        <a href="/admin/member/mod/id/[value->id]/field/status/value/1" class="switch"><i class='fa fa-toggle-off' title="點擊啟用"></i></a>
 		                        {/if}
 	                        </td>
 	                        <td>[value->gname]</td>

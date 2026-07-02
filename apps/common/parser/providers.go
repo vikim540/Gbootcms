@@ -1754,7 +1754,7 @@ func commentToMap(c *model.CommentView, index int) map[string]interface{} {
 	}
 	headpic := c.Headpic
 	if headpic == "" {
-		headpic = "/static/images/logo.png"
+		headpic = "/static/admin/images/logo.png"
 	}
 	dateStr := ""
 	if !c.CreateTime.IsZero() {
