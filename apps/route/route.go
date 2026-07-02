@@ -218,13 +218,15 @@ func SetupAdminRoutes(r *gin.Engine) {
 	adminGroup.POST("/member/add", mb.Add)
 	adminGroup.Any("/member/mod/*action", mb.Mod)
 	adminGroup.POST("/member/del", mb.Del)
+	adminGroup.Any("/member/del/*action", mb.Del)
 
-		mg := &member.MemberGroupController{}
+	mg := &member.MemberGroupController{}
 	adminGroup.GET("/member/group/index", mg.Index)
 	adminGroup.GET("/member/group/add", mg.Add)
 	adminGroup.POST("/member/group/add", mg.Add)
 	adminGroup.Any("/member/group/mod/*action", mg.Mod)
 	adminGroup.POST("/member/group/del", mg.Del)
+	adminGroup.Any("/member/group/del/*action", mg.Del)
 
 	mf := &member.MemberFieldController{}
 	adminGroup.GET("/member/field/index", mf.Index)
@@ -232,11 +234,12 @@ func SetupAdminRoutes(r *gin.Engine) {
 	adminGroup.POST("/member/field/add", mf.Add)
 	adminGroup.Any("/member/field/mod/*action", mf.Mod)
 	adminGroup.POST("/member/field/del", mf.Del)
+	adminGroup.Any("/member/field/del/*action", mf.Del)
 
-		mcc := &member.MemberCommentController{}
-		adminGroup.GET("/member/comment/index", mcc.Index)
-		adminGroup.GET("/member/comment/mod/:id", mcc.Mod)
-		adminGroup.POST("/member/comment/mod/:id", mcc.Mod)
-		adminGroup.POST("/member/comment/del", mcc.Del)
+	mcc := &member.MemberCommentController{}
+	adminGroup.GET("/member/comment/index", mcc.Index)
+	adminGroup.Any("/member/comment/mod/*action", mcc.Mod)
+	adminGroup.POST("/member/comment/del", mcc.Del)
+	adminGroup.Any("/member/comment/del/*action", mcc.Del)
 	}
 }

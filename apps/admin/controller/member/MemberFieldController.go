@@ -5,6 +5,7 @@ import (
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -46,6 +47,8 @@ func (mf *MemberFieldController) Add(c *gin.Context) {
 		length, _ := strconv.Atoi(c.DefaultPostForm("length", "20"))
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 
+		now := time.Now()
+		username := mf.GetAdminUsername(c)
 		model.DB.Create(&model.MemberField{
 			Name:        name,
 			Length:      length,
@@ -53,6 +56,10 @@ func (mf *MemberFieldController) Add(c *gin.Context) {
 			Description: description,
 			Sorting:     sorting,
 			Status:      status,
+			CreateUser:  username,
+			UpdateUser:  username,
+			CreateTime:  now,
+			UpdateTime:  now,
 		})
 		mf.JSONOKMsg(c, common.NoticeAdd)
 		return
@@ -115,9 +122,18 @@ func (mf *MemberFieldController) Mod(c *gin.Context) {
 
 // Del - 刪除會員欄位
 func (mf *MemberFieldController) Del(c *gin.Context) {
-	idStr := c.Query("id")
+	// 支援 *action 通配符路徑: /del/id/123
+	params := helper.ParseWildcardAction(c.Param("action"))
+	idStr := params["id"]
+	if idStr == "" {
+		idStr = c.Query("id")
+	}
 	if idStr == "" {
 		idStr = c.PostForm("id")
+	}
+	if idStr == "" {
+		mf.JSONFail(c, "缺少刪除目標ID")
+		return
 	}
 	model.DB.Delete(&model.MemberField{}, idStr)
 	mf.JSONOKMsg(c, common.NoticeDelete)

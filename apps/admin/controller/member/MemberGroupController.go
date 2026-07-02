@@ -146,9 +146,18 @@ func (mg *MemberGroupController) Mod(c *gin.Context) {
 
 // Del - 刪除會員等級
 func (mg *MemberGroupController) Del(c *gin.Context) {
-	idStr := c.Query("id")
+	// 支援 *action 通配符路徑: /del/id/123
+	params := helper.ParseWildcardAction(c.Param("action"))
+	idStr := params["id"]
+	if idStr == "" {
+		idStr = c.Query("id")
+	}
 	if idStr == "" {
 		idStr = c.PostForm("id")
+	}
+	if idStr == "" {
+		mg.JSONFail(c, "缺少刪除目標ID")
+		return
 	}
 	id, _ := strconv.Atoi(idStr)
 

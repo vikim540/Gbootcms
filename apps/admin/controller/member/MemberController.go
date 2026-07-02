@@ -213,7 +213,7 @@ func (mb *MemberController) Mod(c *gin.Context) {
 	})
 }
 
-// Del - 刪除會員（支援批量刪除）
+// Del - 刪除會員（支援批量刪除 + 單個刪除）
 func (mb *MemberController) Del(c *gin.Context) {
 	// 批量刪除
 	if c.Request.Method == "POST" {
@@ -225,10 +225,18 @@ func (mb *MemberController) Del(c *gin.Context) {
 		}
 	}
 
-	// 單個刪除
-	idStr := c.Query("id")
+	// 單個刪除 — 支援 *action 通配符路徑: /del/id/123
+	params := helper.ParseWildcardAction(c.Param("action"))
+	idStr := params["id"]
+	if idStr == "" {
+		idStr = c.Query("id")
+	}
 	if idStr == "" {
 		idStr = c.PostForm("id")
+	}
+	if idStr == "" {
+		mb.JSONFail(c, "缺少刪除目標ID")
+		return
 	}
 	model.DB.Delete(&model.Member{}, idStr)
 	mb.JSONOKMsg(c, common.NoticeDelete)

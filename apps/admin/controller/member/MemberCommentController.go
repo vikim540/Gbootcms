@@ -1,6 +1,7 @@
 package member
 
 import (
+	"pbootcms-go/apps/admin/helper"
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
 	"strconv"
@@ -73,14 +74,22 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 		}
 	}
 
-	// GET：單字段修改（狀態切換）
-	idStr := c.Param("id")
+	// 解析 *action 通配符
+	params := helper.ParseWildcardAction(c.Param("action"))
+	idStr := params["id"]
 	if idStr == "" {
 		idStr = c.Query("id")
 	}
-	field := c.Query("field")
-	value := c.Query("value")
+	field := params["field"]
+	if field == "" {
+		field = c.Query("field")
+	}
+	value := params["value"]
+	if value == "" {
+		value = c.Query("value")
+	}
 
+	// GET：單字段修改（狀態切換）
 	if field != "" && value != "" {
 		id, _ := strconv.Atoi(idStr)
 		model.DB.Model(&model.MemberComment{}).Where("id = ?", id).Update(field, value)
@@ -111,8 +120,16 @@ func (mc *MemberCommentController) Del(c *gin.Context) {
 		return
 	}
 
-	// GET：單條刪除
-	idStr := c.Query("id")
+	// GET：單條刪除 — 支援 *action 通配符路徑: /del/id/123
+	params := helper.ParseWildcardAction(c.Param("action"))
+	idStr := params["id"]
+	if idStr == "" {
+		idStr = c.Query("id")
+	}
+	if idStr == "" {
+		mc.JSONFail(c, "缺少刪除目標ID")
+		return
+	}
 	model.DB.Delete(&model.MemberComment{}, idStr)
 	mc.JSONOKMsg(c, common.NoticeDelete)
 }
