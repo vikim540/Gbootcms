@@ -3,7 +3,7 @@ package common
 import "strconv"
 
 // notice.go — 統一通知提示文案
-// 所有 controller 的 JSONOKMsg/JSONFailMsg 應引用此處常量，禁止硬編碼字符串。
+// 所有 controller 的 JSONOKMsg/JSONFail 應引用此處常量，禁止硬編碼字符串。
 // 帶變量的消息用函數，固定消息用常量。
 
 // ─── 通用操作 ───
@@ -42,6 +42,26 @@ const (
 	NoticeOptimize     = "優化成功"
 	NoticeRepair       = "修復成功"
 	NoticeBackup       = "備份成功"
+)
+
+// ─── 驗證碼 ───
+const (
+	NoticeCaptchaEmpty = "驗證碼不能為空"
+	NoticeCaptchaError = "驗證碼錯誤"
+)
+
+// ─── 通用錯誤 ───
+const (
+	NoticeFailAdd     = "新增失敗"
+	NoticeFailModify  = "修改失敗"
+	NoticeFailDelete  = "刪除失敗"
+	NoticeFailSave    = "保存失敗"
+	NoticeFailSubmit  = "提交失敗"
+	NoticeFailUpload  = "上傳失敗"
+	NoticeFailRequest = "請求發生錯誤"
+	NoticeParamEmpty  = "參數不能為空"
+	NoticeNoSelect    = "未選擇任何項目"
+	NoticeNoExist     = "數據不存在"
 )
 
 // ─── 緩存更新 ───

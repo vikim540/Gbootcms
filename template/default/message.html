@@ -10,7 +10,7 @@
 	{/gboot:if}
 	 
 	<!-- 留言記錄 -->
-    {gboot:message num=2}
+    {gboot:message num=10}
     <div class="media border-bottom pb-3 pt-3">
 	  <img class="mr-3" src="[message:headpic]" height="25">
 	  <div class="media-body">
@@ -54,6 +54,13 @@
     	<div class="col-lg-3"></div>
     	<div class="col-12 col-lg-6">
         	<form class="my-4" onsubmit="return submsg(this);">
+                <!-- 蜜罐欄位：人類不可見，機器人會自動填充 -->
+                <div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">
+                    <label>請勿填寫此欄位</label>
+                    <input type="text" name="website" tabindex="-1" autocomplete="off">
+                </div>
+                <!-- 時間陷阱：記錄頁面載入時間，提交間隔過短判定為機器人 -->
+                <input type="hidden" name="_loadts" value="{gboot:timestamp}">
                 <div class="form-group">
                     <label for="contacts">聯繫人</label>
                     <div>
@@ -109,6 +116,8 @@ function submsg(obj){
   var mobile=$(obj).find("#mobile").val();
   var content=$(obj).find("#content").val();
   var checkcode=$(obj).find("#checkcode").val();
+  var website=$(obj).find('input[name="website"]').val();
+  var loadts=$(obj).find('input[name="_loadts"]').val();
   
   $.ajax({
     type: 'POST',
@@ -118,7 +127,9 @@ function submsg(obj){
     	contacts: contacts,
     	mobile: mobile,
     	content: content,
-    	checkcode: checkcode
+    	checkcode: checkcode,
+    	website: website,
+    	_loadts: loadts
     },
     success: function (response, status) {
       if(response.code){

@@ -111,7 +111,7 @@ $(document).ready(function (e) {
             dataType: 'json',
             data: {},
             success: function (response, status) {
-                layer.msg(response.data);
+                layer.msg(response.data, {icon: 1});
                 if(response.tourl!=""){
                     location.href=response.tourl;
                 }

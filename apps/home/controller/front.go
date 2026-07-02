@@ -2,14 +2,10 @@ package controller
 
 import (
 	"fmt"
-	"image"
-	"image/color"
-	"image/draw"
-	"image/png"
-	"math/rand"
 	"net/http"
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/admin/model/content"
+	"pbootcms-go/apps/common"
 	"pbootcms-go/apps/common/mail"
 	"pbootcms-go/apps/common/parser"
 	"pbootcms-go/apps/common/webhook"
@@ -22,8 +18,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// 留言驗證碼存儲（前台用，與後台 checkCodeStore 分離）
-var messageCodeStore = make(map[string]string)
+// 統一驗證碼已移至 apps/common/captcha.go
 
 // 留言防頻繁提交：IP → 上次提交時間
 var messageRateLimit = make(map[string]time.Time)
@@ -227,6 +222,11 @@ func (fc *FrontController) Message(c *gin.Context) {
 			}
 		}
 
+		// 蜜罐 + 時間陷阱反垃圾檢查
+		if !fc.checkAntispam(c) {
+			return
+		}
+
 		// pboot:if 安全過濾
 		filterGbootIf := func(s string) string {
 			return gbootIfRegex.ReplaceAllString(s, "")
@@ -240,20 +240,18 @@ func (fc *FrontController) Message(c *gin.Context) {
 			return
 		}
 
-		// 驗證碼校驗（message_check_code 非 '0' 時啟用）
-		if model.GetConfigValue("message_check_code", "1") != "0" {
-			checkcode := strings.ToLower(c.PostForm("checkcode"))
-			if checkcode == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "驗證碼不能為空"})
+		// 留言需登錄檢查（message_rqlogin 配置啟用時，未登錄會員不可留言）
+		if model.GetConfigValue("message_rqlogin", "0") == "1" {
+			uid := common.GetSessionInt(c, "pboot_uid")
+			if uid == 0 {
+				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "請先註冊登錄後再留言！"})
 				return
 			}
-			cookie, _ := c.Cookie("PbootGo")
-			savedCode, ok := messageCodeStore[cookie]
-			if !ok || strings.ToLower(savedCode) != checkcode {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "驗證碼錯誤"})
-				return
-			}
-			delete(messageCodeStore, cookie)
+		}
+
+		// 統一驗證碼校驗（message_check_code 默認啟用）
+		if !common.VerifyCaptcha(c, "message_check_code", "1") {
+			return
 		}
 
 		msg := model.Message{
@@ -308,6 +306,11 @@ func (fc *FrontController) Message(c *gin.Context) {
 
 // handleFormSubmit 處理自定義表單提交（fcode≥2，寫入動態表 ay_diy_*）
 func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP string, filterGbootIf func(string) string) {
+	// 蜜罐 + 時間陷阱反垃圾檢查（與留言共用）
+	if !fc.checkAntispam(c) {
+		return
+	}
+
 	// 查 ay_form 獲取 table_name
 	form := content.GetFormByCode(fcode)
 	if form == nil || form.Table == "" {
@@ -316,20 +319,9 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 	}
 	tableName := form.Table
 
-	// 驗證碼校驗（form_check_code 非 '0' 時啟用，預設關閉）
-	if model.GetConfigValue("form_check_code", "0") != "0" {
-		checkcode := strings.ToLower(c.PostForm("checkcode"))
-		if checkcode == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "驗證碼不能為空"})
-			return
-		}
-		cookie, _ := c.Cookie("PbootGo")
-		savedCode, ok := messageCodeStore[cookie]
-		if !ok || strings.ToLower(savedCode) != checkcode {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "驗證碼錯誤"})
-			return
-		}
-		delete(messageCodeStore, cookie)
+	// 統一驗證碼校驗（form_check_code 默認關閉）
+	if !common.VerifyCaptcha(c, "form_check_code", "0") {
+		return
 	}
 
 	// 查 ay_form_field 獲取字段定義
@@ -393,59 +385,30 @@ func (fc *FrontController) Visits(c *gin.Context) {
 	c.String(http.StatusOK, "ok")
 }
 
+// checkAntispam 蜜罐 + 時間陷阱通用反垃圾檢查
+// 返回 true 表示通過（非垃圾），false 表示已攔截（已寫入 JSON 響應）
+// 適用於留言、自定義表單等公開提交場景；後台登錄不適用（蜜罐易被密碼管理器誤填）
+func (fc *FrontController) checkAntispam(c *gin.Context) bool {
+	// 蜜罐欄位：機器人會自動填充隱藏欄位，正常用戶不會
+	if honeypot := c.PostForm("website"); honeypot != "" {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+		return false
+	}
+	// 時間陷阱：提交間隔 <3 秒判定為機器人
+	if loadts := c.PostForm("_loadts"); loadts != "" {
+		if ts, err := strconv.ParseInt(loadts, 10, 64); err == nil {
+			if time.Now().Unix()-ts < 3 {
+				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // CheckCode 前台驗證碼生成（存入 messageCodeStore，供留言校驗）
 func (fc *FrontController) CheckCode(c *gin.Context) {
-	a := randInt(9) + 1
-	b := randInt(9) + 1
-	op := randInt(2)
-	var expr string
-	var answer int
-	if op == 0 {
-		expr = fmt.Sprintf("%d + %d = ?", a, b)
-		answer = a + b
-	} else {
-		if a < b {
-			a, b = b, a
-		}
-		expr = fmt.Sprintf("%d - %d = ?", a, b)
-		answer = a - b
-	}
-
-	sessionID := fc.getCookie(c, "PbootGo")
-	if sessionID == "" {
-		sessionID = fc.generateSessionID()
-		fc.setCookie(c, "PbootGo", sessionID, 86400)
-	}
-	messageCodeStore[sessionID] = fmt.Sprintf("%d", answer)
-
-	width := 200
-	height := 70
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	bgColor := color.RGBA{245, 250, 255, 255}
-	draw.Draw(img, img.Bounds(), &image.Uniform{bgColor}, image.Point{}, draw.Src)
-	for i := 0; i < 80; i++ {
-		x := randInt(width)
-		y := randInt(height)
-		r := uint8(180 + randInt(60))
-		g := uint8(180 + randInt(60))
-		b2 := uint8(180 + randInt(60))
-		img.Set(x, y, color.RGBA{r, g, b2, 255})
-	}
-	for i := 0; i < 4; i++ {
-		x1 := randInt(width)
-		y1 := randInt(height)
-		x2 := randInt(width)
-		y2 := randInt(height)
-		lineColor := color.RGBA{uint8(100 + randInt(100)), uint8(100 + randInt(100)), uint8(100 + randInt(100)), 255}
-		drawLine(img, x1, y1, x2, y2, lineColor)
-	}
-	addLabel(img, expr, width, height)
-
-	c.Header("Content-Type", "image/png")
-	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
-	c.Header("Pragma", "no-cache")
-	c.Header("Expires", "0")
-	png.Encode(c.Writer, img)
+	common.GenerateCaptcha(c)
 }
 
 // SortByScode renders the list page for a sort identified by its scode
@@ -566,120 +529,4 @@ func trimSuffix(s string) string {
 	return strings.TrimSuffix(strings.TrimSuffix(s, ".html"), ".htm")
 }
 
-// randInt 返回 0~max-1 的隨機整數
-func randInt(max int) int {
-	return rand.Intn(max)
-}
-
-// getCookie 安全讀取 cookie
-func (fc *FrontController) getCookie(c *gin.Context, name string) string {
-	if cookie, err := c.Cookie(name); err == nil {
-		return cookie
-	}
-	return ""
-}
-
-// setCookie 設置 cookie
-func (fc *FrontController) setCookie(c *gin.Context, name, value string, maxAge int) {
-	c.SetCookie(name, value, maxAge, "/", "", false, true)
-}
-
-// generateSessionID 生成唯一 session ID
-func (fc *FrontController) generateSessionID() string {
-	return fmt.Sprintf("%d%d", time.Now().UnixNano(), rand.Intn(1000000))
-}
-
-// addLabel 在圖片上繪製文字（簡易版，用 basicfont）
-func addLabel(img *image.RGBA, label string, width, height int) {
-	// 用簡易點陣字體繪製，每個字符約 12px 寬
-	charWidth := 12
-	startX := (width - len(label)*charWidth) / 2
-	startY := height / 2
-	for i, ch := range label {
-		drawChar(img, startX+i*charWidth, startY-10, byte(ch))
-	}
-}
-
-// drawChar 繪製單個字符（簡易 5x7 點陣）
-func drawChar(img *image.RGBA, x, y int, ch byte) {
-	color := color.RGBA{30, 80, 160, 255}
-	// 簡易實現：用固定字體繪製
-	font := getBasicFont()
-	rows, ok := font[ch]
-	if !ok {
-		return
-	}
-	for ry, row := range rows {
-		for cx := 0; cx < len(row); cx++ {
-			if row[cx] == '1' {
-				for dy := 0; dy < 2; dy++ {
-					for dx := 0; dx < 2; dx++ {
-						px := x + cx*2 + dx
-						py := y + ry*2 + dy
-						if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
-							img.Set(px, py, color)
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-// drawLine 繪製干擾線
-func drawLine(img *image.RGBA, x1, y1, x2, y2 int, col color.Color) {
-	dx := abs(x2 - x1)
-	dy := abs(y2 - y1)
-	sx := 1
-	sy := 1
-	if x1 > x2 {
-		sx = -1
-	}
-	if y1 > y2 {
-		sy = -1
-	}
-	err := dx - dy
-	for {
-		img.Set(x1, y1, col)
-		if x1 == x2 && y1 == y2 {
-			break
-		}
-		e2 := 2 * err
-		if e2 > -dy {
-			err -= dy
-			x1 += sx
-		}
-		if e2 < dx {
-			err += dx
-			y1 += sy
-		}
-	}
-}
-
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-// getBasicFont 返回簡易 5x7 點陣字體（數字和運算符）
-func getBasicFont() map[byte][]string {
-	return map[byte][]string{
-		'0': {"01110", "10001", "10011", "10101", "11001", "10001", "01110"},
-		'1': {"00100", "01100", "00100", "00100", "00100", "00100", "01110"},
-		'2': {"01110", "10001", "00001", "00010", "00100", "01000", "11111"},
-		'3': {"11111", "00010", "00100", "00010", "00001", "10001", "01110"},
-		'4': {"00010", "00110", "01010", "10010", "11111", "00010", "00010"},
-		'5': {"11111", "10000", "11110", "00001", "00001", "10001", "01110"},
-		'6': {"00110", "01000", "10000", "11110", "10001", "10001", "01110"},
-		'7': {"11111", "00001", "00010", "00100", "01000", "01000", "01000"},
-		'8': {"01110", "10001", "10001", "01110", "10001", "10001", "01110"},
-		'9': {"01110", "10001", "10001", "01111", "00001", "00010", "01100"},
-		' ': {"00000", "00000", "00000", "00000", "00000", "00000", "00000"},
-		'+': {"00000", "00100", "00100", "11111", "00100", "00100", "00000"},
-		'-': {"00000", "00000", "00000", "11111", "00000", "00000", "00000"},
-		'=': {"00000", "00000", "11111", "00000", "11111", "00000", "00000"},
-		'?': {"01110", "10001", "00001", "00010", "00100", "00000", "00100"},
-	}
-}
+// === 以下驗證碼繪製輔助函數已移至 apps/common/captcha.go 統一管理 ===

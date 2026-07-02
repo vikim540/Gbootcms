@@ -47,7 +47,7 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 			sorting,
 		)
 		if err != nil {
-			ef.JSONFailMsg(c, "新增失敗: "+err.Error())
+			ef.JSONFail(c, "新增失敗: "+err.Error())
 			return
 		}
 		// 新增字段後，確保 ay_content_ext 表有對應物理列
@@ -91,7 +91,7 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 			ef.JSONOKMsg(c, common.NoticeModify)
 			return
 		}
-		ef.JSONFailMsg(c, "不允許修改的欄位")
+		ef.JSONFail(c, "不允許修改的欄位")
 		return
 	}
 
@@ -112,7 +112,7 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 			sorting,
 		)
 		if err != nil {
-			ef.JSONFailMsg(c, "修改失敗: "+err.Error())
+			ef.JSONFail(c, "修改失敗: "+err.Error())
 			return
 		}
 		ef.JSONOKMsg(c, common.NoticeModify)
@@ -134,7 +134,7 @@ func (ef *ExtFieldController) Del(c *gin.Context) {
 	id, _ := strconv.Atoi(idStr)
 	err := content.DeleteExtField(id)
 	if err != nil {
-		ef.JSONFailMsg(c, "刪除失敗: "+err.Error())
+		ef.JSONFail(c, "刪除失敗: "+err.Error())
 		return
 	}
 	ef.JSONOKMsg(c, common.NoticeDelete)

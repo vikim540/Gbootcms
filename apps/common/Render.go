@@ -132,7 +132,7 @@ func injectSessionData(c *gin.Context, data gin.H) {
 	data["session_uid"] = GetSessionInt(c, "admin_uid")
 	data["session_username"] = GetSession(c, "admin_username")
 	data["session_realname"] = GetSession(c, "admin_realname")
-	data["session_ucode"] = GetSession(c, "admin_ucode")
+	data["session_ucode"] = GetSessionInt(c, "admin_ucode")
 	data["session_rcodes"] = GetSession(c, "admin_rcodes")
 	pwsecurity := GetSession(c, "pwsecurity")
 	data["session_pwsecurity"] = pwsecurity == "1"

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Context struct {
@@ -501,6 +502,11 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		return "/search"
 	})
 
+	// 時間戳：用於前端時間陷阱反垃圾
+	p.Register("timestamp", func(tagName string, params map[string]string, inner string) string {
+		return fmt.Sprintf("%d", time.Now().Unix())
+	})
+
 	// Form provider: {gboot:form fcode=X} → 表單提交 URL
 	p.Register("form", func(tagName string, params map[string]string, inner string) string {
 		fcode := params["fcode"]
@@ -914,21 +920,68 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 		var messages []model.Message
 		model.DB.Where("status = 1").Order("id DESC").Limit(num).Find(&messages)
+
+		// 批量查會員信息（LEFT JOIN ay_member），匹配 PHP 原版 getMessage()
+		uidSet := map[int]bool{}
+		for _, m := range messages {
+			if m.UID > 0 {
+				uidSet[m.UID] = true
+			}
+		}
+		type memberInfo struct {
+			Nickname string
+			HeadPic  string
+		}
+		memberMap := map[int]memberInfo{}
+		if len(uidSet) > 0 {
+			uids := make([]int, 0, len(uidSet))
+			for uid := range uidSet {
+				uids = append(uids, uid)
+			}
+			var members []model.Member
+			model.DB.Where("id IN ?", uids).Find(&members)
+			for _, mem := range members {
+				memberMap[int(mem.ID)] = memberInfo{Nickname: mem.Nickname, HeadPic: mem.HeadPic}
+			}
+		}
+
 		var sb strings.Builder
 		for i, m := range messages {
+			// nickname: 有會員暱稱用暱稱，無會員顯示"匿名用戶"（PHP 原版邏輯）
+			nickname := "匿名用戶"
+			headpic := "/static/admin/images/logo.png"
+			if m.UID > 0 {
+				if mi, ok := memberMap[m.UID]; ok {
+					if mi.Nickname != "" {
+						nickname = mi.Nickname
+					}
+					if mi.HeadPic != "" {
+						headpic = mi.HeadPic
+					}
+				}
+			}
+			// replydate: 零值時間顯示為空（避免顯示 0001-01-01）
+			replyDate := ""
+			if !m.UpdateTime.IsZero() {
+				replyDate = m.UpdateTime.Format("2006-01-02")
+			}
 			data := map[string]interface{}{
-				"n":            i,
-				"i":            i + 1,
-				"contacts":     m.Contacts,
-				"mobile":       m.Mobile,
-				"content":      m.Content,
-				"create_time":  m.CreateTime.Format("2006-01-02"),
-				"status":       m.Status,
-				"recontent":    m.ReContent,
-				"update_time":  m.UpdateTime.Format("2006-01-02"),
-				"os":           m.OS,
-				"bs":           m.Browser,
-				"ip":           m.IP,
+				"n":          i,
+				"i":          i + 1,
+				"contacts":   m.Contacts,
+				"mobile":     m.Mobile,
+				"content":    m.Content,
+				"create_time": m.CreateTime.Format("2006-01-02"),
+				"askdate":    m.CreateTime.Format("2006-01-02"),
+				"status":     m.Status,
+				"recontent":  m.ReContent,
+				"update_time": m.UpdateTime.Format("2006-01-02"),
+				"replydate":  replyDate,
+				"os":         m.OS,
+				"bs":         m.Browser,
+				"ip":         m.IP,
+				"nickname":   nickname,
+				"headpic":    headpic,
 			}
 			row := ReplaceInnerTags(inner, "message", data)
 			sb.WriteString(row)

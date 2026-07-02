@@ -61,6 +61,9 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.POST("/content/media/mark", mediaCtl.Mark)
 		adminGroup.POST("/content/media/clean", mediaCtl.Clean)
 		adminGroup.POST("/content/media/refresh", mediaCtl.Refresh)
+		adminGroup.GET("/content/media/backup", mediaCtl.BackupList)
+		adminGroup.POST("/content/media/restore", mediaCtl.Restore)
+		adminGroup.POST("/content/media/backupClear", mediaCtl.BackupClear)
 
 		co := &content.CompanyController{}
 		adminGroup.GET("/content/company/index", co.Index)
@@ -97,10 +100,10 @@ func SetupAdminRoutes(r *gin.Engine) {
 		ms := &content.MessageController{}
 		adminGroup.GET("/content/message/index", ms.Index)
 		adminGroup.GET("/content/message", ms.Index)
-		adminGroup.GET("/content/message/mod/:id", ms.Mod)
-		adminGroup.POST("/content/message/mod/:id", ms.Mod)
+		adminGroup.Any("/content/message/mod/*action", ms.Mod)
 		adminGroup.GET("/content/message/del", ms.Del)
 		adminGroup.POST("/content/message/del", ms.Del)
+		adminGroup.Any("/content/message/del/*action", ms.Del)
 		adminGroup.GET("/content/message/clear", ms.Clear)
 		adminGroup.POST("/content/message/clear", ms.Clear)
 

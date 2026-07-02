@@ -76,11 +76,13 @@ type Comment = member.Comment
 // Helper functions (previously missing)
 // ──────────────────────────────────────────────
 
-// GetConfigValue reads a config value by name, returning defaultVal if not found.
+// GetConfigValue reads a config value by name, returning defaultVal if not found or empty.
 func GetConfigValue(name, defaultVal string) string {
 	var cfg system.Config
 	if db.DB.Where("name = ?", name).First(&cfg).Error == nil {
-		return cfg.Value
+		if cfg.Value != "" {
+			return cfg.Value
+		}
 	}
 	return defaultVal
 }

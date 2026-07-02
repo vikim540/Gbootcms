@@ -124,10 +124,6 @@ func (bc *BaseController) JSONFail(c *gin.Context, msg string) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": msg})
 }
 
-func (bc *BaseController) JSONFailMsg(c *gin.Context, msg string) {
-	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": msg})
-}
-
 func (bc *BaseController) GetAdminUsername(c *gin.Context) string {
 	username, _ := GetSession(c, "admin_username").(string)
 	return username

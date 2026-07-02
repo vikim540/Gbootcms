@@ -48,7 +48,7 @@ func (lb *LabelController) Add(c *gin.Context) {
 			typ,
 		)
 		if err != nil {
-			lb.JSONFailMsg(c, "Add failed: "+err.Error())
+			lb.JSONFail(c, "Add failed: "+err.Error())
 			return
 		}
 		lb.JSONOKMsg(c, common.NoticeAdd)
@@ -72,7 +72,7 @@ func (lb *LabelController) Mod(c *gin.Context) {
 			"admin",
 		)
 		if err != nil {
-			lb.JSONFailMsg(c, "Modify failed: "+err.Error())
+			lb.JSONFail(c, "Modify failed: "+err.Error())
 			return
 		}
 		lb.JSONOKMsg(c, common.NoticeModify)
@@ -88,7 +88,7 @@ func (lb *LabelController) Del(c *gin.Context) {
 	id, _ := strconv.Atoi(idStr)
 	err := content.DeleteLabel(id)
 	if err != nil {
-		lb.JSONFailMsg(c, "Delete failed: "+err.Error())
+		lb.JSONFail(c, "Delete failed: "+err.Error())
 		return
 	}
 	lb.JSONOKMsg(c, common.NoticeDelete)

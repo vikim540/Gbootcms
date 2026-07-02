@@ -71,6 +71,17 @@ func registerPongo2Filters() {
 	pongo2.RegisterFilter("add", func(in *pongo2.Value, param *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
 		return pongo2.AsValue(in.Integer() + param.Integer()), nil
 	})
+	// fix_url: 外鏈圖片路徑修正。http(s):// 或 // 開頭直接返回，其餘前綴 /
+	pongo2.RegisterFilter("fix_url", func(in *pongo2.Value, param *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
+		s := in.String()
+		if s == "" {
+			return pongo2.AsValue(s), nil
+		}
+		if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "//") || strings.HasPrefix(s, "/") {
+			return pongo2.AsValue(s), nil
+		}
+		return pongo2.AsValue("/" + s), nil
+	})
 }
 
 func GetAdminView(tplPath string) (*pongo2.Template, error) {
@@ -196,6 +207,11 @@ func convertPbootToPongo2(html string) string {
 	// Post-process: fix remaining -> syntax outside of pongo2 tags
 	html = fixRemainingArrowSyntax(html)
 
+	// Post-process: merge {{ SiteDir }}{{ Var }} → {{ Var|fix_url }}
+	// 外鏈圖片（http://, https://, // 開頭）不會被前綴 / 破壞
+	reSiteDirVar := regexp.MustCompile(`\{\{\s*SiteDir\s*\}\}\{\{\s*([^}]+?)\s*\}\}`)
+	html = reSiteDirVar.ReplaceAllString(html, `{{ $1|fix_url }}`)
+
 	return html
 }
 
@@ -224,34 +240,34 @@ func fixRemainingArrowSyntax(html string) string {
 }
 
 func processConfigVars(html string) string {
-	// Handle [$configs.name.value] inside {if} conditions → Configs.Name
+	// Handle [$configs.name.value] inside {if} conditions → Config.Name
 	reBracketConfigValue := regexp.MustCompile(`\[\$configs\.([\w]+)\.value\]`)
 	html = reBracketConfigValue.ReplaceAllStringFunc(html, func(match string) string {
 		subs := reBracketConfigValue.FindStringSubmatch(match)
 		if len(subs) < 2 {
 			return match
 		}
-		return "Configs." + SnakeToPascal(subs[1])
+		return "Config." + SnakeToPascal(subs[1])
 	})
 
-	// Handle {$configs.name.value} in output → {{ Configs.Name }}
+	// Handle {$configs.name.value} in output → {{ Config.Name }}
 	reDollarConfigValue := regexp.MustCompile(`\{\$configs\.([\w]+)\.value\}`)
 	html = reDollarConfigValue.ReplaceAllStringFunc(html, func(match string) string {
 		subs := reDollarConfigValue.FindStringSubmatch(match)
 		if len(subs) < 2 {
 			return match
 		}
-		return fmt.Sprintf("{{ Configs.%s }}", SnakeToPascal(subs[1]))
+		return fmt.Sprintf("{{ Config.%s }}", SnakeToPascal(subs[1]))
 	})
 
-	// Handle remaining $configs.name.value in conditions (without brackets) → Configs.Name
+	// Handle remaining $configs.name.value in conditions (without brackets) → Config.Name
 	reConfigDotValue := regexp.MustCompile(`\$configs\.([\w]+)\.value`)
 	html = reConfigDotValue.ReplaceAllStringFunc(html, func(match string) string {
 		subs := reConfigDotValue.FindStringSubmatch(match)
 		if len(subs) < 2 {
 			return match
 		}
-		return "Configs." + SnakeToPascal(subs[1])
+		return "Config." + SnakeToPascal(subs[1])
 	})
 
 	return html
@@ -709,7 +725,8 @@ func convertPongo2Condition(cond string) string {
 		if len(subs) < 2 {
 			return m
 		}
-		return "session_" + subs[1]
+		// 必須轉 PascalCase，與 flattenData 注入的 session_xxx 鍵名一致
+		return SnakeToPascal("session_" + subs[1])
 	})
 
 	// Handle get('xxx') function calls → GetXxx (pongo2 variable for GET params)
@@ -906,6 +923,10 @@ func pongo2DataKey(s string) string {
 	if strings.HasPrefix(s, "get.") {
 		field := strings.TrimPrefix(s, "get.")
 		return SnakeToPascal("get_" + field)
+	}
+	if strings.HasPrefix(s, "config.") {
+		field := strings.TrimPrefix(s, "config.")
+		return "Config." + SnakeToPascal(field)
 	}
 	return SnakeToPascal(s)
 }

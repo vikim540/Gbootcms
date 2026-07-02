@@ -44,4 +44,6 @@ var MediaReferencingTables = map[string]bool{
 	"link":         true,
 	"company":      true,
 	"site":         true,
+	"member":       true,
+	"label":        true,
 }

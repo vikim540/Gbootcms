@@ -56,17 +56,17 @@ layui.use(['element','upload','laydate','form'], function(){
        },
 	  success: function (response, status) {
 			if (response.code == 1) {
-				layer.msg("登录成功！", {icon: 1});
+				layer.msg("登錄成功！", {icon: 1});
 				window.location.href = response.data;
 			} else {
-				form.find("#checkcode").val("");
-				$('#codeimg').click();//更新验证码
-				layer.msg("登录失败：" + response.data, {icon: 5});
+				if (form.find("#checkcode").length) { form.find("#checkcode").val(""); }
+				if ($('#codeimg').length) { $('#codeimg').click(); }//更新驗證碼
+				layer.msg("登錄失敗：" + (response.msg || '未知錯誤'), {icon: 2});
 			} 
       },
       error:function(xhr,status,error){
-    	  layer.msg("登录请求发生错误!", {icon: 5});
-    	  $('#note').html('登录请求失败，请检查网络连接或稍后重试。');
+    	  layer.msg("登錄請求發生錯誤！", {icon: 5});
+    	  $('#note').html('登錄請求失敗，請檢查網絡連接或稍後重試。');
       }
 	});
     return false;
@@ -292,14 +292,14 @@ layui.use(['element','upload','laydate','form'], function(){
 	   if(res.code==1){
 		   $('#'+des).val(res.data[0]); 
 		   $('#'+des+'_box').html("<dl><dt><img src='"+sitedir+res.data[0]+"' data-url='"+res.data[0]+"' ></dt><dd>删除</dd></dl>"); 
-		   layer.msg('上传成功！'); 
+		   layer.msg('上傳成功！', {icon: 1}); 
 	   }else{
-		   layer.msg('上传失败：'+res.data); 
+		   layer.msg('上傳失敗：'+res.data, {icon: 2}); 
 	   }
 	}
 	,error: function(){
 		layer.closeAll('loading'); //关闭loading
-		layer.msg('上传发生错误!'); 
+		layer.msg('上傳發生錯誤!', {icon: 5}); 
 	}
   });
   
@@ -333,7 +333,7 @@ layui.use(['element','upload','laydate','form'], function(){
 		   		"</dl>";
 		   html2 += "<dl><dt><img src='"+sitedir+res.data[0]+"' data-url='"+res.data[0]+"'></dt><dd>删除</dd>" +	"</dl>";
 	   }else{
-		   layer.msg('有文件上传失败：'+res.data); 
+		   layer.msg('有文件上傳失敗：'+res.data, {icon: 2}); 
 	   } 
 	}
   	,allDone: function(obj){
@@ -352,18 +352,18 @@ layui.use(['element','upload','laydate','form'], function(){
 	       }else{
 	    	   $('#'+des+'_box').append(html2); 
 	       }
-	 	   layer.msg('成功上传'+obj.successful+'个文件！'); 
+	 	   layer.msg('成功上傳'+obj.successful+'個文件！', {icon: 1}); 
 	 	   files='';
 	 	   html='';
 	 	   html2='';
 	    }else{
-	 	   layer.msg('全部上传失败！'); 
+	 	   layer.msg('全部上傳失敗！', {icon: 2}); 
 	    }
 	    
 	 }
 	,error: function(){
 		layer.closeAll('loading'); //关闭loading
-		layer.msg('上传发生错误！'); 
+		layer.msg('上傳發生錯誤！', {icon: 5}); 
 	}
   });
 	
@@ -397,14 +397,14 @@ layui.use(['element','upload','laydate','form'], function(){
 	   layer.closeAll('loading'); //关闭loading
 	   if(res.code==1){
 		   $('#'+des).val(res.data[0]); 
-		   layer.msg('上传成功！'); 
+		   layer.msg('上傳成功！', {icon: 1}); 
 	   }else{
-		   layer.msg('上传失败：'+res.data); 
+		   layer.msg('上傳失敗：'+res.data, {icon: 2}); 
 	   }
 	}
 	,error: function(){
 		layer.closeAll('loading'); //关闭loading
-		layer.msg('上传发生错误！'); 
+		layer.msg('上傳發生錯誤！', {icon: 5}); 
 	}
   });
   

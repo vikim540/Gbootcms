@@ -4,10 +4,6 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"fmt"
-	"image"
-	"image/color"
-	"image/draw"
-	"image/png"
 	"math/rand"
 	"net/http"
 	"os"
@@ -24,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-var checkCodeStore = make(map[string]string)
+// 統一驗證碼已移至 apps/common/captcha.go，此處不再維護獨立存儲
 
 
 type IndexController struct {
@@ -42,29 +38,23 @@ func (ic *IndexController) Index(c *gin.Context) {
 func (ic *IndexController) Login(c *gin.Context) {
 	username := c.PostForm("username")
 	password := c.PostForm("password")
-	checkcode := c.PostForm("checkcode")
 
-	sessionID := ic.getCookie(c, "PbootGo")
-
-	if checkcode != "" {
-		savedCode := checkCodeStore[sessionID]
-		if savedCode == "" || strings.ToLower(checkcode) != strings.ToLower(savedCode) {
-			ic.JSONFail(c, "验证码错误！")
-			return
-		}
+	// 統一驗證碼校驗（讀取 admin_check_code 配置，默認啟用）
+	if !common.VerifyCaptcha(c, "admin_check_code", "1") {
+		return
 	}
 
 	if remainTime := ic.checkLoginBlack(c); remainTime > 0 {
-		ic.JSONFail(c, fmt.Sprintf("登录失败次数过多，请%d秒后重试！", remainTime))
+		ic.JSONFail(c, fmt.Sprintf("登錄失敗次數過多，請%d秒後重試！", remainTime))
 		return
 	}
 
 	if username == "" {
-		ic.JSONFail(c, "用户名不能为空！")
+		ic.JSONFail(c, "用戶名不能為空！")
 		return
 	}
 	if password == "" {
-		ic.JSONFail(c, "密码不能为空！")
+		ic.JSONFail(c, "密碼不能為空！")
 		return
 	}
 
@@ -318,269 +308,7 @@ func (ic *IndexController) Area(c *gin.Context) {
 }
 
 func (ic *IndexController) CheckCode(c *gin.Context) {
-	a := randInt(9) + 1
-	b := randInt(9) + 1
-	op := randInt(2)
-	var expr string
-	var answer int
-	if op == 0 {
-		expr = fmt.Sprintf("%d + %d = ?", a, b)
-		answer = a + b
-	} else {
-		if a < b {
-			a, b = b, a
-		}
-		expr = fmt.Sprintf("%d - %d = ?", a, b)
-		answer = a - b
-	}
-
-	sessionID := ic.getCookie(c, "PbootGo")
-	if sessionID == "" {
-		sessionID = ic.generateSessionID()
-		ic.setCookie(c, "PbootGo", sessionID, 86400)
-	}
-	checkCodeStore[sessionID] = fmt.Sprintf("%d", answer)
-
-	width := 200
-	height := 70
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-
-	bgColor := color.RGBA{245, 250, 255, 255}
-	draw.Draw(img, img.Bounds(), &image.Uniform{bgColor}, image.Point{}, draw.Src)
-
-	for i := 0; i < 80; i++ {
-		x := randInt(width)
-		y := randInt(height)
-		r := uint8(180 + randInt(60))
-		g := uint8(180 + randInt(60))
-		b2 := uint8(180 + randInt(60))
-		img.Set(x, y, color.RGBA{r, g, b2, 255})
-	}
-
-	for i := 0; i < 4; i++ {
-		x1 := randInt(width)
-		y1 := randInt(height)
-		x2 := randInt(width)
-		y2 := randInt(height)
-		lineColor := color.RGBA{uint8(100 + randInt(100)), uint8(100 + randInt(100)), uint8(100 + randInt(100)), 255}
-		dx := x2 - x1
-		if dx == 0 {
-			dx = 1
-		}
-		steps := dx
-		if steps < 0 {
-			steps = -steps
-		}
-		if steps == 0 {
-			steps = 1
-		}
-		for s := 0; s <= steps; s++ {
-			x := x1 + s*dx/steps
-			y := y1 + (y2-y1)*s/steps
-			if x >= 0 && x < width && y >= 0 && y < height {
-				img.Set(x, y, lineColor)
-			}
-		}
-	}
-
-	digitPatterns := map[byte][][]bool{
-		'0': {
-			{false, true, true, true, false},
-			{true, false, false, false, true},
-			{true, false, false, true, true},
-			{true, false, true, false, true},
-			{true, true, false, false, true},
-			{true, false, false, false, true},
-			{false, true, true, true, false},
-		},
-		'1': {
-			{false, false, true, false, false},
-			{false, true, true, false, false},
-			{true, false, true, false, false},
-			{false, false, true, false, false},
-			{false, false, true, false, false},
-			{false, false, true, false, false},
-			{true, true, true, true, true},
-		},
-		'2': {
-			{false, true, true, true, false},
-			{true, false, false, false, true},
-			{false, false, false, false, true},
-			{false, false, true, true, false},
-			{false, true, false, false, false},
-			{true, false, false, false, false},
-			{true, true, true, true, true},
-		},
-		'3': {
-			{false, true, true, true, false},
-			{true, false, false, false, true},
-			{false, false, false, false, true},
-			{false, false, true, true, false},
-			{false, false, false, false, true},
-			{true, false, false, false, true},
-			{false, true, true, true, false},
-		},
-		'4': {
-			{false, false, false, true, false},
-			{false, false, true, true, false},
-			{false, true, false, true, false},
-			{true, false, false, true, false},
-			{true, true, true, true, true},
-			{false, false, false, true, false},
-			{false, false, false, true, false},
-		},
-		'5': {
-			{true, true, true, true, true},
-			{true, false, false, false, false},
-			{true, true, true, true, false},
-			{false, false, false, false, true},
-			{false, false, false, false, true},
-			{true, false, false, false, true},
-			{false, true, true, true, false},
-		},
-		'6': {
-			{false, true, true, true, false},
-			{true, false, false, false, false},
-			{true, false, false, false, false},
-			{true, true, true, true, false},
-			{true, false, false, false, true},
-			{true, false, false, false, true},
-			{false, true, true, true, false},
-		},
-		'7': {
-			{true, true, true, true, true},
-			{false, false, false, false, true},
-			{false, false, false, true, false},
-			{false, false, true, false, false},
-			{false, false, true, false, false},
-			{false, false, true, false, false},
-			{false, false, true, false, false},
-		},
-		'8': {
-			{false, true, true, true, false},
-			{true, false, false, false, true},
-			{true, false, false, false, true},
-			{false, true, true, true, false},
-			{true, false, false, false, true},
-			{true, false, false, false, true},
-			{false, true, true, true, false},
-		},
-		'9': {
-			{false, true, true, true, false},
-			{true, false, false, false, true},
-			{true, false, false, false, true},
-			{false, true, true, true, true},
-			{false, false, false, false, true},
-			{false, false, false, false, true},
-			{false, true, true, true, false},
-		},
-		' ': {
-			{false, false},
-			{false, false},
-			{false, false},
-			{false, false},
-			{false, false},
-			{false, false},
-			{false, false},
-		},
-		'+': {
-			{false, false, false, false, false},
-			{false, false, true, false, false},
-			{false, false, true, false, false},
-			{true, true, true, true, true},
-			{false, false, true, false, false},
-			{false, false, true, false, false},
-			{false, false, false, false, false},
-		},
-		'-': {
-			{false, false, false, false, false},
-			{false, false, false, false, false},
-			{false, false, false, false, false},
-			{true, true, true, true, true},
-			{false, false, false, false, false},
-			{false, false, false, false, false},
-			{false, false, false, false, false},
-		},
-		'=': {
-			{false, false, false, false, false},
-			{true, true, true, true, true},
-			{false, false, false, false, false},
-			{false, false, false, false, false},
-			{true, true, true, true, true},
-			{false, false, false, false, false},
-			{false, false, false, false, false},
-		},
-		'?': {
-			{false, true, true, true, false},
-			{true, false, false, false, true},
-			{false, false, false, false, true},
-			{false, false, true, true, false},
-			{false, false, true, false, false},
-			{false, false, false, false, false},
-			{false, false, true, false, false},
-		},
-	}
-
-	pixelSize := 6
-	startX := 10
-	startY := 8
-	charSpacing := 0
-
-	colors := []color.RGBA{
-		{220, 50, 50, 255},
-		{50, 120, 220, 255},
-		{40, 160, 60, 255},
-		{180, 100, 20, 255},
-		{130, 40, 180, 255},
-		{20, 150, 150, 255},
-		{200, 60, 120, 255},
-	}
-
-	for ci, ch := range []byte(expr) {
-		pattern, ok := digitPatterns[ch]
-		if !ok {
-			continue
-		}
-
-		charColor := colors[ci%len(colors)]
-		rotateOffset := randInt(5) - 2
-
-		for py, row := range pattern {
-			for px, on := range row {
-				if on {
-					for sx := 0; sx < pixelSize; sx++ {
-						for sy := 0; sy < pixelSize; sy++ {
-							px2 := startX + px*pixelSize + sx
-							py2 := startY + (py+rotateOffset)*pixelSize + sy
-							if px2 >= 0 && px2 < width && py2 >= 0 && py2 < height {
-								img.Set(px2, py2, charColor)
-							}
-						}
-					}
-				}
-			}
-		}
-		patWidth := 0
-		for _, row := range pattern {
-			if len(row) > patWidth {
-				patWidth = len(row)
-			}
-		}
-		startX += patWidth*pixelSize + charSpacing + 4
-	}
-
-	c.Header("Content-Type", "image/png")
-	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
-	c.Header("Pragma", "no-cache")
-	c.Header("Expires", "0")
-	png.Encode(c.Writer, img)
-}
-
-func randInt(max int) int {
-	if max <= 0 {
-		return 0
-	}
-	return rand.Intn(max)
+	common.GenerateCaptcha(c)
 }
 
 func (ic *IndexController) log(c *gin.Context, msg string) {

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"strconv"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -85,6 +86,11 @@ func GetSessionInt(c *gin.Context, key string) int {
 			return int(v)
 		case float64:
 			return int(v)
+		case string:
+			n, err := strconv.Atoi(v)
+			if err == nil {
+				return n
+			}
 		}
 	}
 	return 0

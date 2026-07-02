@@ -152,7 +152,7 @@ func seedMenus(now time.Time) {
 		{Mcode: "M107", Pcode: "M101", Name: "类型管理", URL: "/admin/Type/index", Ico: "fa-tags", Sorting: 906, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M108", Pcode: "M101", Name: "数据库管理", URL: "/admin/Database/index", Ico: "fa-database", Sorting: 907, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M109", Pcode: "M101", Name: "服务器信息", URL: "/admin/Site/server", Ico: "fa-info-circle", Sorting: 908, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M1101", Pcode: "M101", Name: "图片清理", URL: "/admin/ImageExt/index", Ico: "fa-trash", Sorting: 909, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M1101", Pcode: "M101", Name: "媒體庫", URL: "/admin/content/media/index", Ico: "fa-photo", Sorting: 909, Status: 1, Shortcut: 0, Type: 1},
 	}
 	for _, m := range menus {
 		m.CreateUser = "admin"
@@ -203,6 +203,11 @@ func seedConfigs() {
 		{Name: "close_site", Value: "0"},
 		{Name: "open_wap", Value: "0"},
 		{Name: "admin_check_code", Value: "1"},
+		{Name: "message_check_code", Value: "1"},
+		{Name: "form_check_code", Value: "0"},
+		{Name: "message_status", Value: "1"},
+		{Name: "message_verify", Value: "1"},
+		{Name: "message_rqlogin", Value: "0"},
 		{Name: "url_rule_type", Value: "2"},
 		{Name: "tpl_html_cache", Value: "0"},
 		{Name: "tpl_html_cache_time", Value: "900"},

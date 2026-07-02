@@ -46,35 +46,50 @@
 
 .pagination-bar { padding: 15px; text-align: center; border-top: 1px solid #eee; }
 .pagination-bar .layui-laypage a, .pagination-bar .layui-laypage span { font-size: 12px; }
+
+.backup-bar { padding: 10px 15px; border-top: 1px solid #eee; background: #fffbe6; display: flex; gap: 12px; align-items: center; }
+.backup-bar .backup-stat { font-size: 13px; color: #666; }
+.backup-bar .backup-stat b { color: #FF9800; }
+.backup-list { padding: 10px 15px; max-height: 300px; overflow-y: auto; }
+.backup-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+.backup-item:last-child { border-bottom: none; }
+.backup-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #e6e6e6; }
+.backup-item .bi-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #f5f5f5; border-radius: 4px; border: 1px solid #e6e6e6; }
+.backup-item .bi-icon i { font-size: 20px; color: #bbb; }
+.backup-item .bi-info { flex: 1; min-width: 0; }
+.backup-item .bi-name { font-size: 12px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.backup-item .bi-meta { font-size: 11px; color: #999; }
+.backup-item .bi-actions { display: flex; gap: 5px; }
 </style>
 
 <div class="layui-body">
   <div class="layui-tab layui-tab-brief" lay-filter="tab">
     <ul class="layui-tab-title">
-      <li class="layui-this">媒体库</li>
+      <li class="layui-this">媒體庫</li>
     </ul>
     <div class="layui-tab-content" style="padding:0;">
 
       <div class="media-toolbar">
-        <span class="stat stat-total"><i class="fa fa-folder-open-o"></i> 总计 <b>{{ Total }}</b> 个</span>
+        <span class="stat stat-total"><i class="fa fa-folder-open-o"></i> 總計 <b>{{ Total }}</b> 個</span>
         <span class="stat"><i class="fa fa-database"></i> 大小 <b>{{ TotalSize }}</b></span>
         <span class="stat stat-used"><i class="fa fa-link"></i> 已用 <b>{{ UsedCount }}</b></span>
         <span class="stat stat-unused"><i class="fa fa-unlink"></i> 未用 <b>{{ UnusedCount }}</b></span>
-        <span class="stat stat-marked"><i class="fa fa-bookmark"></i> 已标记 <b>{{ MarkedCount }}</b></span>
+        <span class="stat stat-marked"><i class="fa fa-bookmark"></i> 已標記 <b>{{ MarkedCount }}</b></span>
         <span class="stat" style="color:#999;font-size:11px;"><i class="fa fa-clock-o"></i> {{ CacheTime }}</span>
         <span class="toolbar-right">
           <button class="layui-btn layui-btn-sm layui-btn-danger" id="btn-clean"><i class="fa fa-trash-o"></i> 清理未使用</button>
-          <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh"><i class="fa fa-refresh"></i> 重新扫描</button>
+          <button class="layui-btn layui-btn-sm layui-btn-warm" id="btn-backup"><i class="fa fa-recycle"></i> 回收站</button>
+          <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh"><i class="fa fa-refresh"></i> 重新掃描</button>
         </span>
       </div>
 
       <div class="filter-bar">
         <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn active" data-filter="all">全部</button>
-        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="image">图片</button>
-        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="document">文档</button>
-        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="video">视频</button>
-        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="unused">仅未使用</button>
-        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="marked">仅已标记</button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="image">圖片</button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="document">文檔</button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="video">視頻</button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="unused">僅未使用</button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary filter-btn" data-filter="marked">僅已標記</button>
         <input type="text" class="search-input" id="search-input" placeholder="搜索文件名...">
       </div>
 
@@ -120,86 +135,82 @@ layui.use(['layer'], function(){
             success: function(res) {
                 $grid.removeClass('loading');
                 if (res.code !== 1) {
-                    $grid.html('<div class="media-empty">加载失败: ' + (res.msg || '') + '</div>');
+                    $grid.html('<div class="media-empty">載入失敗: ' + (res.msg || '') + '</div>');
                     return;
                 }
                 renderGrid(res.data.files);
                 renderPagination(res.data.total, res.data.page, res.data.total_pages);
             },
-            error: function(xhr, status, error) {
+            error: function() {
                 $grid.removeClass('loading');
-                $grid.html('<div class="media-empty">网络错误: ' + status + '</div>');
+                $grid.html('<div class="media-empty">請求失敗</div>');
             }
         });
     }
 
-    // ─── Render grid ─────────────────────────────────────
     function renderGrid(files) {
         if (!files || files.length === 0) {
-            $('#media-grid').html('<div class="media-empty"><i class="fa fa-inbox" style="font-size:40px;display:block;margin-bottom:10px;"></i>暂无文件</div>');
+            $('#media-grid').html('<div class="media-empty"><i class="fa fa-inbox" style="font-size:48px;color:#ddd;"></i><br><br>暫無文件</div>');
             return;
         }
         var html = '';
         for (var i = 0; i < files.length; i++) {
             var f = files[i];
-            var cls = f.marked ? 'is-marked' : (f.used ? 'is-used' : 'is-unused');
-            var badgeCls = f.marked ? 'badge-marked' : (f.used ? 'badge-used' : 'badge-unused');
-            var badgeText = f.marked ? '保护' : (f.used ? '已用' : '未用');
+            var cls = 'media-item';
+            var badge = '';
+            if (f.marked) { cls += ' is-marked'; badge = '<span class="media-badge badge-marked">保護</span>'; }
+            else if (f.used) { cls += ' is-used'; badge = '<span class="media-badge badge-used">已用</span>'; }
+            else { cls += ' is-unused'; badge = '<span class="media-badge badge-unused">未用</span>'; }
 
-            var thumb;
+            html += '<div class="' + cls + '" data-path="' + f.path + '">';
+            html += '<div class="media-thumb">';
             if (f.category === 'image') {
-                thumb = '<img src="/' + f.path + '" loading="lazy" onerror="this.src=\'/static/admin/images/noimg.png\'" title="双击预览">';
+                html += '<img src="/' + f.path + '" loading="lazy">';
             } else {
-                thumb = '<span class="file-icon"><i class="fa fa-file-o"></i></span>';
+                html += '<i class="fa ' + getFileIcon(f.category) + ' file-icon"></i>';
             }
-
-            var markIcon = f.marked ? 'fa-bookmark' : 'fa-bookmark-o';
-            var markCls = f.marked ? 'mark-btn is-marked' : 'mark-btn';
-
-            html += '<div class="media-item ' + cls + '" data-path="' + f.path + '">'
-                  + '<div class="media-thumb">' + thumb + '</div>'
-                  + '<span class="media-badge ' + badgeCls + '">' + badgeText + '</span>'
-                  + '<div class="media-info">'
-                  + '<div class="name" title="' + f.name + '">' + f.name + '</div>'
-                  + '<div class="meta">' + f.size_str + ' · ' + f.mod_time + '</div>'
-                  + '</div>'
-                  + '<button class="' + markCls + '" title="标记/取消保护"><i class="fa ' + markIcon + '"></i></button>'
-                  + '</div>';
+            html += badge;
+            html += '</div>';
+            html += '<div class="media-info">';
+            html += '<div class="name" title="' + f.name + '">' + f.name + '</div>';
+            html += '<div class="meta">' + f.size_str + '</div>';
+            html += '</div>';
+            html += '<button class="mark-btn' + (f.marked ? ' is-marked' : '') + '" title="' + (f.marked ? '取消保護' : '標記保護') + '"><i class="fa ' + (f.marked ? 'fa-bookmark' : 'fa-bookmark-o') + '"></i></button>';
+            html += '</div>';
         }
         $('#media-grid').html(html);
     }
 
-    // ─── Render pagination ────────────────────────────────
+    function getFileIcon(cat) {
+        switch(cat) {
+            case 'document': return 'fa-file-text-o';
+            case 'video': return 'fa-file-video-o';
+            default: return 'fa-file-o';
+        }
+    }
+
     function renderPagination(total, page, totalPages) {
         if (totalPages <= 1) {
-            $('#pagination-bar').html('');
+            $('#pagination-bar').html('<span class="layui-laypage-count">共 ' + total + ' 個</span>');
             return;
         }
-        var html = '<div class="layui-laypage">';
+        var html = '<div class="layui-laypage layui-laypage-main">';
         if (page > 1) {
-            html += '<a href="javascript:;" data-page="' + (page - 1) + '">上一页</a>';
+            html += '<a href="javascript:;" data-page="' + (page - 1) + '">上一頁</a>';
         }
-        var start = Math.max(1, page - 3);
-        var end = Math.min(totalPages, page + 3);
-        if (start > 1) {
-            html += '<a href="javascript:;" data-page="1">1</a>';
-            if (start > 2) html += '<span>…</span>';
-        }
+        var start = Math.max(1, page - 2);
+        var end = Math.min(totalPages, page + 2);
         for (var i = start; i <= end; i++) {
             if (i === page) {
-                html += '<span class="layui-laypage-curr"><em>' + i + '</em></span>';
+                html += '<span class="layui-laypage-curr">' + i + '</span>';
             } else {
                 html += '<a href="javascript:;" data-page="' + i + '">' + i + '</a>';
             }
         }
-        if (end < totalPages) {
-            if (end < totalPages - 1) html += '<span>…</span>';
-            html += '<a href="javascript:;" data-page="' + totalPages + '">' + totalPages + '</a>';
-        }
         if (page < totalPages) {
-            html += '<a href="javascript:;" data-page="' + (page + 1) + '">下一页</a>';
+            html += '<a href="javascript:;" data-page="' + (page + 1) + '">下一頁</a>';
         }
-        html += '<span class="layui-laypage-count">共 ' + total + ' 个</span>';
+        html += '<span class="layui-laypage-count">共 ' + total + ' 個</span>';
         html += '</div>';
         $('#pagination-bar').html(html);
     }
@@ -230,7 +241,7 @@ layui.use(['layer'], function(){
         }, 300);
     });
 
-    // Mark toggle (single click, no confirm)
+    // Mark toggle
     $(document).on('click', '.mark-btn', function(e) {
         e.stopPropagation();
         var $item = $(this).closest('.media-item');
@@ -243,9 +254,7 @@ layui.use(['layer'], function(){
             type: 'POST',
             data: { path: path },
             dataType: 'json',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            },
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
             success: function(res) {
                 layer.msg(res.msg, { icon: res.code ? 1 : 2, time: 800 });
                 loadPage(currentPage);
@@ -273,7 +282,6 @@ layui.use(['layer'], function(){
         var path = $item.data('path');
         if (!path) return;
 
-        // Delay to distinguish from double-click
         if (detailClickTimer) { clearTimeout(detailClickTimer); detailClickTimer = null; return; }
         detailClickTimer = setTimeout(function() {
             detailClickTimer = null;
@@ -294,30 +302,28 @@ layui.use(['layer'], function(){
                 if (!res.code) { layer.msg(res.msg, {icon: 2}); return; }
                 var d = res.data;
 
-                // Build info table
                 var html = '<div style="padding:15px 20px;">';
                 html += '<table class="layui-table" lay-skin="line" style="margin:0;">';
                 html += '<colgroup><col width="90"><col></colgroup>';
                 html += '<tbody>';
                 html += '<tr><td><i class="fa fa-file-o"></i> 文件名</td><td style="word-break:break-all;">' + d.name + '</td></tr>';
-                html += '<tr><td><i class="fa fa-folder-o"></i> 路径</td><td style="word-break:break-all;color:#999;">' + d.path + '</td></tr>';
+                html += '<tr><td><i class="fa fa-folder-o"></i> 路徑</td><td style="word-break:break-all;color:#999;">' + d.path + '</td></tr>';
                 html += '<tr><td><i class="fa fa-database"></i> 大小</td><td>' + d.size_str + '</td></tr>';
                 if (d.mime) {
-                    html += '<tr><td><i class="fa fa-tag"></i> 类型</td><td>' + d.mime + '</td></tr>';
+                    html += '<tr><td><i class="fa fa-tag"></i> 類型</td><td>' + d.mime + '</td></tr>';
                 }
                 if (d.dimension) {
                     html += '<tr><td><i class="fa fa-arrows-alt"></i> 尺寸</td><td>' + d.dimension + '</td></tr>';
                 }
-                html += '<tr><td><i class="fa fa-clock-o"></i> 修改时间</td><td>' + d.mod_time + '</td></tr>';
+                html += '<tr><td><i class="fa fa-clock-o"></i> 修改時間</td><td>' + d.mod_time + '</td></tr>';
                 html += '</tbody></table>';
 
-                // Usage section
                 html += '<div style="margin-top:15px;">';
                 if (d.usages && d.usages.length > 0) {
                     html += '<div style="font-weight:bold;margin-bottom:8px;"><i class="fa fa-link"></i> 使用位置 (' + d.usages.length + ')</div>';
                     html += '<table class="layui-table" lay-skin="line" style="margin:0;">';
                     html += '<colgroup><col width="100"><col width="60"><col><col width="100"></colgroup>';
-                    html += '<thead><tr><th>来源</th><th>ID</th><th>名称</th><th>字段</th></tr></thead>';
+                    html += '<thead><tr><th>來源</th><th>ID</th><th>名稱</th><th>欄位</th></tr></thead>';
                     html += '<tbody>';
                     for (var i = 0; i < d.usages.length; i++) {
                         var u = d.usages[i];
@@ -325,11 +331,10 @@ layui.use(['layer'], function(){
                     }
                     html += '</tbody></table>';
                 } else {
-                    html += '<div style="color:#999;padding:10px 0;"><i class="fa fa-unlink"></i> 未在数据库中找到使用位置</div>';
+                    html += '<div style="color:#999;padding:10px 0;"><i class="fa fa-unlink"></i> 未在數據庫中找到使用位置</div>';
                 }
                 html += '</div>';
 
-                // Preview for images
                 if (d.category === 'image') {
                     html += '<div style="margin-top:15px;text-align:center;">';
                     html += '<img src="/' + d.path + '" style="max-width:100%;max-height:300px;border:1px solid #eee;border-radius:4px;">';
@@ -340,7 +345,7 @@ layui.use(['layer'], function(){
 
                 layer.open({
                     type: 1,
-                    title: '<i class="fa fa-info-circle"></i> 文件详情',
+                    title: '<i class="fa fa-info-circle"></i> 文件詳情',
                     area: ['550px', '500px'],
                     content: html,
                     shadeClose: true
@@ -348,7 +353,7 @@ layui.use(['layer'], function(){
             },
             error: function() {
                 layer.close(loadIdx);
-                layer.msg('请求失败', {icon: 2});
+                layer.msg('請求失敗', {icon: 2});
             }
         });
     }
@@ -356,8 +361,8 @@ layui.use(['layer'], function(){
     // Clean unused
     $('#btn-clean').on('click', function() {
         layer.confirm(
-            '确定要清理所有未使用且未标记的文件吗？<br><span style="color:#FF5722">此操作不可撤销！</span>',
-            { btn: ['确定清理', '取消'], title: '一键清理', icon: 3 },
+            '確定要清理所有未使用且未標記的文件嗎？<br><br><span style="color:#5FB878"><i class="fa fa-info-circle"></i> 清理的文件將移至回收站，可隨時還原。</span>',
+            { btn: ['確定清理', '取消'], title: '<i class="fa fa-trash-o"></i> 清理未使用文件', icon: 3 },
             function(index) {
                 layer.close(index);
                 $.ajax({
@@ -365,9 +370,7 @@ layui.use(['layer'], function(){
                     type: 'POST',
                     data: {},
                     dataType: 'json',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     success: function(res) {
                         layer.msg(res.msg, { icon: res.code ? 1 : 2, time: 2000 });
                         setTimeout(function() { location.reload(); }, 1500);
@@ -377,7 +380,113 @@ layui.use(['layer'], function(){
         );
     });
 
-    // Refresh — 手動重新掃描
+    // Backup (recycle bin)
+    $('#btn-backup').on('click', function() {
+        var loadIdx = layer.load(2);
+        $.ajax({
+            url: '/admin/content/media/backup',
+            type: 'GET',
+            dataType: 'json',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(res) {
+                layer.close(loadIdx);
+                if (!res.code) { layer.msg(res.msg, {icon: 2}); return; }
+                var d = res.data;
+                var html = '<div style="padding:15px;">';
+
+                html += '<div class="backup-bar" style="margin-bottom:10px;border:1px solid #eee;border-radius:4px;">';
+                html += '<span class="backup-stat"><i class="fa fa-recycle"></i> 回收站共 <b>' + d.total + '</b> 個文件，<b>' + d.total_size + '</b></span>';
+                if (d.total > 0) {
+                    html += '<button class="layui-btn layui-btn-sm layui-btn-danger" id="btn-backup-clear" style="margin-left:auto;"><i class="fa fa-times"></i> 清空回收站</button>';
+                }
+                html += '</div>';
+
+                if (d.total === 0) {
+                    html += '<div style="text-align:center;padding:40px 0;color:#999;"><i class="fa fa-inbox" style="font-size:36px;"></i><br><br>回收站為空</div>';
+                } else {
+                    html += '<div class="backup-list">';
+                    for (var i = 0; i < d.files.length; i++) {
+                        var f = d.files[i];
+                        var ext = f.name.split('.').pop().toLowerCase();
+                        var isImg = ['jpg','jpeg','png','gif','bmp','webp','avif','svg','ico'].indexOf(ext) >= 0;
+                        html += '<div class="backup-item">';
+                        if (isImg) {
+                            html += '<img src="/static/backup/media/' + f.path + '">';
+                        } else {
+                            html += '<div class="bi-icon"><i class="fa fa-file-o"></i></div>';
+                        }
+                        html += '<div class="bi-info">';
+                        html += '<div class="bi-name" title="' + f.name + '">' + f.name + '</div>';
+                        html += '<div class="bi-meta">' + f.size_str + ' · ' + f.mod_time + '</div>';
+                        html += '</div>';
+                        html += '<div class="bi-actions">';
+                        html += '<button class="layui-btn layui-btn-xs layui-btn-normal btn-restore" data-path="' + f.path + '"><i class="fa fa-undo"></i> 還原</button>';
+                        html += '</div>';
+                        html += '</div>';
+                    }
+                    html += '</div>';
+                }
+
+                html += '</div>';
+
+                layer.open({
+                    type: 1,
+                    title: '<i class="fa fa-recycle"></i> 回收站',
+                    area: ['600px', '500px'],
+                    content: html,
+                    shadeClose: true
+                });
+            },
+            error: function() {
+                layer.close(loadIdx);
+                layer.msg('請求失敗', {icon: 2});
+            }
+        });
+    });
+
+    // Restore file
+    $(document).on('click', '.btn-restore', function() {
+        var path = $(this).data('path');
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+        $.ajax({
+            url: '/admin/content/media/restore',
+            type: 'POST',
+            data: { path: path },
+            dataType: 'json',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(res) {
+                layer.msg(res.msg, { icon: res.code ? 1 : 2, time: 1500 });
+                if (res.code) {
+                    $btn.closest('.backup-item').fadeOut(300, function(){ $(this).remove(); });
+                }
+            },
+            complete: function() { $btn.prop('disabled', false); }
+        });
+    });
+
+    // Clear backup
+    $(document).on('click', '#btn-backup-clear', function() {
+        layer.confirm(
+            '確定要永久刪除回收站中的所有文件嗎？<br><span style="color:#FF5722">此操作不可恢復！</span>',
+            { btn: ['確定清空', '取消'], title: '清空回收站', icon: 3 },
+            function(index) {
+                layer.close(index);
+                $.ajax({
+                    url: '/admin/content/media/backupClear',
+                    type: 'POST',
+                    dataType: 'json',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    success: function(res) {
+                        layer.msg(res.msg, { icon: res.code ? 1 : 2, time: 2000 });
+                        setTimeout(function() { location.reload(); }, 1500);
+                    }
+                });
+            }
+        );
+    });
+
+    // Refresh
     $('#btn-refresh').on('click', function() {
         layer.confirm(
             '<i class="fa fa-exclamation-triangle" style="color:#FF9800;font-size:18px;"></i> 重新掃描所有文件？<br><br><span style="color:#999;font-size:12px;">將遍歷文件目錄和數據庫，預計耗時 10~50 秒<br>掃描期間頁面數據不會更新</span>',

@@ -18,9 +18,9 @@ type ImageExtController struct {
 	common.BaseController
 }
 
-// Index - Image extension page
+// Index - 已棄用，重定向到媒體庫
 func (ie *ImageExtController) Index(c *gin.Context) {
-	common.Render(c, "system/extimage.html", nil)
+	c.Redirect(302, "/admin/content/media/index")
 }
 
 // CheckDataFile - Check data file

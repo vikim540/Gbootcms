@@ -78,7 +78,7 @@
             dataType: 'json',
             success: function (response) {
                 if(response.code === 1){
-                    layer.msg('清理成功',{time: 1000},function (){
+                    layer.msg('清理成功', {icon: 1, time: 1000}, function (){
                         location.reload();
                     });
                 }

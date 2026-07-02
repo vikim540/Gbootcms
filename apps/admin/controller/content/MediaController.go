@@ -173,10 +173,11 @@ type refTable struct {
 var fileRefs = []refTable{
 	{"ay_content",      "id", "title", []refColumn{{"ico", "ico(封面)"}, {"pics", "pics(多圖)"}, {"enclosure", "enclosure(附件)"}}},
 	{"ay_content_sort", "id", "name",  []refColumn{{"ico", "ico(圖標)"}, {"pic", "pic(圖片)"}}},
-	{"ay_slide",        "id", "name",  []refColumn{{"pic", "pic(輪播圖)"}}},
+	{"ay_slide",        "id", "name",  []refColumn{{"pic", "pic(輪播圖)"}, {"pic_mobile", "pic_mobile(移動端)"}}},
 	{"ay_link",         "id", "name",  []refColumn{{"logo", "logo(Logo)"}}},
 	{"ay_company",      "id", "name",  []refColumn{{"weixin", "weixin(微信)"}, {"blicense", "blicense(證照)"}}},
 	{"ay_site",         "id", "name",  []refColumn{{"logo", "logo(Logo)"}}},
+	{"ay_member",       "id", "name",  []refColumn{{"headpic", "headpic(頭像)"}}},
 }
 
 // validateOnce 確保 PRAGMA 校驗只運行壹次
@@ -367,7 +368,7 @@ func (c *MediaController) Mark(ctx *gin.Context) {
 	}
 }
 
-// Clean 清理未使用的文件
+// Clean 清理未使用的文件（移至 static/backup/media/，保留目錄結構）
 func (c *MediaController) Clean(ctx *gin.Context) {
 	force := ctx.PostForm("force") == "1"
 	cache := ensureCache()
@@ -375,6 +376,9 @@ func (c *MediaController) Clean(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"code": 0, "msg": "掃描數據不可用"})
 		return
 	}
+
+	backupDir := filepath.Join("static", "backup", "media")
+	os.MkdirAll(backupDir, 0755)
 
 	deleted := 0
 	skipped := 0
@@ -394,7 +398,13 @@ func (c *MediaController) Clean(ctx *gin.Context) {
 		}
 
 		fullPath := filepath.Join("static", strings.TrimPrefix(np, "static/"))
-		if err := os.Remove(fullPath); err != nil {
+
+		// 在備份目錄下重建相同的子目錄結構（如 backup/media/upload/202606/xxx.jpg）
+		relPath := strings.TrimPrefix(np, "static/")
+		dstPath := filepath.Join(backupDir, relPath)
+		os.MkdirAll(filepath.Dir(dstPath), 0755)
+
+		if err := os.Rename(fullPath, dstPath); err != nil {
 			errors = append(errors, fmt.Sprintf("%s: %s", f.Name, err.Error()))
 		} else {
 			deleted++
@@ -406,7 +416,7 @@ func (c *MediaController) Clean(ctx *gin.Context) {
 		invalidateCache()
 	}
 
-	msg := fmt.Sprintf("已清理 %d 個文件", deleted)
+	msg := fmt.Sprintf("已清理 %d 個文件（已移至回收站）", deleted)
 	if skipped > 0 {
 		msg += fmt.Sprintf("，跳過 %d 個已標記文件", skipped)
 	}
@@ -415,6 +425,109 @@ func (c *MediaController) Clean(ctx *gin.Context) {
 	}
 
 	c.JSONOKMsg(ctx, msg)
+}
+
+// BackupList 回收站文件列表
+func (c *MediaController) BackupList(ctx *gin.Context) {
+	backupDir := filepath.Join("static", "backup", "media")
+	type BackupFile struct {
+		Name    string `json:"name"`
+		Path    string `json:"path"`
+		Size    int64  `json:"size"`
+		SizeStr string `json:"size_str"`
+		ModTime string `json:"mod_time"`
+	}
+	var files []BackupFile
+	filepath.Walk(backupDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		rel, _ := filepath.Rel(backupDir, path)
+		files = append(files, BackupFile{
+			Name:    info.Name(),
+			Path:    filepath.ToSlash(rel),
+			Size:    info.Size(),
+			SizeStr: formatSize(info.Size()),
+			ModTime: info.ModTime().Format("2006-01-02 15:04:05"),
+		})
+		return nil
+	})
+
+	total := len(files)
+	totalSize := int64(0)
+	for _, f := range files {
+		totalSize += f.Size
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"code": 1,
+		"data": gin.H{
+			"files":     files,
+			"total":     total,
+			"total_size": formatSize(totalSize),
+		},
+	})
+}
+
+// Restore 從回收站還原文件
+func (c *MediaController) Restore(ctx *gin.Context) {
+	path := ctx.PostForm("path")
+	if path == "" {
+		ctx.JSON(http.StatusOK, gin.H{"code": 0, "msg": "缺少文件路徑"})
+		return
+	}
+
+	backupDir := filepath.Join("static", "backup", "media")
+	srcPath := filepath.Join(backupDir, filepath.FromSlash(path))
+
+	// 防止路徑穿越
+	if !strings.HasPrefix(filepath.Clean(srcPath), filepath.Clean(backupDir)) {
+		ctx.JSON(http.StatusOK, gin.H{"code": 0, "msg": "無效的路徑"})
+		return
+	}
+
+	if _, err := os.Stat(srcPath); err != nil {
+		ctx.JSON(http.StatusOK, gin.H{"code": 0, "msg": "文件不存在於回收站"})
+		return
+	}
+
+	// 還原到 static/upload/ 下的原始位置
+	dstPath := filepath.Join("static", "upload", filepath.FromSlash(path))
+	os.MkdirAll(filepath.Dir(dstPath), 0755)
+
+	if err := os.Rename(srcPath, dstPath); err != nil {
+		ctx.JSON(http.StatusOK, gin.H{"code": 0, "msg": "還原失敗：" + err.Error()})
+		return
+	}
+
+	invalidateCache()
+	c.JSONOKMsg(ctx, "文件已還原")
+}
+
+// BackupClear 清空回收站（永久刪除）
+func (c *MediaController) BackupClear(ctx *gin.Context) {
+	backupDir := filepath.Join("static", "backup", "media")
+	count := 0
+	filepath.Walk(backupDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if os.Remove(path) == nil {
+			count++
+		}
+		return nil
+	})
+
+	// 清理空目錄
+	filepath.Walk(backupDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || !info.IsDir() || path == backupDir {
+			return nil
+		}
+		os.Remove(path) // 僅刪除空目錄
+		return nil
+	})
+
+	c.JSONOKMsg(ctx, fmt.Sprintf("回收站已清空，共刪除 %d 個文件", count))
 }
 
 // Refresh 手動刷新掃描緩存（耗時操作，前端需彈窗確認）
@@ -702,6 +815,16 @@ func getUsedPaths() map[string]bool {
 	model.DB.Table("ay_content").Select("content").Find(&htmls)
 	for _, row := range htmls {
 		extractSrcPaths(row.Content, used)
+	}
+
+	// ay_label.value HTML 中的 img src 引用（自定義標籤可能含圖片）
+	type LabelHTML struct{ Value string }
+	var labels []LabelHTML
+	model.DB.Table("ay_label").Select("value").Find(&labels)
+	for _, row := range labels {
+		// 標籤值可能含 HTML 實體編碼的 &quot;，先解碼再提取
+		decoded := strings.ReplaceAll(row.Value, "&quot;", "\"")
+		extractSrcPaths(decoded, used)
 	}
 
 	return used
