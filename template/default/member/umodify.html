@@ -1,0 +1,149 @@
+{include file=comm/head.html}
+
+{include file=comm/top.html}
+
+<div class="container pages">
+
+	{include file=comm/position.html}
+
+	<div class="row mb-5">
+
+		{include file=member/left.html}
+
+        <div class="col-12 col-md-10 mt-3">
+        		<form onsubmit="return umodify(this);">
+
+	        		<div class="form-group">
+	                    <label for="username">用戶名：</label>
+	                    <div>
+	                        {user:username}
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="headpic">頭像：</label>
+		               	<input type="text" name="headpic" id="headpic" value="{user:headpic}" class="form-control" placeholder="請輸入頭像圖片地址">
+		               	<div style="height:100px; width:100px; border:1px solid #ccc; margin-top:5px; border-radius:2px">
+		               		<img src="{user:headpic}" id="headpic_preview" style="max-width:100%;max-height:100%">
+		               	</div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="useremail">郵箱：</label>
+	                    <div>
+	                        <input type="text" name="useremail" value="{user:useremail}" autocomplete="off" class="form-control" placeholder="請輸入郵箱帳號">
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="usermobile">手機：</label>
+	                    <div>
+	                        <input type="text" name="usermobile" value="{user:usermobile}" autocomplete="off" class="form-control" placeholder="請輸入手機號碼">
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="nickname">暱稱：</label>
+	                    <div>
+	                        <input type="text" name="nickname" value="{user:nickname}" autocomplete="off" class="form-control" placeholder="請輸入帳號暱稱">
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="password">新密碼：</label>
+	                    <div>
+	                        <input type="password" name="password" class="form-control" autocomplete="off" placeholder="不修改請留空">
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="rpassword">確認密碼：</label>
+	                    <div>
+	                        <input type="password" name="rpassword" class="form-control" autocomplete="off" placeholder="請再次輸入新登錄密碼">
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="sex">性別：</label>
+	                    <div>
+	                         <select class="form-control" name="sex" id="sex">
+							  <option value="男" {gboot:if('{user:sex}'=='男')}selected{/gboot:if}>男</option>
+							  <option value="女" {gboot:if('{user:sex}'=='女')}selected{/gboot:if}>女</option>
+							</select>
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="birthday">生日：</label>
+                        <div>
+	                        <input class="form-control" type="date" name="birthday" id="birthday" value="{user:birthday}">
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="telephone">電話：</label>
+	                    <div>
+	                        <input type="text" name="telephone" value="{user:telephone}" autocomplete="off" class="form-control" placeholder="請輸入電話號碼">
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="qq">QQ：</label>
+	                    <div>
+	                        <input type="text" name="qq" value="{user:qq}" autocomplete="off" class="form-control" placeholder="請輸入QQ號碼">
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                    <label for="opassword">當前密碼：<span class="text-danger">*</span></label>
+	                    <div>
+	                        <input type="password" name="opassword" required autocomplete="off" class="form-control" placeholder="請輸入當前密碼">
+	                    </div>
+	                </div>
+
+	                <div class="form-group">
+	                   <button type="submit" class="btn btn-info">保存</button>
+	                   <a href="{gboot:ucenter}" class="btn btn-light">返回</a>
+	               </div>
+               </form>
+        </div>
+   </div>
+
+</div>
+
+<script>
+
+//ajax修改資料
+function umodify(obj){
+  var url='{gboot:umodify}';
+  var data = $(obj).serialize();
+
+  $.ajax({
+    type: 'POST',
+    url: url,
+    dataType: 'json',
+    data: data,
+    success: function (response, status) {
+      if(response.code){
+    	 alert(response.msg);
+		 location.href= response.tourl;
+      }else{
+    	 alert(response.data || response.msg);
+      }
+    },
+    error:function(xhr,status,error){
+      alert('返回數據異常！');
+    }
+  });
+  return false;
+}
+
+//頭像預覽
+$(document).ready(function(){
+	$('#headpic').on('input', function(){
+		$('#headpic_preview').attr('src', $(this).val());
+	});
+});
+</script>
+
+{include file=comm/foot.html}

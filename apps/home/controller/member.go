@@ -326,6 +326,10 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 			"useremail":  c.PostForm("useremail"),
 			"usermobile": c.PostForm("usermobile"),
 			"headpic":    c.PostForm("headpic"),
+			"sex":        c.PostForm("sex"),
+			"birthday":   c.PostForm("birthday"),
+			"qq":         c.PostForm("qq"),
+			"telephone":  c.PostForm("telephone"),
 		}
 
 		// 修改密碼（可選）

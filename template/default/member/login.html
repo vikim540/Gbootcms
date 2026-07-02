@@ -1,0 +1,88 @@
+{include file=comm/head.html}
+
+{include file=comm/top.html}
+
+<div class="container pages">
+
+	{include file=comm/position.html}
+
+    <!-- 會員登錄 -->
+    <div class="row">
+    	<div class="col-lg-3"></div>
+    	<div class="col-12 col-lg-6">
+        	<form class="my-4" onsubmit="return login(this);">
+                <div class="form-group">
+                    <label for="username">帳　號</label>
+                    <div>
+                        <input type="text" name="username" required id="username" class="form-control" placeholder="請輸入登錄用戶名/郵箱/手機號碼">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">密　碼</label>
+                    <div>
+                        <input type="password" name="password" required id="password" class="form-control" placeholder="請輸入登錄密碼">
+                    </div>
+                </div>
+
+                {gboot:if({gboot:logincodestatus})}
+                <div class="form-group">
+                    <label for="checkcode">驗證碼</label>
+                    <div class="row">
+                        <div class="col-6">
+                            <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="請輸入驗證碼">
+                        </div>
+                        <div class="col-6">
+                            <img title="點擊刷新" style="height:33px;" id="codeimg" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
+                        </div>
+                    </div>
+                </div>
+                {/gboot:if}
+
+                <div class="form-group">
+                   <button type="submit" class="btn btn-info mb-2">立即登錄</button>
+				   <span class="text-secondary ml-3"><a href="{gboot:register}">註冊帳號</a></span>
+				   <span class="text-secondary ml-3"><a href="{gboot:retrieve}">找回密碼</a></span>
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-3"></div>
+    </div>
+</div>
+
+<script>
+
+//ajax登錄
+function login(obj){
+  var url='{gboot:login}';
+  var username=$(obj).find("#username").val();
+  var password=$(obj).find("#password").val();
+  var checkcode=$(obj).find("#checkcode").val();
+
+  $.ajax({
+    type: 'POST',
+    url: url,
+    dataType: 'json',
+    data: {
+    	username: username,
+    	password: password,
+    	checkcode: checkcode
+    },
+    success: function (response, status) {
+      if(response.code){
+    	 alert("登錄成功！");
+		 location.href=response.tourl;
+      }else{
+    	  $('#codeimg').click();
+    	 alert(response.data || response.msg);
+      }
+    },
+    error:function(xhr,status,error){
+      alert('返回數據異常！');
+    }
+  });
+  return false;
+}
+</script>
+
+{include file=comm/foot.html}

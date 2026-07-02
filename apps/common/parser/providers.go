@@ -140,23 +140,32 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 				return ctx.Sort.Description
 			}
 			return ctx.Site.Description
-		// 會員相關標籤 (暫未實現,返回空)
+		// 會員相關標籤
 		case "loginstatus":
-			return "0" // 0=未登錄
+			return model.GetConfigValue("login_status", "1")
 		case "login":
-			return "/member/login"
+			return "/login"
 		case "registerstatus":
-			return "0" // 0=關閉註冊
+			return model.GetConfigValue("register_status", "1")
 		case "register":
-			return "/member/register"
+			return "/register"
 		case "ucenter":
-			return "/member/center"
+			return "/ucenter"
+		case "umodify":
+			return "/umodify"
+		case "logout":
+			return "/logout"
+		case "retrieve":
+			return "/retrieve"
 		case "islogin":
+			if ctx.Member != nil {
+				return "1"
+			}
 			return "0"
 		case "commentstatus":
-			return "1" // 1=開啟評論
+			return model.GetConfigValue("comment_status", "1")
 		case "commentcodestatus":
-			return "0" // 0=關閉評論驗證碼
+			return model.GetConfigValue("comment_check_code", "1")
 		case "msgcodestatus":
 			return model.GetConfigValue("message_check_code", "1")
 		case "httpurl":
@@ -409,6 +418,23 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return ctx.Member.Telephone
 		case "qq":
 			return ctx.Member.QQ
+		case "gname":
+			if ctx.Member != nil && ctx.Member.GID != "" {
+				var group model.MemberGroup
+				model.DB.Where("id = ?", ctx.Member.GID).First(&group)
+				return group.Gname
+			}
+			return ""
+		case "registertime":
+			t := ctx.Member.RegisterTime
+			if t.IsZero() {
+				return ""
+			}
+			return t.Format("2006-01-02 15:04:05")
+		case "lastloginip":
+			return ctx.Member.LastLoginIP
+		case "lastlogintime":
+			return ctx.Member.LastLoginTime
 		default:
 			return ""
 		}
