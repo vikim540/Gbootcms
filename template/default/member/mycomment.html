@@ -1,0 +1,68 @@
+{include file=head.html}
+
+{include file=comm/top.html}
+
+<div class="container pages">
+
+	{include file=comm/position.html}
+
+	<div class="row mb-5">
+
+        {include file=member/left.html}
+
+        <div class="col-12 col-md-10 mt-3">
+			<table class="table">
+			  <thead>
+			  	<th>序號</th>
+			  	<th>文章</th>
+			  	<th>評論</th>
+			  	<th>狀態</th>
+			  	<th>時間</th>
+			  	<th>操作</th>
+			  </thead>
+			  <tbody>
+			  	{gboot:mycomment num=10}
+			    <tr>
+			      <td>[mycomment:i]</td>
+			      <td>[mycomment:title]</td>
+			      <td>[mycomment:comment]</td>
+			      <td>{gboot:if([mycomment:status]==1)}已審核{else}<span style="color:red">待審核</span>{/gboot:if}</td>
+			      <td>[mycomment:date]</td>
+			      <td><span class="del" data-url="[mycomment:delaction]" style="cursor:pointer" >刪除</span></td>
+			    </tr>
+			    {/gboot:mycomment}
+			  </tbody>
+			</table>
+        </div>
+   </div>
+
+</div>
+
+<script>
+$(".del").on("click",function(){
+
+	 if(!confirm("您確定要刪除嗎？")){
+		 return;
+	 }
+
+	var url=$(this).data('url');
+	var el=$(this).parents("tr");
+	 $.ajax({
+	    type: 'GET',
+	    url: url,
+	    dataType: 'json',
+	    success: function (response, status) {
+	    	if(response.code==0){
+	    		alert(response.data);
+	    	}else{
+	    		el.remove();
+	    	}
+	    },
+	    error:function(xhr,status,error){
+	      alert('返回數據異常！');
+	    }
+	  });
+});
+</script>
+
+{include file=foot.html}

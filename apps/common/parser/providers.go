@@ -575,6 +575,10 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 	})
 
 	p.Register("commentaction", func(tagName string, params map[string]string, inner string) string {
+		// 帶上 contentid 參數（與 PHP 原版一致）
+		if ctx.Content != nil {
+			return "/comment/add?contentid=" + strconv.FormatUint(uint64(ctx.Content.ID), 10)
+		}
 		return "/comment/add"
 	})
 
@@ -1208,15 +1212,120 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 	})
 
 	p.Register("comment", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		// 取得 contentid：優先用 params，其次用 ctx.Content
+		contentid := params["contentid"]
+		cid, _ := strconv.Atoi(contentid)
+		if cid == 0 && ctx.Content != nil {
+			cid = int(ctx.Content.ID)
+		}
+		if cid == 0 {
+			return ""
+		}
+
+		num := 20
+		if n, err := strconv.Atoi(params["num"]); err == nil && n > 0 {
+			num = n
+		}
+
+		// 查詢主評論（pid=0, status=1）
+		var comments []model.CommentView
+		model.DB.Table("ay_member_comment a").
+			Select("a.*, b.username, b.nickname, b.headpic, c.username as pusername, c.nickname as pnickname, c.headpic as pheadpic").
+			Joins("LEFT JOIN ay_member b ON a.uid=b.id").
+			Joins("LEFT JOIN ay_member c ON a.puid=c.id").
+			Where("a.contentid = ? AND a.pid = 0 AND a.status = 1", cid).
+			Order("a.id DESC").
+			Limit(num).
+			Find(&comments)
+
+		// 提取 commentsub 塊的內容
+		reSub := regexp.MustCompile(`(?s)\{gboot:commentsub(?:\s+([^}]+))?\}(.*?)\{/gboot:commentsub\}`)
+		subMatch := reSub.FindStringSubmatch(inner)
+		subInner := ""
+		if len(subMatch) >= 3 {
+			subInner = subMatch[2]
+		}
+		// 移除 inner 中的 commentsub 塊（避免被外層重複渲染）
+		innerWithoutSub := reSub.ReplaceAllString(inner, "{__COMMENTSUB__}")
+
+		var sb strings.Builder
+		for i, cm := range comments {
+			data := commentToMap(&cm, i+1)
+			row := ReplaceInnerTags(innerWithoutSub, "comment", data)
+			// 處理 commentsub 塊
+			if subInner != "" {
+				var subs []model.CommentView
+				model.DB.Table("ay_member_comment a").
+					Select("a.*, b.username, b.nickname, b.headpic, c.username as pusername, c.nickname as pnickname, c.headpic as pheadpic").
+					Joins("LEFT JOIN ay_member b ON a.uid=b.id").
+					Joins("LEFT JOIN ay_member c ON a.puid=c.id").
+					Where("a.contentid = ? AND a.pid = ? AND a.status = 1", cid, cm.ID).
+					Order("a.id ASC").
+					Limit(100).
+					Find(&subs)
+
+				var subSB strings.Builder
+				for j, sc := range subs {
+					subData := commentToMap(&sc, j+1)
+					subRow := ReplaceInnerTags(subInner, "commentsub", subData)
+					subSB.WriteString(subRow)
+				}
+				row = strings.Replace(row, "{__COMMENTSUB__}", subSB.String(), 1)
+			} else {
+				row = strings.Replace(row, "{__COMMENTSUB__}", "", 1)
+			}
+			sb.WriteString(row)
+		}
+		return sb.String()
 	})
 
 	p.Register("commentsub", func(tagName string, params map[string]string, inner string) string {
+		// commentsub 由 comment provider 內部處理，此處為兜底返回空
 		return ""
 	})
 
 	p.Register("mycomment", func(tagName string, params map[string]string, inner string) string {
-		return ""
+		// 需要從 session 取得 uid，但 provider 無法直接存取 gin.Context
+		// 透過 ctx.Member 取得（renderMemberPage 時已設定）
+		if ctx.Member == nil {
+			return ""
+		}
+		uid := ctx.Member.ID
+		if uid == 0 {
+			return ""
+		}
+
+		num := 10
+		if n, err := strconv.Atoi(params["num"]); err == nil && n > 0 {
+			num = n
+		}
+
+		var comments []model.CommentView
+		model.DB.Table("ay_member_comment a").
+			Select("a.*, b.username, b.nickname, b.headpic, c.username as pusername, c.nickname as pnickname, c.headpic as pheadpic, d.title").
+			Joins("LEFT JOIN ay_member b ON a.uid=b.id").
+			Joins("LEFT JOIN ay_member c ON a.puid=c.id").
+			Joins("LEFT JOIN ay_content d ON a.contentid=d.id").
+			Where("a.uid = ?", uid).
+			Order("a.id DESC").
+			Limit(num).
+			Find(&comments)
+
+		var sb strings.Builder
+		for i, cm := range comments {
+			data := commentToMap(&cm, i+1)
+			data["delaction"] = "/comment/del?id=" + strconv.FormatUint(uint64(cm.ID), 10)
+			data["title"] = cm.Title
+			data["status"] = strconv.Itoa(cm.Status)
+			if !cm.CreateTime.IsZero() {
+				data["date"] = cm.CreateTime.Format("2006-01-02 15:04:05")
+			} else {
+				data["date"] = ""
+			}
+			row := ReplaceInnerTags(inner, "mycomment", data)
+			sb.WriteString(row)
+		}
+		return sb.String()
 	})
 
 	// selectall: 生成「全部」連結（清除該欄位篩選）
@@ -1625,6 +1734,55 @@ func parseExtraJSON(extra string) map[string]string {
 		}
 	}
 	return result
+}
+
+// commentToMap 將 CommentView 轉為模板欄位 map
+func commentToMap(c *model.CommentView, index int) map[string]interface{} {
+	nickname := c.Nickname
+	if nickname == "" {
+		nickname = c.Username
+	}
+	if nickname == "" {
+		nickname = "遊客"
+	}
+	pnickname := c.Pnickname
+	if pnickname == "" {
+		pnickname = c.Pusername
+	}
+	if pnickname == "" {
+		pnickname = "遊客"
+	}
+	headpic := c.Headpic
+	if headpic == "" {
+		headpic = "/static/images/logo.png"
+	}
+	dateStr := ""
+	if !c.CreateTime.IsZero() {
+		dateStr = c.CreateTime.Format("2006-01-02 15:04:05")
+	}
+	// replyaction: comment/add?contentid=X&pid=Y&puid=Z
+	pid := c.Pid
+	if pid == 0 {
+		pid = c.ID
+	}
+	replyaction := fmt.Sprintf("/comment/add?contentid=%d&pid=%d&puid=%d", c.Contentid, pid, c.Uid)
+
+	return map[string]interface{}{
+		"i":           strconv.Itoa(index),
+		"n":           strconv.Itoa(index - 1),
+		"id":          strconv.FormatUint(uint64(c.ID), 10),
+		"comment":     c.Comment,
+		"contentid":   strconv.FormatUint(uint64(c.Contentid), 10),
+		"nickname":    nickname,
+		"pnickname":   pnickname,
+		"username":    c.Username,
+		"headpic":     headpic,
+		"date":        dateStr,
+		"ip":          c.UserIP,
+		"os":          c.UserOS,
+		"bs":          c.UserBS,
+		"replyaction": replyaction,
+	}
 }
 
 func contentToMap(c *model.Content, index int) map[string]interface{} {

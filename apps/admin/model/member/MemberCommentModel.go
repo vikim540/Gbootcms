@@ -17,6 +17,7 @@ type MemberComment struct {
 	UserOS     string    `gorm:"column:user_os" json:"user_os"`
 	UserBS     string    `gorm:"column:user_bs" json:"user_bs"`
 	CreateTime time.Time `gorm:"column:create_time" json:"create_time"`
+	UpdateUser string    `gorm:"column:update_user" json:"update_user"`
 	UpdateTime time.Time `gorm:"column:update_time" json:"update_time"`
 }
 
