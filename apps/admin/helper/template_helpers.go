@@ -86,8 +86,8 @@ func GetTemplateFiles() []string {
 	return files
 }
 
-// BuildGroupsData returns member groups with "Gname" alias for template compatibility.
-// Templates use [value->gname] but the Go model has Name field.
+// BuildGroupsData returns member groups with Gname/Gcode for template compatibility.
+// Templates use [value->gname] / [value->gcode] matching the model fields.
 func BuildGroupsData() []map[string]interface{} {
 	var groups []memberModel.MemberGroup
 	model.DB.Where("status = 1").Order("id ASC").Find(&groups)
@@ -95,8 +95,8 @@ func BuildGroupsData() []map[string]interface{} {
 	for i, g := range groups {
 		result[i] = map[string]interface{}{
 			"ID":    g.ID,
-			"Gname": g.Name, // alias: gname → Gname
-			"Code":  g.Code,
+			"Gname": g.Gname,
+			"Gcode": g.Gcode,
 		}
 	}
 	if result == nil {

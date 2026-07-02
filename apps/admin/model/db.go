@@ -70,7 +70,9 @@ type MediaMark = content.MediaMark
 type Member = member.Member
 type MemberGroup = member.MemberGroup
 type MemberField = member.MemberField
-type Comment = member.Comment
+type MemberComment = member.MemberComment
+type Comment = member.MemberComment
+type CommentView = member.CommentView
 
 // ──────────────────────────────────────────────
 // Helper functions (previously missing)

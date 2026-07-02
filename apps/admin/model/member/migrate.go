@@ -7,7 +7,7 @@ import (
 func AutoMigrate() {
 	db.DB.AutoMigrate(
 		&Member{},
-		&Comment{},
+		&MemberComment{},
 		&MemberGroup{},
 		&MemberField{},
 	)

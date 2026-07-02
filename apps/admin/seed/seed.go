@@ -180,8 +180,8 @@ func seedRoles(now time.Time) {
 
 func seedMemberGroups() {
 	groups := []member.MemberGroup{
-		{Code: "G1", Name: "普通会员", Status: 1},
-		{Code: "G2", Name: "VIP会员", Status: 1},
+		{Gcode: "G1", Gname: "普通會員", Status: 1},
+		{Gcode: "G2", Gname: "VIP會員", Status: 1},
 	}
 	for _, g := range groups {
 		model.DB.Create(&g)

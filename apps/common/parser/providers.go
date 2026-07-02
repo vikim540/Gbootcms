@@ -376,7 +376,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		case "nickname":
 			return ctx.Member.Nickname
 		case "headpic":
-			return ctx.Member.HeadPic
+			return ctx.Member.Headpic
 		case "email":
 			return ctx.Member.Email
 		case "logincount":
@@ -941,7 +941,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			var members []model.Member
 			model.DB.Where("id IN ?", uids).Find(&members)
 			for _, mem := range members {
-				memberMap[int(mem.ID)] = memberInfo{Nickname: mem.Nickname, HeadPic: mem.HeadPic}
+				memberMap[int(mem.ID)] = memberInfo{Nickname: mem.Nickname, HeadPic: mem.Headpic}
 			}
 		}
 

@@ -30,14 +30,14 @@ func (mb *MemberController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		password := c.PostForm("password")
 		encPwd := fmt.Sprintf("%x", md5.Sum([]byte(password)))
-		gid, _ := strconv.Atoi(c.DefaultPostForm("gid", "0"))
 		model.DB.Create(&model.Member{
-			Username: c.PostForm("username"),
-			Nickname: c.PostForm("nickname"),
-			Password: encPwd,
-			Email:    c.PostForm("email"),
-			GID:      gid,
-			Status:   1,
+			Username:   c.PostForm("username"),
+			Nickname:   c.PostForm("nickname"),
+			Password:   encPwd,
+			Useremail:  c.PostForm("useremail"),
+			Usermobile: c.PostForm("usermobile"),
+			GID:        c.PostForm("gid"),
+			Status:     1,
 		})
 		mb.JSONOKMsg(c, common.NoticeAdd)
 		return
@@ -56,11 +56,11 @@ func (mb *MemberController) Mod(c *gin.Context) {
 	id, _ := strconv.Atoi(idStr)
 
 	if c.Request.Method == "POST" {
-		gid, _ := strconv.Atoi(c.DefaultPostForm("gid", "0"))
 		updates := map[string]interface{}{
-			"nickname": c.PostForm("nickname"),
-			"email":    c.PostForm("email"),
-			"gid":      gid,
+			"nickname":   c.PostForm("nickname"),
+			"useremail":  c.PostForm("useremail"),
+			"usermobile": c.PostForm("usermobile"),
+			"gid":        c.PostForm("gid"),
 		}
 		password := c.PostForm("password")
 		if password != "" {
