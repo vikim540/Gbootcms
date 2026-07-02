@@ -2,8 +2,201 @@
 
 > **所有在本倉庫工作的 AI 助手必須閱讀本文檔並嚴格遵守。**
 > AI 助手包括但不限於:Trae、Cursor、Copilot、Cline、Windsurf、ChatGPT、Claude 等。
+> 最後更新：2026-07-02
 
-## 🔒 核心原則 / Core Principles
+---
+
+## 一、防遺忘清單（寫代碼前必讀）
+
+> 以下問題在開發過程中反覆出現，每次修改代碼前務必對照此清單。
+
+### 1.1 寫代碼前的強制檢查流程
+
+```
+1. 讀 project_memory.md — 檢查硬約束（如 mcode 而非 modelcode）
+2. 讀本文檔第一章 — 檢查 API 速查表和反模式
+3. Grep 一個已實現的同類控制器 — 參考其模式
+4. 確認方法/函數存在 — Grep 函數名，不要猜測
+5. 確認模型欄位名 — 讀 Model struct，不要猜測
+```
+
+### 1.2 API 速查表（不要猜，查這裡）
+
+#### BaseController 方法（apps/common/BaseController.go）
+
+| 方法 | 簽名 | 用途 |
+|------|------|------|
+| `JSONOK` | `(c, data)` | 成功響應 `{"code":1,"data":...}` |
+| `JSONOKMsg` | `(c, msg)` | 成功響應帶消息 `{"code":1,"msg":...}` |
+| `JSONFail` | `(c, msg)` | 失敗響應 `{"code":0,"msg":...}` |
+| `BatchSort` | `(c, modelPtr, sortCol, defaultSort)` | 通用批量排序 |
+| `GetAdminUsername` | `(c) string` | 從 Session 獲取管理員用戶名 |
+| `GetAdminUID` | `(c) int` | 從 Session 獲取管理員 UID |
+| `GetAdminUcode` | `(c) string` | 從 Session 獲取管理員 ucode |
+| `IsLogin` | `(c) bool` | 判斷登錄態 |
+| `IsBatchSort` | `(c) bool` | 判斷是否批量排序請求 |
+
+> **不存在的方法（曾誤用）**：`JSONErrMsg`、`GetAutoCode`、`AdminController.InitAdmin`
+
+#### 後台控制器標準模式
+
+```go
+// 列表頁必須傳遞 list 標誌
+common.Render(c, "module/template.html", gin.H{
+    "list":   true,        // ← 必須！模板用 {if([$list])} 判斷
+    "items":  items,
+    "C":      "module",    // 當前控制器路徑（模板生成URL用）
+})
+
+// 修改頁必須傳遞 mod 標誌
+common.Render(c, "module/template.html", gin.H{
+    "mod":    true,        // ← 必須！模板用 {if([$mod])} 判斷
+    "item":   item,
+    "C":      "module",
+})
+```
+
+> **遺忘後果**：模板的 `{if([$list])}` 和 `{if([$mod])}` 區塊不渲染，頁面空白。
+
+#### 路由模式：*action 通配符 vs :id 參數
+
+```go
+// ❌ 錯誤：:id 不支援 PbootCMS 風格的狀態切換 URL
+adminGroup.GET("/admin/xxx/mod/:id", ctrl.Mod)
+
+// ✅ 正確：*action 支援 /mod/id/123/field/status/value/0 風格
+adminGroup.Any("/admin/xxx/mod/*action", ctrl.Mod)
+```
+
+**判斷規則**：如果模板中有狀態切換圖標鏈接（`/mod/id/[value->id]/field/status/value/0`），必須用 `*action`。
+
+#### Mod 方法解析 *action 參數
+
+```go
+func (ctrl *Controller) Mod(c *gin.Context) {
+    params := helper.ParseWildcardAction(c.Param("action"))
+    idStr := params["id"]       // /id/123 → "123"
+    field := params["field"]    // /field/status → "status"
+    value := params["value"]    // /value/0 → "0"
+
+    // 單欄位切換（狀態開關）
+    if field != "" && value != "" {
+        model.DB.Model(&Model{}).Where("id = ?", id).Update(field, value)
+        c.Redirect(302, "/admin/xxx/index")
+        return
+    }
+    // ... 完整修改邏輯
+}
+```
+
+#### 雙 MD5 密碼雜湊（兩行寫法，不要嵌套）
+
+```go
+// ❌ 錯誤：嵌套括號導致編譯失敗
+encPwd := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%x", md5.Sum([]byte(password)))))
+
+// ✅ 正確：兩行寫法
+firstMd5 := fmt.Sprintf("%x", md5.Sum([]byte(password)))
+encPwd := fmt.Sprintf("%x", md5.Sum([]byte(firstMd5)))
+```
+
+#### time.Time 欄位的模板顯示
+
+```go
+// 問題：pongo2 直接渲染 time.Time 會顯示時區和納秒
+// 解決：在 Model 中加非 DB 欄位，控制器中預格式化
+
+type Member struct {
+    // ... DB 欄位 ...
+    RegisterTimeStr string `gorm:"-" json:"register_time_str"` // 非DB，顯示用
+}
+
+// 控制器中
+if !member.RegisterTime.IsZero() {
+    member.RegisterTimeStr = member.RegisterTime.Format("2006-01-02 15:04:05")
+}
+
+// 模板中
+<td>[value->register_time_str]</td>  <!-- 不用 [value->register_time] -->
+```
+
+#### 通知消息常量（apps/common/notice.go）
+
+```go
+// ✅ 正確：使用常量
+mg.JSONOKMsg(c, common.NoticeAdd)
+mg.JSONOKMsg(c, common.NoticeModify)
+mg.JSONOKMsg(c, common.NoticeDelete)
+
+// ❌ 錯誤：硬編碼字符串
+mg.JSONOKMsg(c, "新增成功")
+```
+
+### 1.3 反模式清單（曾犯過的錯誤）
+
+| # | 錯誤行為 | 正確做法 | 出現頻率 |
+|---|---------|---------|---------|
+| 1 | 不讀 docs 直接寫代碼 | 先讀本文件再動手 | 高 |
+| 2 | 不讀同類控制器參考 | Grep 一個已實現的控制器（如 ContentSort） | 高 |
+| 3 | 猜測方法名（如 JSONErrMsg） | Grep 確認方法存在 | 中 |
+| 4 | 猜測模型欄位名 | 讀 Model struct 定義 | 中 |
+| 5 | 用 `:id` 路由而非 `*action` | 檢查模板是否有狀態切換鏈接 | 中 |
+| 6 | 嵌套 md5.Sum 導致編譯失敗 | 兩行寫法 | 低 |
+| 7 | 直接渲染 time.Time | 加 `gorm:"-"` 字串欄位預格式化 | 低 |
+| 8 | 硬編碼通知消息 | 引用 notice.go 常量 | 低 |
+| 9 | 用簡體中文寫代碼/模板 | 全部繁體化（`/修改繁體文本`） | 中 |
+| 10 | 忘記傳遞 `list`/`mod` 標誌 | Render 時必須傳 `gin.H{"list": true}` | 高 |
+
+### 1.4 模板引擎速查（不要混淆）
+
+| 場景 | 引擎 | 語法 | 轉換器 |
+|------|------|------|--------|
+| 後台 admin view | pongo2 | `{if([$list])}` → `{% if List %}` | `core/basic/view.go` convertPbootToPongo2() |
+| 前台 template/default | 自研 TagParser | `{gboot:xxx}` | `apps/common/parser/tags.go` |
+
+> **關鍵區別**：後台模板用 `{$var->field}` 語法（pongo2 轉譯），前台模板用 `{gboot:xxx}` 和 `[prefix:field]` 語法。
+
+### 1.5 會員系統速查
+
+#### Session 鍵名（前台會員）
+
+| 鍵名 | 類型 | 用途 |
+|------|------|------|
+| `pboot_uid` | int | 會員 ID |
+| `pboot_ucode` | string | 會員編號 |
+| `pboot_username` | string | 用戶名 |
+| `pboot_useremail` | string | 郵箱 |
+| `pboot_usermobile` | string | 手機 |
+| `pboot_gid` | string | 等級 ID |
+| `pboot_gcode` | string | 等級編號 |
+| `pboot_gname` | string | 等級名稱 |
+
+#### 會員模型關鍵欄位
+
+| 欄位 | DB 列名 | 類型 | 備註 |
+|------|---------|------|------|
+| GID | `gid` | string | 存儲等級 ID（數字字串） |
+| Useremail | `useremail` | string | 不是 `email` |
+| Usermobile | `usermobile` | string | 不是 `mobile` |
+| LoginCount | `login_count` | int | 不是 `logincount` |
+| LastLoginIP | `last_login_ip` | string | 不是 `lastloginip` |
+| LastLoginTime | `last_login_time` | string | 字串類型，非 time.Time |
+| RegisterTime | `register_time` | time.Time | 顯示需預格式化 |
+| Headpic | `headpic` | string | 小寫 p，不是 HeadPic |
+| Gname | — | string | `gorm:"-"` 非DB欄位，JOIN 顯示用 |
+
+#### 會員等級模型關鍵欄位
+
+| 欄位 | DB 列名 | 備註 |
+|------|---------|------|
+| Gcode | `gcode` | 不是 `code` |
+| Gname | `gname` | 不是 `name` |
+| Lscore | `lscore` | 積分下限 |
+| Uscore | `uscore` | 積分上限 |
+
+---
+
+## 二、核心原則 / Core Principles
 
 ### 1. **絕對不要主動修改 `data/pbootcms.db`**
 - ❌ **禁止**使用任何 SQL 命令直接 INSERT/UPDATE/DELETE 業務資料
@@ -30,7 +223,9 @@
 - ❌ 不要刪除歷史記錄
 - ❌ 不要重寫整個文件
 
-## 🛡️ 驗證流程 / Verification Workflow
+---
+
+## 三、驗證流程 / Verification Workflow
 
 修改代碼後的標準驗證順序:
 
@@ -40,22 +235,38 @@
 4. **HTTP 探活** — `Invoke-WebRequest -Uri 'http://localhost:8080/' -UseBasicParsing`
 5. **業務路徑** — 至少驗證 1 個核心 API 正常
 
-## 📁 項目結構速查 / Project Structure
+---
+
+## 四、項目結構速查 / Project Structure
 
 | 路徑 | 用途 | 修改限制 |
 |---|---|---|
 | `apps/admin/` | 後台管理 API | 自由修改 |
-| `apps/home/` | 前台渲染 | 自由修改 |
+| `apps/home/` | 前台渲染 + 會員系統 | 自由修改 |
 | `apps/common/parser/` | PbootCMS 標籤解析 | 自由修改 |
 | `core/basic/view.go` | PHP 模板轉譯器 | 自由修改 |
-| `templates/*.html` | 前台模板 | 自由修改 |
-| `templates/admin/*.html` | 後台模板 | 自由修改 |
+| `template/default/` | 前台模板 | 自由修改 |
+| `apps/admin/view/` | 後台模板 | 自由修改 |
 | `config/config.json` | 配置文件 | 自由修改 |
 | **`data/pbootcms.db`** | **業務資料庫** | **🔒 僅 UI 寫入** |
-| **`migrations/`** | **遷移腳本** | **🔒 不要新增/刪除** |
 | **`.plan.md`** | 用戶活筆記 | **📝 追加,不重寫** |
 
-## 🚨 邊界案例 / Edge Cases
+### 技術棧速查
+
+| 層次 | 選型 | 說明 |
+|------|------|------|
+| 語言 | Go 1.25 | 單二進制部署，無需 CGO |
+| Web 框架 | Gin v1.12 | 路由、中間件、請求處理 |
+| ORM | GORM v1.31 | AutoMigrate，`ay_` 前綴 |
+| 數據庫 | SQLite (glebarez 純 Go) | 無需 CGO/GCC |
+| **後台模板** | **Pongo2 v6.1** | Django 風格 + PbootCMS 語法轉換器 |
+| **前台模板** | **自研 TagParser** | `{gboot:xxx}` 標籤 + fsnotify 熱重載 |
+| 後台 UI | Layui 2.5.4 + jQuery | 與 PbootCMS 原版一致 |
+| 前台 UI | Bootstrap 4 + Swiper 4 | 前台模板自帶 |
+
+---
+
+## 五、邊界案例 / Edge Cases
 
 ### Q: 我需要測試某個功能,但 db 中沒有對應資料怎麼辦?
 A: **提示用戶手動通過後台新增測試資料**,不要在腳本中 insert 模擬資料。
@@ -70,20 +281,9 @@ A: **不需要**。訪問計數是透明副作用。但如果你寫了腳本,可
 ### Q: 我能用 `go run` 寫一個遷移腳本嗎?
 A: **不要**。如果資料庫需要任何變更,必須由用戶親自確認並執行。
 
-## 📋 修復記錄模板 / Fix Record Template
+---
 
-在 `.plan.md` 中追加修復記錄時使用:
-
-```markdown
-## 2026-06-10 [T1] scode 修改按鈕路由修復
-- 問題: 點擊修改按鈕 → 404
-- 根因: ParseWildcardAction 對 "123,scode" 格式不支持
-- 修復: 添加 _lookup_by 標記,Controller 識別後用 scode 查找
-- 文件: apps/admin/helper/template_helpers.go, apps/admin/controller/content/ContentSortController.go
-- 驗證: curl /admin/contentsort/mod/1,scode → 200
-```
-
-## ✅ 確認清單 / Checklist
+## 六、確認清單 / Checklist
 
 每次任務結束前:
 - [ ] `git status` 確認沒有意外修改 db
@@ -92,10 +292,11 @@ A: **不要**。如果資料庫需要任何變更,必須由用戶親自確認並
 - [ ] 沒有執行 `rm`、`drop`、`truncate`、`delete from` 等危險命令
 - [ ] 用戶確認滿意後再 git commit
 
-## 🔗 相關文檔 / Related Docs
+---
 
-- `ARCHITECTURE_REVIEW.md` — 項目整體架構
+## 七、相關文檔 / Related Docs
+
+- `0701pbootcms-go-dev-guide.md` — 完整開發技術文檔（含防遺忘清單詳細版、會員系統、開發指南）
+- `ARCHITECTURE_REVIEW.md` — 項目整體架構評測
 - `.plan.md` — 開發進度活筆記
 - `build.ps1` — 構建腳本
-- `bin/headroom-task-context.mjs` — headroom-ai 任務上下文壓縮
-- `runtime/headroom_cache/` — 壓縮緩存目錄
