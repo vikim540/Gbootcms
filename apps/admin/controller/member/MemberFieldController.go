@@ -1,6 +1,7 @@
 package member
 
 import (
+	"pbootcms-go/apps/admin/helper"
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
 	"strconv"
@@ -9,69 +10,115 @@ import (
 )
 
 // MemberFieldController - 會員欄位控制器
-// 對應 PHP: apps/admin/controller/MemberFieldController.php
+// 對應 PHP: apps/admin/controller/member/MemberFieldController.php
 type MemberFieldController struct {
 	common.BaseController
 }
 
-// Index - 欄位列表
+// Index - 會員欄位列表（含新增Tab）
 func (mf *MemberFieldController) Index(c *gin.Context) {
 	var fields []model.MemberField
-	model.DB.Order("sorting ASC").Find(&fields)
-	common.Render(c, "member/field.html", gin.H{"fields": fields})
+	model.DB.Order("sorting ASC, id ASC").Find(&fields)
+	common.Render(c, "member/field.html", gin.H{
+		"list":   true,
+		"fields": fields,
+		"C":      "member/field",
+	})
 }
 
-// Add - 新增欄位
+// Add - 新增會員欄位
 func (mf *MemberFieldController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
-		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
+		name := c.PostForm("name")
+		description := c.PostForm("description")
+
+		if name == "" {
+			mf.JSONFail(c, "欄位名稱不能為空")
+			return
+		}
+		if description == "" {
+			mf.JSONFail(c, "欄位描述不能為空")
+			return
+		}
+
+		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
-		length, _ := strconv.Atoi(c.DefaultPostForm("length", "0"))
+		length, _ := strconv.Atoi(c.DefaultPostForm("length", "20"))
+		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
+
 		model.DB.Create(&model.MemberField{
-			Name:        c.PostForm("name"),
+			Name:        name,
 			Length:      length,
 			Required:    required,
-			Description: c.PostForm("description"),
+			Description: description,
 			Sorting:     sorting,
-			Status:      1,
+			Status:      status,
 		})
 		mf.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
-	common.Render(c, "member/field.html", gin.H{"action": "add"})
+	// GET 請求重定向到列表頁
+	c.Redirect(302, "/admin/member/field/index")
 }
 
-// Mod - 修改欄位
+// Mod - 修改會員欄位（支援狀態切換 + 完整修改）
+// 路由: /admin/member/field/mod/*action
 func (mf *MemberFieldController) Mod(c *gin.Context) {
-	idStr := c.Param("id")
+	params := helper.ParseWildcardAction(c.Param("action"))
+
+	idStr := params["id"]
 	if idStr == "" {
 		idStr = c.Query("id")
 	}
 	id, _ := strconv.Atoi(idStr)
 
+	// 單欄位切換（狀態/必填開關）
+	field := params["field"]
+	if field == "" {
+		field = c.Query("field")
+	}
+	value := params["value"]
+	if value == "" {
+		value = c.Query("value")
+	}
+
+	if field != "" && value != "" {
+		model.DB.Model(&model.MemberField{}).Where("id = ?", id).Update(field, value)
+		c.Redirect(302, "/admin/member/field/index")
+		return
+	}
+
 	if c.Request.Method == "POST" {
-		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
+		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
-		length, _ := strconv.Atoi(c.DefaultPostForm("length", "0"))
+		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
+
 		model.DB.Model(&model.MemberField{}).Where("id = ?", id).Updates(map[string]interface{}{
-			"name":        c.PostForm("name"),
-			"length":      length,
-			"required":    required,
 			"description": c.PostForm("description"),
+			"required":    required,
 			"sorting":     sorting,
+			"status":      status,
 		})
 		mf.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
-	var field model.MemberField
-	model.DB.First(&field, id)
-	common.Render(c, "member/field.html", gin.H{"field": field, "action": "mod"})
+	// GET 載入修改頁面
+	var field1 model.MemberField
+	model.DB.First(&field1, id)
+	common.Render(c, "member/field.html", gin.H{
+		"mod":   true,
+		"field": field1,
+		"C":     "member/field",
+	})
 }
 
-// Del - 刪除欄位
+// Del - 刪除會員欄位
 func (mf *MemberFieldController) Del(c *gin.Context) {
 	idStr := c.Query("id")
+	if idStr == "" {
+		idStr = c.PostForm("id")
+	}
 	model.DB.Delete(&model.MemberField{}, idStr)
 	mf.JSONOKMsg(c, common.NoticeDelete)
 }

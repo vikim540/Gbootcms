@@ -28,6 +28,9 @@ type Member struct {
 	Telephone     string    `gorm:"column:telephone" json:"telephone"`
 	Email         string    `gorm:"column:email" json:"email"`
 	QQ            string    `gorm:"column:qq" json:"qq"`
+	// 非資料庫欄位：用於列表顯示等級名稱
+	Gname          string `gorm:"-" json:"gname"`
+	RegisterTimeStr string `gorm:"-" json:"register_time_str"`
 }
 
 func (Member) TableName() string { return "ay_member" }

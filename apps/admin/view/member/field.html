@@ -4,20 +4,20 @@
 	{if([$list])}
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">会员字段列表</li>
-	    <li lay-id="t2">会员字段新增</li>
+	    <li class="layui-this" lay-id="t1">會員欄位列表</li>
+	    <li lay-id="t2">會員欄位新增</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	   <div class="layui-tab-item layui-show">
 	  	   		<table class="layui-table">
 	            	<thead>
 	                    <tr>
-	                    	<th width=40>序号</th>
+	                    	<th width=40>序號</th>
 	                    	<th>描述</th>
-	                    	<th>字段</th>
-	                    	<th>长度</th>
+	                    	<th>欄位</th>
+	                    	<th>長度</th>
 	                    	<th>是否必填</th>
-	                    	<th>是否启用</th>
+	                    	<th>是否啟用</th>
 	                    	<th>排序</th>
 	                        <th>操作</th>
 	                    </tr>
@@ -31,16 +31,16 @@
 	                    	<td>[value->length]</td>
 	                    	<td>
 		                        {if($value->required)}
-		                        <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/required/value/0}"><i class='fa fa-toggle-on' title="点击关闭必填"></i></a>
+		                        <a href="/admin/member/field/mod/id/[value->id]/field/required/value/0"><i class='fa fa-toggle-on' title="點擊關閉必填"></i></a>
 		                        {else}
-		                        <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/required/value/1}"><i class='fa fa-toggle-off' title="点击开启必填"></i></a>
+		                        <a href="/admin/member/field/mod/id/[value->id]/field/required/value/1"><i class='fa fa-toggle-off' title="點擊開啟必填"></i></a>
 		                        {/if}
 	                    	</td>
 	                    	<td>
 		                        {if($value->status)}
-		                        <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/status/value/0}"><i class='fa fa-toggle-on' title="点击禁用"></i></a>
+		                        <a href="/admin/member/field/mod/id/[value->id]/field/status/value/0"><i class='fa fa-toggle-on' title="點擊禁用"></i></a>
 		                        {else}
-		                        <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/status/value/1}"><i class='fa fa-toggle-off' title="点击启用"></i></a>
+		                        <a href="/admin/member/field/mod/id/[value->id]/field/status/value/1"><i class='fa fa-toggle-off' title="點擊啟用"></i></a>
 		                        {/if}
 	                    	</td>
 	                    	<td>[value->sorting]</td>
@@ -56,52 +56,52 @@
 	  	   </div>
 	  	   
 	  	    <div class="layui-tab-item">
-	   			<form action="{url./admin/MemberField/add}" method="post" class="layui-form">
-					<input type="hidden" name="formcheck" value="{$formcheck}" > 
+	   			<form action="/admin/member/field/add" method="post" class="layui-form">
+					<input type="hidden" name="formcheck" value="{$formcheck}" >
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">字段描述</label>
+	                     <label class="layui-form-label">欄位描述</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="description" required lay-verify="required"  placeholder="请输入字段描述，如：电话" class="layui-input">
+	                     	<input type="text" name="description" required lay-verify="required"  placeholder="請輸入欄位描述，如：電話" class="layui-input">
 	                     </div>
 	                </div>
-	                
+
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">字段名称</label>
+	                     <label class="layui-form-label">欄位名稱</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="name" required maxlength="20" lay-verify="required"  placeholder="请输入字段名称，必须以字母开头，如：telephone" class="layui-input">
+	                     	<input type="text" name="name" required maxlength="20" lay-verify="required"  placeholder="請輸入欄位名稱，必須以字母開頭，如：telephone" class="layui-input">
 	                     </div>
 	                </div>
-	                
+
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">字段长度</label>
+	                     <label class="layui-form-label">欄位長度</label>
 	                     <div class="layui-input-block">
 	                     	<input type="text" name="length" value="20" required lay-verify="required" class="layui-input">
 	                     </div>
 	                </div>
-	                
+
 	                <div class="layui-form-item">
 	                     <label class="layui-form-label">是否必填</label>
 	                     <div class="layui-input-block">
 	                     	<input type="radio" name="required" value="1" title="必填" checked>
-							<input type="radio" name="required" value="0" title="非必填"  checked>
+							<input type="radio" name="required" value="0" title="非必填">
 	                     </div>
 	                </div>
-	                
+
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">是否启用</label>
+	                     <label class="layui-form-label">是否啟用</label>
 	                     <div class="layui-input-block">
-	                     	<input type="radio" name="status" value="1" title="启用" checked>
+	                     	<input type="radio" name="status" value="1" title="啟用" checked>
 							<input type="radio" name="status" value="0" title="禁用">
 	                     </div>
 	                </div>
-	                
+
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">字段排序</label>
+	                     <label class="layui-form-label">欄位排序</label>
 	                     <div class="layui-input-block">
 	                     	<input type="text" name="sorting" value="255" required lay-verify="required" class="layui-input">
 	                     </div>
 	                </div>
-	   			
+
 	   				<div class="layui-form-item">
 						 <div class="layui-input-block">
 						    <button class="layui-btn" lay-submit>立即提交</button>
@@ -112,38 +112,38 @@
 	   	 	</div>
 	   </div>
 	 </div>
-	{/if} 
-	
+	{/if}
+
 	{if([$mod])}
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this">会员字段修改</li>
+	    <li class="layui-this">會員欄位修改</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	<div class="layui-tab-item layui-show">
-	  		<form action="{url./admin/MemberField/mod/id/'.[$get.id].'}{$backurl}" method="post" class="layui-form">
-	  			<input type="hidden" name="formcheck" value="{$formcheck}" > 
+	  		<form action="/admin/member/field/mod/id/[$get.id]{$backurl}" method="post" class="layui-form">
+	  			<input type="hidden" name="formcheck" value="{$formcheck}" >
                 <div class="layui-form-item">
-                     <label class="layui-form-label">字段描述</label>
+                     <label class="layui-form-label">欄位描述</label>
                      <div class="layui-input-block">
-                     	<input type="text" name="description"  value="{$field->description}" placeholder="请输入字段描述，如：联系人" class="layui-input">
+                     	<input type="text" name="description"  value="{$field->description}" placeholder="請輸入欄位描述，如：聯繫人" class="layui-input">
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
-                     <label class="layui-form-label">字段名称</label>
+                     <label class="layui-form-label">欄位名稱</label>
                      <div class="layui-input-block">
                      	<input type="text" name="name" readonly value="{$field->name}" class="layui-input readonly">
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
-                     <label class="layui-form-label">字段长度</label>
+                     <label class="layui-form-label">欄位長度</label>
                      <div class="layui-input-block">
                      	<input type="text" name="length" readonly value="{$field->length}" class="layui-input readonly">
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
                      <label class="layui-form-label">是否必填</label>
                      <div class="layui-input-block">
@@ -151,22 +151,22 @@
 						<input type="radio" name="required" value="0" title="非必填" {if([$field->required]==0)}checked{/if}>
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
-                     <label class="layui-form-label">是否启用</label>
+                     <label class="layui-form-label">是否啟用</label>
                      <div class="layui-input-block">
-                     	<input type="radio" name="status" value="1" title="启用" {if([$field->status]==1)}checked{/if}>
+                     	<input type="radio" name="status" value="1" title="啟用" {if([$field->status]==1)}checked{/if}>
 						<input type="radio" name="status" value="0" title="禁用" {if([$field->status]==0)}checked{/if}>
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
-                     <label class="layui-form-label">字段排序</label>
+                     <label class="layui-form-label">欄位排序</label>
                      <div class="layui-input-block">
                      	<input type="text" name="sorting" value="{$field->sorting}" required lay-verify="required" class="layui-input">
                      </div>
                 </div>
-   			
+
    				<div class="layui-form-item">
 					 <div class="layui-input-block">
 					    <button class="layui-btn" lay-submit>立即提交</button>
@@ -178,6 +178,6 @@
 	  	</div>
 	  </div>
 	 </div>
-	{/if} 
+	{/if}
 </div>
 {include file='common/foot.html'}

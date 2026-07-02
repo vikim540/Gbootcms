@@ -213,28 +213,25 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.POST("/system/imageExt/doExt", ie.DoExt)
 
 		mb := &member.MemberController{}
-		adminGroup.GET("/member/index", mb.Index)
-		adminGroup.GET("/member/add", mb.Add)
-		adminGroup.POST("/member/add", mb.Add)
-		adminGroup.GET("/member/mod/:id", mb.Mod)
-		adminGroup.POST("/member/mod/:id", mb.Mod)
-		adminGroup.POST("/member/del", mb.Del)
+	adminGroup.GET("/member/index", mb.Index)
+	adminGroup.GET("/member/add", mb.Add)
+	adminGroup.POST("/member/add", mb.Add)
+	adminGroup.Any("/member/mod/*action", mb.Mod)
+	adminGroup.POST("/member/del", mb.Del)
 
 		mg := &member.MemberGroupController{}
-		adminGroup.GET("/member/group/index", mg.Index)
-		adminGroup.GET("/member/group/add", mg.Add)
-		adminGroup.POST("/member/group/add", mg.Add)
-		adminGroup.GET("/member/group/mod/:id", mg.Mod)
-		adminGroup.POST("/member/group/mod/:id", mg.Mod)
-		adminGroup.POST("/member/group/del", mg.Del)
+	adminGroup.GET("/member/group/index", mg.Index)
+	adminGroup.GET("/member/group/add", mg.Add)
+	adminGroup.POST("/member/group/add", mg.Add)
+	adminGroup.Any("/member/group/mod/*action", mg.Mod)
+	adminGroup.POST("/member/group/del", mg.Del)
 
-		mf := &member.MemberFieldController{}
-		adminGroup.GET("/member/field/index", mf.Index)
-		adminGroup.GET("/member/field/add", mf.Add)
-		adminGroup.POST("/member/field/add", mf.Add)
-		adminGroup.GET("/member/field/mod/:id", mf.Mod)
-		adminGroup.POST("/member/field/mod/:id", mf.Mod)
-		adminGroup.POST("/member/field/del", mf.Del)
+	mf := &member.MemberFieldController{}
+	adminGroup.GET("/member/field/index", mf.Index)
+	adminGroup.GET("/member/field/add", mf.Add)
+	adminGroup.POST("/member/field/add", mf.Add)
+	adminGroup.Any("/member/field/mod/*action", mf.Mod)
+	adminGroup.POST("/member/field/del", mf.Del)
 
 		mcc := &member.MemberCommentController{}
 		adminGroup.GET("/member/comment/index", mcc.Index)
