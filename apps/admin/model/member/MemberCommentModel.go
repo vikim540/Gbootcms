@@ -2,20 +2,22 @@ package member
 
 import "time"
 
-// MemberComment 會員評論模型
+// MemberComment 對應 PbootCMS ay_member_comment 表
 type MemberComment struct {
-	ID         uint      `gorm:"primaryKey" json:"id"`
-	ContentID  uint      `gorm:"column:contentid" json:"contentid"`
-	MemberID   uint      `gorm:"column:memberid" json:"memberid"`
-	Nickname   string    `gorm:"column:nickname" json:"nickname"`
-	Content    string    `gorm:"column:content" json:"content"`
-	IP         string    `gorm:"column:ip" json:"ip"`
-	IsCheck    int       `gorm:"column:ischeck" json:"ischeck"`
-	CreateTime time.Time `gorm:"column:createtime" json:"createtime"`
+	ID         uint      `gorm:"primaryKey;column:id" json:"id"`
 	Pid        uint      `gorm:"column:pid" json:"pid"`
+	Contentid  uint      `gorm:"column:contentid" json:"contentid"`
+	Comment    string    `gorm:"column:comment" json:"comment"`
+	Uid        uint      `gorm:"column:uid" json:"uid"`
+	Puid       uint      `gorm:"column:puid" json:"puid"`
+	Likes      int       `gorm:"column:likes" json:"likes"`
+	Oppose     int       `gorm:"column:oppose" json:"oppose"`
+	Status     int       `gorm:"column:status" json:"status"`
+	UserIP     string    `gorm:"column:user_ip" json:"user_ip"`
+	UserOS     string    `gorm:"column:user_os" json:"user_os"`
+	UserBS     string    `gorm:"column:user_bs" json:"user_bs"`
+	CreateTime time.Time `gorm:"column:create_time" json:"create_time"`
+	UpdateTime time.Time `gorm:"column:update_time" json:"update_time"`
 }
 
-// TableName 返回評論表名
-func (MemberComment) TableName() string {
-	return "ay_comment"
-}
+func (MemberComment) TableName() string { return "ay_member_comment" }
