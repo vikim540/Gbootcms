@@ -25,6 +25,7 @@ func SeedData() {
 	if model.DB.Where("1 = 1").First(&user).Error != gorm.ErrRecordNotFound {
 		// 用户表非空：跳过首次种子，但仍要确保菜单是最新版本
 		ensureMenuVersion()
+		ensureMemberConfigs()
 		return
 	}
 
@@ -217,8 +218,56 @@ func seedConfigs() {
 		{Name: "login_error_count", Value: "5"},
 		{Name: "login_error_wait", Value: "300"},
 		{Name: "session_time", Value: "1800"},
+		// 會員系統配置
+		{Name: "register_status", Value: "1"},
+		{Name: "register_type", Value: "1"},
+		{Name: "register_check_code", Value: "1"},
+		{Name: "register_verify", Value: "0"},
+		{Name: "register_score", Value: "0"},
+		{Name: "register_gcode", Value: ""},
+		{Name: "register_title", Value: "會員註冊"},
+		{Name: "login_status", Value: "1"},
+		{Name: "login_check_code", Value: "1"},
+		{Name: "login_title", Value: "會員登錄"},
+		{Name: "ucenter_title", Value: "個人中心"},
+		{Name: "umodify_title", Value: "資料修改"},
+		{Name: "comment_status", Value: "1"},
+		{Name: "comment_check_code", Value: "1"},
+		{Name: "comment_verify", Value: "1"},
+		{Name: "comment_anonymous", Value: "0"},
+		{Name: "home_upload_ext", Value: "jpg,jpeg,png,gif,xls,xlsx,doc,docx,ppt,pptx,rar,zip,pdf,txt"},
 	}
 	for _, c := range configs {
 		model.DB.Create(&c)
+	}
+}
+
+// ensureMemberConfigs 確保會員配置項存在（用於已有數據庫的版本升級）
+func ensureMemberConfigs() {
+	memberConfigs := []system.Config{
+		{Name: "register_status", Value: "1"},
+		{Name: "register_type", Value: "1"},
+		{Name: "register_check_code", Value: "1"},
+		{Name: "register_verify", Value: "0"},
+		{Name: "register_score", Value: "0"},
+		{Name: "register_gcode", Value: ""},
+		{Name: "register_title", Value: "會員註冊"},
+		{Name: "login_status", Value: "1"},
+		{Name: "login_check_code", Value: "1"},
+		{Name: "login_title", Value: "會員登錄"},
+		{Name: "ucenter_title", Value: "個人中心"},
+		{Name: "umodify_title", Value: "資料修改"},
+		{Name: "comment_status", Value: "1"},
+		{Name: "comment_check_code", Value: "1"},
+		{Name: "comment_verify", Value: "1"},
+		{Name: "comment_anonymous", Value: "0"},
+		{Name: "home_upload_ext", Value: "jpg,jpeg,png,gif,xls,xlsx,doc,docx,ppt,pptx,rar,zip,pdf,txt"},
+	}
+	for _, c := range memberConfigs {
+		var count int64
+		model.DB.Model(&system.Config{}).Where("name = ?", c.Name).Count(&count)
+		if count == 0 {
+			model.DB.Create(&c)
+		}
 	}
 }

@@ -522,6 +522,14 @@ func (fc *FrontController) buildContext(c *gin.Context) *parser.Context {
 		ctx.Company = &company
 	}
 
+	// 載入已登錄會員資訊
+	if uid := common.GetSessionInt(c, "pboot_uid"); uid > 0 {
+		var member model.Member
+		if model.DB.First(&member, uid).Error == nil {
+			ctx.Member = &member
+		}
+	}
+
 	return ctx
 }
 

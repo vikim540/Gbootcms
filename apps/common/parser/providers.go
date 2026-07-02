@@ -379,8 +379,36 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return ctx.Member.Headpic
 		case "email":
 			return ctx.Member.Email
+		case "useremail":
+			return ctx.Member.Useremail
+		case "usermobile":
+			return ctx.Member.Usermobile
+		case "ucode":
+			return ctx.Member.Ucode
+		case "gid":
+			return ctx.Member.GID
+		case "score":
+			return strconv.Itoa(ctx.Member.Score)
 		case "logincount":
 			return strconv.Itoa(ctx.Member.LoginCount)
+		case "register_time":
+			t := ctx.Member.RegisterTime
+			if t.IsZero() {
+				return ""
+			}
+			return t.Format("2006-01-02 15:04:05")
+		case "last_login_time":
+			return ctx.Member.LastLoginTime
+		case "last_login_ip":
+			return ctx.Member.LastLoginIP
+		case "sex":
+			return ctx.Member.Sex
+		case "birthday":
+			return ctx.Member.Birthday
+		case "telephone":
+			return ctx.Member.Telephone
+		case "qq":
+			return ctx.Member.QQ
 		default:
 			return ""
 		}
@@ -526,6 +554,40 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 
 	p.Register("lgpath", func(tagName string, params map[string]string, inner string) string {
 		return "/home/index/area"
+	})
+
+	// 會員相關 URL 標籤
+	p.Register("login", func(tagName string, params map[string]string, inner string) string {
+		return "/login"
+	})
+	p.Register("register", func(tagName string, params map[string]string, inner string) string {
+		return "/register"
+	})
+	p.Register("logout", func(tagName string, params map[string]string, inner string) string {
+		return "/logout"
+	})
+	p.Register("ucenter", func(tagName string, params map[string]string, inner string) string {
+		return "/ucenter"
+	})
+	p.Register("umodify", func(tagName string, params map[string]string, inner string) string {
+		return "/umodify"
+	})
+	p.Register("retrieve", func(tagName string, params map[string]string, inner string) string {
+		return "/retrieve"
+	})
+
+	// 驗證碼狀態標籤（返回 "1" 或 "0"）
+	p.Register("logincodestatus", func(tagName string, params map[string]string, inner string) string {
+		if model.GetConfigValue("login_check_code", "1") != "0" {
+			return "1"
+		}
+		return "0"
+	})
+	p.Register("registercodestatus", func(tagName string, params map[string]string, inner string) string {
+		if model.GetConfigValue("register_check_code", "1") != "0" {
+			return "1"
+		}
+		return "0"
 	})
 }
 
@@ -1269,6 +1331,17 @@ func buildIfContext(ctx *Context) map[string]interface{} {
 		data["islogin"] = 1
 	} else {
 		data["islogin"] = 0
+	}
+	// 會員驗證碼狀態（供 {gboot:if(logincodestatus)} 等條件判斷使用）
+	if model.GetConfigValue("login_check_code", "1") != "0" {
+		data["logincodestatus"] = 1
+	} else {
+		data["logincodestatus"] = 0
+	}
+	if model.GetConfigValue("register_check_code", "1") != "0" {
+		data["registercodestatus"] = 1
+	} else {
+		data["registercodestatus"] = 0
 	}
 	return data
 }
