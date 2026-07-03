@@ -90,6 +90,7 @@ type Content struct {
 	GType       string    `gorm:"column:gtype;default:'4'" json:"gtype"`
 	Gid         string    `gorm:"column:gid;default:''" json:"gid"`
 	Gnote       string    `gorm:"column:gnote;default:''" json:"gnote"`
+	Gcode       string    `gorm:"-" json:"gcode"` // 非DB：JOIN ay_member_group 取得的等級編號
 	PicsTitle   string    `gorm:"column:picstitle;default:''" json:"picstitle"`
 	URLName     string    `gorm:"column:urlname" json:"urlname"`
 }

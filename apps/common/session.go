@@ -20,6 +20,13 @@ var (
 )
 
 func getSessionID(c *gin.Context) string {
+	// 優先從 gin context 取（同一請求內 SetSession 創建後的 session ID）
+	if sid, ok := c.Get("sessionID"); ok {
+		if s, ok := sid.(string); ok && s != "" {
+			return s
+		}
+	}
+	// 從 cookie 取
 	cookie, err := c.Cookie("PbootGo")
 	if err != nil || cookie == "" {
 		return ""
@@ -38,6 +45,7 @@ func SetSession(c *gin.Context, key string, value interface{}) {
 	if sid == "" {
 		sid = createSessionID()
 		c.SetCookie("PbootGo", sid, 86400, "/", "", false, false)
+		c.Set("sessionID", sid) // 存入 context，後續同請求內復用
 	}
 
 	mu.Lock()

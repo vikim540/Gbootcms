@@ -105,12 +105,17 @@ func (fc *FrontController) ListPage(c *gin.Context) {
 	path = trimSuffix(path)
 
 	// 優先查 filename（欄目自定義 URL 名稱），fallback 查 urlname（向後兼容）
-	var sort model.ContentSort
+	var sort content.ContentSort
 	if err := model.DB.Where("filename = ?", path).First(&sort).Error; err != nil {
 		if err2 := model.DB.Where("urlname = ?", path).First(&sort).Error; err2 != nil {
 			c.String(http.StatusNotFound, "404")
 			return
 		}
+	}
+
+	// 欄目瀏覽權限檢查
+	if !fc.checkSortPermission(c, &sort) {
+		return
 	}
 
 	ctx := fc.buildContext(c)
@@ -144,10 +149,10 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 	}
 
 	// 優先查 filename（自定義 URL 名稱），fallback 查 urlname
-	var content model.Content
-	if err := model.DB.Where("filename = ? AND status = 1", path).First(&content).Error; err != nil {
-		if err2 := model.DB.Where("urlname = ? AND status = 1", path).First(&content).Error; err2 != nil {
-			var sort model.ContentSort
+	var ct content.Content
+	if err := model.DB.Where("filename = ? AND status = 1", path).First(&ct).Error; err != nil {
+		if err2 := model.DB.Where("urlname = ? AND status = 1", path).First(&ct).Error; err2 != nil {
+			var sort content.ContentSort
 			if err3 := model.DB.Where("filename = ?", path).First(&sort).Error; err3 != nil {
 				if err4 := model.DB.Where("urlname = ?", path).First(&sort).Error; err4 != nil {
 					c.String(http.StatusNotFound, "404")
@@ -159,11 +164,22 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 		}
 	}
 
-	ctx := fc.buildContext(c)
-	ctx.Content = &content
+	// 查欄目並做欄目權限檢查
+	var sort content.ContentSort
+	if model.DB.Where("scode = ?", ct.Scode).First(&sort).Error == nil {
+		if !fc.checkSortPermission(c, &sort) {
+			return
+		}
+	}
 
-	var sort model.ContentSort
-	if model.DB.Where("scode = ?", content.Scode).First(&sort).Error == nil {
+	// 內容權限檢查
+	if !fc.checkContentPermission(c, &ct) {
+		return
+	}
+
+	ctx := fc.buildContext(c)
+	ctx.Content = &ct
+	if sort.ID != 0 {
 		ctx.Sort = &sort
 	}
 
@@ -379,7 +395,7 @@ func (fc *FrontController) Visits(c *gin.Context) {
 	idStr := c.Query("id")
 	id, _ := strconv.Atoi(idStr)
 	if id > 0 {
-		model.DB.Model(&model.Content{}).Where("id = ?", id).
+		model.DB.Model(&content.Content{}).Where("id = ?", id).
 			UpdateColumn("visits", gorm.Expr("visits + 1"))
 	}
 	c.String(http.StatusOK, "ok")
@@ -417,9 +433,13 @@ func (fc *FrontController) CheckCode(c *gin.Context) {
 // when a sort has no urlname set.
 func (fc *FrontController) SortByScode(c *gin.Context) {
 	scode := c.Param("scode")
-	var sort model.ContentSort
+	var sort content.ContentSort
 	if err := model.DB.Where("scode = ?", scode).First(&sort).Error; err != nil {
 		c.String(http.StatusNotFound, "404")
+		return
+	}
+	// 欄目瀏覽權限檢查
+	if !fc.checkSortPermission(c, &sort) {
 		return
 	}
 	fc.renderSortPage(c, &sort)
@@ -435,16 +455,28 @@ func (fc *FrontController) ContentByID(c *gin.Context) {
 		c.String(http.StatusNotFound, "404")
 		return
 	}
-	var content model.Content
-	if err := model.DB.Where("id = ? AND status = 1", id).First(&content).Error; err != nil {
+	var ct content.Content
+	if err := model.DB.Where("id = ? AND status = 1", id).First(&ct).Error; err != nil {
 		c.String(http.StatusNotFound, "404")
 		return
 	}
-	var sort model.ContentSort
-	_ = model.DB.Where("scode = ?", content.Scode).First(&sort).Error
+	var sort content.ContentSort
+	_ = model.DB.Where("scode = ?", ct.Scode).First(&sort).Error
+
+	// 欄目權限檢查
+	if sort.ID != 0 {
+		if !fc.checkSortPermission(c, &sort) {
+			return
+		}
+	}
+
+	// 內容權限檢查
+	if !fc.checkContentPermission(c, &ct) {
+		return
+	}
 
 	ctx := fc.buildContext(c)
-	ctx.Content = &content
+	ctx.Content = &ct
 	if sort.ID != 0 {
 		ctx.Sort = &sort
 	}
@@ -461,7 +493,14 @@ func (fc *FrontController) ContentByID(c *gin.Context) {
 	c.String(http.StatusOK, html)
 }
 
-func (fc *FrontController) renderSortPage(c *gin.Context, sort *model.ContentSort) {
+func (fc *FrontController) renderSortPage(c *gin.Context, sort *content.ContentSort) {
+	// 欄目權限檢查（renderSortPage 被 SortByScode/ContentPage 內部調用時可能已檢查過，
+	// 但 ContentPage 的 fallback 路徑未檢查，此處統一確保）
+	// 注意：SortByScode 已在調用前檢查，此處重複檢查不影響正確性（gid=0 時直接通過）
+	if !fc.checkSortPermission(c, sort) {
+		return
+	}
+
 	ctx := fc.buildContext(c)
 	ctx.Sort = sort
 	if p, err := strconv.Atoi(c.Query("page")); err == nil && p > 0 {
@@ -478,9 +517,13 @@ func (fc *FrontController) renderSortPage(c *gin.Context, sort *model.ContentSor
 			// 單頁模型 → 用 ContentTpl (如 about.html)
 			tpl = sort.ContentTpl
 			// 單頁需要加載內容數據
-			var content model.Content
-			if model.DB.Where("scode = ? AND status = 1", sort.Scode).Order("id DESC").First(&content).Error == nil {
-				ctx.Content = &content
+			var ct content.Content
+			if model.DB.Where("scode = ? AND status = 1", sort.Scode).Order("id DESC").First(&ct).Error == nil {
+				// 單頁內容權限檢查
+				if !fc.checkContentPermission(c, &ct) {
+					return
+				}
+				ctx.Content = &ct
 			}
 		} else {
 			// 列表模型 → 用 ListTpl
@@ -497,6 +540,100 @@ func (fc *FrontController) renderSortPage(c *gin.Context, sort *model.ContentSor
 	content = p.Render(content)
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
+}
+
+// loadGcode 透過 gid 查詢 ay_member_group 取得 gcode（等級編號）
+func loadGcode(gid string) string {
+	if gid == "" || gid == "0" {
+		return ""
+	}
+	var gcode string
+	model.DB.Table("ay_member_group").Where("id = ?", gid).Select("gcode").Row().Scan(&gcode)
+	return gcode
+}
+
+// checkPageLevel 檢查頁面瀏覽權限（對應 PHP IndexController::checkPageLevel）
+// requiredGcode: 欄目/內容要求的等級編號（透過 JOIN ay_member_group 取得）
+// gtype: 比較運算子（1小於/2小於等於/3等於/4大於等於/5大於，預設4）
+// gnote: 權限不足提示文字
+// 回傳 true 表示通過，false 表示被拒絕（已寫入 response）
+func (fc *FrontController) checkPageLevel(c *gin.Context, requiredGcode, gtype, gnote string) bool {
+	if requiredGcode == "" || requiredGcode == "0" {
+		return true // 無權限要求
+	}
+
+	// 訪客的等級編號
+	visitorGcode := common.GetSessionInt(c, "pboot_gcode")
+	uid := common.GetSessionInt(c, "pboot_uid")
+
+	// gtype 預設 4
+	gt, _ := strconv.Atoi(gtype)
+	if gt == 0 {
+		gt = 4
+	}
+	required, _ := strconv.Atoi(requiredGcode)
+
+	deny := false
+	switch gt {
+	case 1:
+		if required <= visitorGcode {
+			deny = true
+		}
+	case 2:
+		if required < visitorGcode {
+			deny = true
+		}
+	case 3:
+		if required != visitorGcode {
+			deny = true
+		}
+	case 4:
+		if required > visitorGcode {
+			deny = true
+		}
+	case 5:
+		if required >= visitorGcode {
+			deny = true
+		}
+	}
+
+	if !deny {
+		return true
+	}
+
+	// 權限不足
+	if gnote == "" {
+		gnote = "您的權限不足，無法瀏覽本頁面！"
+	}
+
+	if uid > 0 {
+		// 已登入但權限不足 → 顯示提示
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(http.StatusOK, fmt.Sprintf(`<div style="text-align:center;padding:80px 20px;"><h3>%s</h3><p><a href="/">返回首頁</a></p></div>`, gnote))
+	} else {
+		// 未登入 → 跳轉登入頁，帶 backurl
+		currentURL := c.Request.URL.String()
+		c.Redirect(http.StatusFound, "/login?backurl="+currentURL)
+	}
+	return false
+}
+
+// checkSortPermission 檢查欄目權限（載入 gcode + 呼叫 checkPageLevel）
+func (fc *FrontController) checkSortPermission(c *gin.Context, sort *content.ContentSort) bool {
+	if sort.Gid == "" || sort.Gid == "0" {
+		return true
+	}
+	sort.Gcode = loadGcode(sort.Gid)
+	return fc.checkPageLevel(c, sort.Gcode, sort.GType, sort.Gnote)
+}
+
+// checkContentPermission 檢查內容權限（載入 gcode + 呼叫 checkPageLevel）
+func (fc *FrontController) checkContentPermission(c *gin.Context, ct *content.Content) bool {
+	if ct.Gid == "" || ct.Gid == "0" {
+		return true
+	}
+	ct.Gcode = loadGcode(ct.Gid)
+	return fc.checkPageLevel(c, ct.Gcode, ct.GType, ct.Gnote)
 }
 
 func (fc *FrontController) buildContext(c *gin.Context) *parser.Context {

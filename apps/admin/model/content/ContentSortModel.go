@@ -97,6 +97,7 @@ type ContentSort struct {
 	GType      string    `gorm:"column:gtype;default:'4'" json:"gtype"`
 	Gid        string    `gorm:"column:gid;default:''" json:"gid"`
 	Gnote      string    `gorm:"column:gnote;default:''" json:"gnote"`
+	Gcode      string    `gorm:"-" json:"gcode"` // 非DB：JOIN ay_member_group 取得的等級編號
 	Def1       string    `gorm:"column:def1;default:''" json:"def1"`
 	Def2       string    `gorm:"column:def2;default:''" json:"def2"`
 	Def3       string    `gorm:"column:def3;default:''" json:"def3"`

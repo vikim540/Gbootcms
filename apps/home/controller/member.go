@@ -112,7 +112,9 @@ func (fc *FrontController) Login(c *gin.Context) {
 		if gidInt, _ := strconv.Atoi(member.GID); gidInt > 0 {
 			model.DB.Where("id = ?", gidInt).First(&group)
 		}
-		common.SetSession(c, "pboot_gcode", group.Gcode)
+		// gcode 轉為 int 存入 session（checkPageLevel 用 GetSessionInt 讀取）
+		gcodeInt, _ := strconv.Atoi(group.Gcode)
+		common.SetSession(c, "pboot_gcode", gcodeInt)
 		common.SetSession(c, "pboot_gname", group.Gname)
 
 		// 更新登錄統計

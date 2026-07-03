@@ -148,6 +148,8 @@ mg.JSONOKMsg(c, "新增成功")
 | 10 | 忘記傳遞 `list`/`mod` 標誌 | Render 時必須傳 `gin.H{"list": true}` | 高 |
 | 11 | 狀態切換鏈接缺少 `class="switch"` | 必須加 `class="switch"`（comm.js 用此選擇器攔截 AJAX） | 高 |
 | 12 | 前台默認頭像路徑不一致 | 統一用 `/static/admin/images/logo.png`（與留言板一致） | 中 |
+| 13 | 前台缺少欄目/內容瀏覽權限檢查 | 必須呼叫 `checkSortPermission`/`checkContentPermission` | 高 |
+| 14 | SetSession 多次呼叫創建不同 session ID | 用 `c.Set("sessionID", sid)` 復用同一請求內的 ID | 高 |
 
 ### 0.4 後台狀態切換速查（class="switch"）
 
@@ -225,6 +227,50 @@ headpic = "/static/images/logo.png"
 | Gname | `gname` | 不是 `name` |
 | Lscore | `lscore` | 積分下限 |
 | Uscore | `uscore` | 積分上限 |
+
+### 0.8 欄目/內容瀏覽權限速查
+
+前台所有渲染方法（ListPage、ContentPage、SortByScode、ContentByID、renderSortPage）都**必須**呼叫權限檢查：
+
+```go
+// 欄目權限檢查
+if !fc.checkSortPermission(c, &sort) {
+    return // checkPageLevel 已寫入 response（跳轉登入或顯示提示）
+}
+
+// 內容權限檢查（ContentPage 和 ContentByID 需同時檢查欄目+內容兩層）
+if !fc.checkContentPermission(c, &ct) {
+    return
+}
+```
+
+**權限模型**：
+- `ay_content_sort.gid` / `ay_content.gid` → 指向 `ay_member_group.id`
+- `ay_member_group.gcode` → 等級編號（如 1=初級, 2=中級, 3=高級）
+- `gtype` → 比較運算子（1小於/2小於等於/3等於/4大於等於/5大於，預設4）
+- session `pboot_gcode` → 訪客的等級編號（int 類型）
+
+**deny 邏輯**：gtype 決定比較方式，deny=true 時：
+- 已登入（uid>0）→ 顯示 gnote 提示文字
+- 未登入 → 302 跳轉 `/login?backurl=<當前URL>`
+
+### 0.9 Session 速查（SetSession 復用機制）
+
+**關鍵**：同一請求內多次呼叫 `SetSession` 時，必須復用同一個 session ID。`getSessionID` 優先從 `c.Get("sessionID")` 取，避免每次建立新 ID 導致資料分散：
+
+```go
+func SetSession(c *gin.Context, key string, value interface{}) {
+    sid := getSessionID(c)
+    if sid == "" {
+        sid = createSessionID()
+        c.SetCookie("PbootGo", sid, ...)
+        c.Set("sessionID", sid) // 存入 context，後續同請求內復用
+    }
+    // ...
+}
+```
+
+**注意**：`pboot_gcode` 存入 session 時必須轉為 `int`（`GetSessionInt` 讀取）。
 
 ---
 
