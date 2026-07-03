@@ -150,6 +150,12 @@ mg.JSONOKMsg(c, "新增成功")
 | 12 | 前台默認頭像路徑不一致 | 統一用 `/static/admin/images/logo.png`（與留言板一致） | 中 |
 | 13 | 前台缺少欄目/內容瀏覽權限檢查 | 必須呼叫 `checkSortPermission`/`checkContentPermission` | 高 |
 | 14 | SetSession 多次呼叫創建不同 session ID | 用 `c.Set("sessionID", sid)` 復用同一請求內的 ID | 高 |
+| 15 | backurl 未 URL-encode | 必須用 `url.QueryEscape`，否則含查詢參數的 URL 會被截斷 | 中 |
+| 16 | backurl 開放重定向風險 | 必須用 `isSafeRedirectURL` 驗證為相對路徑 | 高 |
+| 17 | 標籤缺少 checkLabelLevel 屬性檢查 | pair 標籤的 showlogin/hidelogin/showgcode 等屬性會失效 | 高 |
+| 18 | 缺少 `{pboot:mustlogin}` 整頁強制登入 | 需要會員才能看的頁面對未登入訪客暴露 | 高 |
+| 19 | `{user:uid}` 不存在 | 模板無法取得會員 ID | 低 |
+| 20 | backurl 在 POST body 中用 `c.Query` 讀取 | POST 請求的 backurl 要用 `c.DefaultPostForm` 讀取 | 中 |
 
 ### 0.4 後台狀態切換速查（class="switch"）
 
@@ -271,6 +277,44 @@ func SetSession(c *gin.Context, key string, value interface{}) {
 ```
 
 **注意**：`pboot_gcode` 存入 session 時必須轉為 `int`（`GetSessionInt` 讀取）。
+
+### 0.10 checkLabelLevel 速查（標籤屬性權限）
+
+所有 pair 標籤（`{gboot:list}`、`{gboot:nav}`、`{gboot:slide}` 等）支援 14 種權限屬性，
+在 `processPairTags` 中統一檢查，權限不足時整個區塊回傳空字串：
+
+| 屬性 | 說明 | 範例 |
+|------|------|------|
+| `showlogin=1` | 登入後顯示 | `{gboot:list scode=1 showlogin=1}` |
+| `hidelogin=1` | 登入後隱藏 | `{gboot:nav hidelogin=1}` |
+| `showgcode=1,2` | 指定等級顯示（逗號分隔） | `{gboot:list showgcode=2,3}` |
+| `hidegcode=3` | 指定等級隱藏 | `{gboot:nav hidegcode=1}` |
+| `showucode=U001` | 指定用戶顯示 | `{gboot:list showucode=U001,U002}` |
+| `hideucode=U001` | 指定用戶隱藏 | `{gboot:nav hideucode=U001}` |
+| `showgcodelt=3` | 等級<3顯示 | `{gboot:list showgcodelt=3}` |
+| `showgcodegt=1` | 等級>1顯示 | `{gboot:list showgcodegt=1}` |
+| `showgcodele=3` | 等級<=3顯示 | `{gboot:list showgcodele=3}` |
+| `showgcodege=1` | 等級>=1顯示 | `{gboot:list showgcodege=1}` |
+| `hidegcodelt/gt/le/ge` | 等級比較隱藏 | 同上 |
+
+### 0.11 `{pboot:mustlogin}` 速查（整頁強制登入）
+
+模板中含 `{gboot:mustlogin}` 或 `{pboot:mustlogin}` 時，未登入訪客自動跳轉登入頁：
+
+```html
+<!-- 在模板頂部加此標籤，未登入訪客會被跳轉到 /login?backurl=當前URL -->
+{gboot:mustlogin}
+```
+
+在所有渲染方法中，`checkMustLogin` 在 `p.Render` 之前檢查。登入後標籤本身回傳空字串（不影響渲染）。
+
+### 0.12 backurl 安全速查
+
+| 問題 | 修復 | 位置 |
+|------|------|------|
+| URL-encode | `url.QueryEscape(currentURL)` | front.go checkPageLevel |
+| 開放重定向 | `isSafeRedirectURL(tourl)` 驗證相對路徑 | member.go Login |
+| POST body 讀取 | `c.DefaultPostForm("backurl", c.Query("backurl"))` | member.go Login |
 
 ---
 

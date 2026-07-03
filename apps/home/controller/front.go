@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/admin/model/content"
 	"pbootcms-go/apps/common"
@@ -90,11 +91,32 @@ func NewFrontController(store *parser.TemplateStore) *FrontController {
 	return &FrontController{Store: store}
 }
 
+// checkMustLogin 檢查模板是否含 {gboot:mustlogin} 或 {pboot:mustlogin}
+// 若含且未登入，跳轉登入頁，回傳 false（呼叫者應 return）
+func (fc *FrontController) checkMustLogin(c *gin.Context, content string) bool {
+	if !strings.Contains(content, "mustlogin") {
+		return true
+	}
+	// 檢查 {gboot:mustlogin} 或 {pboot:mustlogin}
+	if strings.Contains(content, "{gboot:mustlogin}") || strings.Contains(content, "{pboot:mustlogin}") {
+		uid := common.GetSessionInt(c, "pboot_uid")
+		if uid == 0 {
+			currentURL := c.Request.URL.String()
+			c.Redirect(http.StatusFound, "/login?backurl="+url.QueryEscape(currentURL))
+			return false
+		}
+	}
+	return true
+}
+
 func (fc *FrontController) Index(c *gin.Context) {
 	ctx := fc.buildContext(c)
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
 	content := fc.Store.Render("index.html")
+	if !fc.checkMustLogin(c, content) {
+		return
+	}
 	content = p.Render(content)
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
@@ -131,8 +153,10 @@ func (fc *FrontController) ListPage(c *gin.Context) {
 		tpl = "list.html"
 	}
 	content := fc.Store.Render(tpl)
+	if !fc.checkMustLogin(c, content) {
+		return
+	}
 	content = p.Render(content)
-
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
 }
@@ -206,6 +230,9 @@ func (fc *FrontController) Search(c *gin.Context) {
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
 	content := fc.Store.Render("search.html")
+	if !fc.checkMustLogin(c, content) {
+		return
+	}
 	content = p.Render(content)
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
@@ -216,6 +243,9 @@ func (fc *FrontController) Tags(c *gin.Context) {
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
 	content := fc.Store.Render("tags.html")
+	if !fc.checkMustLogin(c, content) {
+		return
+	}
 	content = p.Render(content)
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
@@ -315,6 +345,9 @@ func (fc *FrontController) Message(c *gin.Context) {
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
 	content := fc.Store.Render("message.html")
+	if !fc.checkMustLogin(c, content) {
+		return
+	}
 	content = p.Render(content)
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
@@ -537,6 +570,9 @@ func (fc *FrontController) renderSortPage(c *gin.Context, sort *content.ContentS
 	}
 
 	content := fc.Store.Render(tpl)
+	if !fc.checkMustLogin(c, content) {
+		return
+	}
 	content = p.Render(content)
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
@@ -554,7 +590,7 @@ func loadGcode(gid string) string {
 
 // checkPageLevel 檢查頁面瀏覽權限（對應 PHP IndexController::checkPageLevel）
 // requiredGcode: 欄目/內容要求的等級編號（透過 JOIN ay_member_group 取得）
-// gtype: 比較運算子（1小於/2小於等於/3等於/4大於等於/5大於，預設4）
+// gtype: 比較運算子（1:<= / 2:< / 3:!= / 4:> / 5:>=，預設4）
 // gnote: 權限不足提示文字
 // 回傳 true 表示通過，false 表示被拒絕（已寫入 response）
 func (fc *FrontController) checkPageLevel(c *gin.Context, requiredGcode, gtype, gnote string) bool {
@@ -611,9 +647,9 @@ func (fc *FrontController) checkPageLevel(c *gin.Context, requiredGcode, gtype, 
 		c.Header("Content-Type", "text/html; charset=utf-8")
 		c.String(http.StatusOK, fmt.Sprintf(`<div style="text-align:center;padding:80px 20px;"><h3>%s</h3><p><a href="/">返回首頁</a></p></div>`, gnote))
 	} else {
-		// 未登入 → 跳轉登入頁，帶 backurl
+		// 未登入 → 跳轉登入頁，帶 backurl（URL-encode 避免查詢參數被截斷）
 		currentURL := c.Request.URL.String()
-		c.Redirect(http.StatusFound, "/login?backurl="+currentURL)
+		c.Redirect(http.StatusFound, "/login?backurl="+url.QueryEscape(currentURL))
 	}
 	return false
 }
@@ -664,6 +700,8 @@ func (fc *FrontController) buildContext(c *gin.Context) *parser.Context {
 		var member model.Member
 		if model.DB.First(&member, uid).Error == nil {
 			ctx.Member = &member
+			ctx.Gcode = common.GetSessionInt(c, "pboot_gcode")
+			ctx.Ucode = common.GetSessionString(c, "pboot_ucode")
 		}
 	}
 

@@ -20,6 +20,8 @@ type Context struct {
 	Company     *model.Company
 	Page        map[string]interface{}
 	Member      *model.Member
+	Gcode       int    // 當前訪客的會員等級編號（0=未登入或無等級）
+	Ucode       string // 當前訪客的會員編號
 	Keyword     string
 	CurrentPage int
 	Filters     map[string]string // ext_ 篩選參數 (ext_type=基礎版 等)
@@ -37,6 +39,7 @@ func RegisterAllProviders(p *TagParser, ctx *Context) {
 	registerSingleProviders(p, ctx)
 	registerPairProviders(p, ctx)
 	registerIfProvider(p, ctx)
+	p.SetCtx(ctx) // 用於 checkLabelLevel 權限檢查
 }
 
 func registerSingleProviders(p *TagParser, ctx *Context) {
@@ -162,6 +165,9 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 				return "1"
 			}
 			return "0"
+		case "mustlogin":
+			// 標籤本身回傳空字串（權限檢查在 controller 層的 checkMustLogin 處理）
+			return ""
 		case "commentstatus":
 			return model.GetConfigValue("comment_status", "1")
 		case "commentcodestatus":
@@ -394,6 +400,8 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return ctx.Member.Usermobile
 		case "ucode":
 			return ctx.Member.Ucode
+		case "uid", "id":
+			return strconv.FormatUint(uint64(ctx.Member.ID), 10)
 		case "gid":
 			return ctx.Member.GID
 		case "score":

@@ -17,6 +17,7 @@ type TagParser struct {
 	regexes    map[string]*regexp.Regexp
 	mu         sync.RWMutex
 	preBlocks  []string
+	ctx        *Context // 用於 checkLabelLevel 權限檢查
 }
 
 func New() *TagParser {
@@ -32,6 +33,109 @@ func (p *TagParser) Register(name string, provider DataProvider) {
 	p.mu.Lock()
 	p.providers[name] = provider
 	p.mu.Unlock()
+}
+
+// SetCtx 設定上下文（用於 checkLabelLevel 權限檢查）
+func (p *TagParser) SetCtx(ctx *Context) {
+	p.ctx = ctx
+}
+
+// checkLabelLevel 檢查標籤屬性權限（對應 PHP ParserController::checkLabelLevel）
+// 回傳 true 表示通過（可顯示），false 表示被拒絕（隱藏整個區塊）
+func (p *TagParser) checkLabelLevel(params map[string]string) bool {
+	if p.ctx == nil {
+		return true
+	}
+	uid := 0
+	if p.ctx.Member != nil {
+		uid = int(p.ctx.Member.ID)
+	}
+	gcode := p.ctx.Gcode
+	ucode := p.ctx.Ucode
+
+	for key, val := range params {
+		switch key {
+		case "showgcode": // 指定等級顯示，支持逗號隔開
+			shows := strings.Split(val, ",")
+			if !intInSlice(gcode, shows) {
+				return false
+			}
+		case "showucode": // 指定用戶顯示
+			shows := strings.Split(val, ",")
+			if !stringInSlice(ucode, shows) {
+				return false
+			}
+		case "hidegcode": // 指定等級隱藏
+			hides := strings.Split(val, ",")
+			if intInSlice(gcode, hides) {
+				return false
+			}
+		case "hideucode": // 指定用戶隱藏
+			hides := strings.Split(val, ",")
+			if stringInSlice(ucode, hides) {
+				return false
+			}
+		case "showgcodelt": // 等級小於顯示
+			if n, _ := strconv.Atoi(val); n <= gcode {
+				return false
+			}
+		case "showgcodegt": // 等級大於顯示
+			if n, _ := strconv.Atoi(val); n >= gcode {
+				return false
+			}
+		case "showgcodele": // 等級小於等於顯示
+			if n, _ := strconv.Atoi(val); n < gcode {
+				return false
+			}
+		case "showgcodege": // 等級大於等於顯示
+			if n, _ := strconv.Atoi(val); n > gcode {
+				return false
+			}
+		case "hidegcodelt": // 等級小於隱藏
+			if n, _ := strconv.Atoi(val); n > gcode {
+				return false
+			}
+		case "hidegcodegt": // 等級大於隱藏
+			if n, _ := strconv.Atoi(val); n < gcode {
+				return false
+			}
+		case "hidegcodele": // 等級小於等於隱藏
+			if n, _ := strconv.Atoi(val); n >= gcode {
+				return false
+			}
+		case "hidegcodege": // 等級大於等於隱藏
+			if n, _ := strconv.Atoi(val); n <= gcode {
+				return false
+			}
+		case "showlogin": // 登入後顯示
+			if val != "" && val != "0" && uid == 0 {
+				return false
+			}
+		case "hidelogin": // 登入後隱藏
+			if val != "" && val != "0" && uid > 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func intInSlice(n int, s []string) bool {
+	for _, v := range s {
+		if i, _ := strconv.Atoi(strings.TrimSpace(v)); i == n {
+			return true
+		}
+	}
+	return false
+}
+
+func stringInSlice(s string, list []string) bool {
+	for _, v := range list {
+		if strings.TrimSpace(v) == s {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *TagParser) provider(name string) (DataProvider, bool) {
@@ -273,6 +377,10 @@ func (p *TagParser) processPairTags(content string) string {
 			}
 			if len(subs) > 2 {
 				inner = subs[2]
+			}
+			// checkLabelLevel: 檢查標籤屬性權限（showlogin/hidelogin/showgcode 等）
+			if !p.checkLabelLevel(params) {
+				return "" // 權限不足，隱藏整個區塊
 			}
 			return providerCall(pr, pt.provKey, params, inner)
 		})

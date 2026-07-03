@@ -40,6 +40,9 @@ func (fc *FrontController) renderMemberPage(c *gin.Context, tpl string) {
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
 	content := fc.Store.Render(tpl)
+	if !fc.checkMustLogin(c, content) {
+		return
+	}
 	content = p.Render(content)
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
@@ -124,13 +127,13 @@ func (fc *FrontController) Login(c *gin.Context) {
 			"last_login_time": time.Now().Format("2006-01-02 15:04:05"),
 		})
 
-		// 返回跳轉地址
-		tourl := c.Query("backurl")
-		if tourl == "" {
-			tourl = "/ucenter"
-		}
-		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "登錄成功", "tourl": tourl})
-		return
+		// 返回跳轉地址（驗證為相對路徑，防止開放重定向）
+	tourl := c.DefaultPostForm("backurl", c.Query("backurl"))
+	if tourl == "" || !isSafeRedirectURL(tourl) {
+		tourl = "/ucenter"
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "登錄成功", "tourl": tourl})
+	return
 	}
 
 	fc.renderMemberPage(c, "member/login.html")
@@ -371,4 +374,20 @@ func memberExists(where string, args ...interface{}) bool {
 	var count int64
 	model.DB.Model(&model.Member{}).Where(where, args...).Count(&count)
 	return count > 0
+}
+
+// isSafeRedirectURL 驗證跳轉 URL 為相對路徑（防止開放重定向攻擊）
+func isSafeRedirectURL(u string) bool {
+	if u == "" {
+		return false
+	}
+	// 必須以 / 開頭，但不能以 // 開頭（協議相對 URL）
+	if len(u) >= 2 && u[0] == '/' && u[1] == '/' {
+		return false
+	}
+	// 不允許 http://, https://, // 等絕對 URL
+	if regexp.MustCompile(`^(https?:)?//`).MatchString(u) {
+		return false
+	}
+	return u[0] == '/'
 }
