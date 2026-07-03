@@ -1,79 +1,192 @@
 package mail
 
 import (
+	"crypto/tls"
+	"encoding/base64"
 	"fmt"
+	"net/smtp"
 	"pbootcms-go/apps/admin/model"
 	"strconv"
 	"strings"
 	"time"
-
-	mail "github.com/wneessen/go-mail"
 )
 
-// SendMail 發送 HTML 郵件（對應 PHP 版 sendmail() 函數）
-// 讀取 ay_config 中的 SMTP 配置，支持 SSL/TLS
+// SendMail 發送郵件（使用標準庫 net/smtp + crypto/tls）
+// 自動根據 smtp_ssl 配置選擇隱式 SSL（465）或 STARTTLS（587/25）
 func SendMail(to, subject, body string) error {
-	// 讀取 SMTP 配置
 	smtpServer := model.GetConfigValue("smtp_server", "")
+	smtpPortStr := model.GetConfigValue("smtp_port", "25")
 	smtpUsername := model.GetConfigValue("smtp_username", "")
 	smtpPassword := model.GetConfigValue("smtp_password", "")
-	smtpPortStr := model.GetConfigValue("smtp_port", "465")
-	smtpSSL := model.GetConfigValue("smtp_ssl", "1")
+	smtpSSL := model.GetConfigValue("smtp_ssl", "0")
 
 	if smtpServer == "" || smtpUsername == "" {
 		return fmt.Errorf("SMTP 配置不完整")
 	}
 
-	port, err := strconv.Atoi(smtpPortStr)
-	if err != nil {
-		port = 465
+	smtpPort, _ := strconv.Atoi(smtpPortStr)
+	if smtpPort == 0 {
+		smtpPort = 25
 	}
 
-	// 創建郵件客戶端
-	var opts []mail.Option
-	opts = append(opts,
-		mail.WithPort(port),
-		mail.WithSMTPAuth(mail.SMTPAuthPlain),
-		mail.WithUsername(smtpUsername),
-		mail.WithPassword(smtpPassword),
-	)
-	if smtpSSL == "1" {
-		opts = append(opts, mail.WithSSLPort(false)) // 隱式 SSL/TLS (port 465)
-	} else {
-		opts = append(opts, mail.WithTLSPolicy(mail.TLSMandatory)) // STARTTLS
-	}
-
-	m, err := mail.NewClient(smtpServer, opts...)
-	if err != nil {
-		return fmt.Errorf("創建郵件客戶端失敗: %w", err)
-	}
-
-	// 創建郵件
-	msg := mail.NewMsg()
-	if err := msg.From(smtpUsername); err != nil {
-		return fmt.Errorf("設置發件人失敗: %w", err)
-	}
-
-	// 支持逗號分隔多收件人
+	// 支援逗號分隔多收件人
 	recipients := strings.Split(to, ",")
-	for _, r := range recipients {
-		r = strings.TrimSpace(r)
-		if r != "" {
-			if err := msg.To(r); err != nil {
-				return fmt.Errorf("設置收件人失敗: %w", err)
-			}
+	for i := range recipients {
+		recipients[i] = strings.TrimSpace(recipients[i])
+	}
+
+	from := smtpUsername
+	headers := map[string]string{
+		"From":         fmt.Sprintf("%s <%s>", "GbootCMS", from),
+		"To":           to,
+		"Subject":      fmt.Sprintf("=?UTF-8?B?%s?=", encodeBase64(subject)),
+		"Content-Type": "text/html; charset=UTF-8",
+		"MIME-Version": "1.0",
+		"Date":         time.Now().Format(time.RFC1123Z),
+	}
+
+	// 構建郵件正文
+	var msg strings.Builder
+	for k, v := range headers {
+		msg.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+	}
+	msg.WriteString("\r\n")
+	msg.WriteString(body)
+
+	addr := fmt.Sprintf("%s:%d", smtpServer, smtpPort)
+	auth := smtp.PlainAuth("", smtpUsername, smtpPassword, smtpServer)
+
+	if smtpSSL == "1" {
+		// 隱式 SSL/TLS（port 465）
+		return sendMailSSL(addr, smtpServer, auth, from, recipients, msg.String())
+	}
+	// STARTTLS 或明文（port 587/25）
+	return sendMailSTARTTLS(addr, smtpServer, smtpPort, auth, from, recipients, msg.String())
+}
+
+// sendMailSSL 使用隱式 TLS 連線發送郵件（port 465）
+func sendMailSSL(addr, host string, auth smtp.Auth, from string, to []string, msg string) error {
+	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12})
+	if err != nil {
+		return fmt.Errorf("TLS 連線失敗: %w", err)
+	}
+	defer conn.Close()
+
+	c, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return fmt.Errorf("建立 SMTP 客戶端失敗: %w", err)
+	}
+	defer c.Close()
+
+	if err := c.Hello("localhost"); err != nil {
+		return fmt.Errorf("EHLO 失敗: %w", err)
+	}
+
+	if err := c.Auth(auth); err != nil {
+		return fmt.Errorf("認證失敗: %w", err)
+	}
+
+	if err := c.Mail(from); err != nil {
+		return fmt.Errorf("MAIL FROM 失敗: %w", err)
+	}
+
+	for _, addr := range to {
+		if err := c.Rcpt(addr); err != nil {
+			return fmt.Errorf("RCPT TO 失敗 (%s): %w", addr, err)
 		}
 	}
 
-	msg.Subject(subject)
-	msg.SetBodyString(mail.TypeTextHTML, body)
-
-	// 發送
-	if err := m.DialAndSend(msg); err != nil {
-		return fmt.Errorf("發送郵件失敗: %w", err)
+	w, err := c.Data()
+	if err != nil {
+		return fmt.Errorf("DATA 失敗: %w", err)
+	}
+	if _, err := fmt.Fprint(w, msg); err != nil {
+		return fmt.Errorf("寫入郵件內容失敗: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("關閉 DATA 失敗: %w", err)
 	}
 
-	return nil
+	return c.Quit()
+}
+
+// sendMailSTARTTLS 使用 STARTTLS 或明文連線發送郵件（port 587/25）
+func sendMailSTARTTLS(addr, host string, port int, auth smtp.Auth, from string, to []string, msg string) error {
+	c, err := smtp.Dial(addr)
+	if err != nil {
+		return fmt.Errorf("連線失敗: %w", err)
+	}
+	defer c.Close()
+
+	if err := c.Hello("localhost"); err != nil {
+		return fmt.Errorf("EHLO 失敗: %w", err)
+	}
+
+	// 嘗試 STARTTLS
+	if ok, _ := c.Extension("STARTTLS"); ok {
+		if err := c.StartTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}); err != nil {
+			return fmt.Errorf("STARTTLS 失敗: %w", err)
+		}
+	}
+
+	if err := c.Auth(auth); err != nil {
+		return fmt.Errorf("認證失敗: %w", err)
+	}
+
+	if err := c.Mail(from); err != nil {
+		return fmt.Errorf("MAIL FROM 失敗: %w", err)
+	}
+
+	for _, addr := range to {
+		if err := c.Rcpt(addr); err != nil {
+			return fmt.Errorf("RCPT TO 失敗 (%s): %w", addr, err)
+		}
+	}
+
+	w, err := c.Data()
+	if err != nil {
+		return fmt.Errorf("DATA 失敗: %w", err)
+	}
+	if _, err := fmt.Fprint(w, msg); err != nil {
+		return fmt.Errorf("寫入郵件內容失敗: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("關閉 DATA 失敗: %w", err)
+	}
+
+	return c.Quit()
+}
+
+// SendNotifyMail 發送通知郵件（留言/表單/評論）
+func SendNotifyMail(formName string, fields []map[string]string) error {
+	sendTo := model.GetConfigValue("message_send_to", "")
+	if sendTo == "" {
+		return nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`<html><body style="margin:0;padding:0;background:#f4f6f9;">
+<div style="max-width:600px;margin:20px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+  <div style="background:linear-gradient(135deg,#4e73df 0%%,#224abe 100%%);padding:30px 40px;">
+    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:600;">%s</h1>
+    <p style="margin:5px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">系統通知</p>
+  </div>
+  <div style="padding:30px 40px;">`, formName))
+
+	for _, f := range fields {
+		sb.WriteString(fmt.Sprintf(`<p style="color:#555;font-size:14px;line-height:1.8;margin:0 0 10px;"><strong>%s:</strong> %s</p>`, f["label"], f["value"]))
+	}
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+	sb.WriteString(fmt.Sprintf(`</div>
+  <div style="background:#f8f9fc;padding:20px 40px;text-align:center;">
+    <p style="margin:0;color:#999;font-size:12px;">發送時間：%s</p>
+    <p style="margin:5px 0 0;color:#999;font-size:12px;">此郵件由系統自動發送，請勿回覆</p>
+  </div>
+</div>
+</body></html>`, now))
+
+	return SendMail(sendTo, "新通知："+formName, sb.String())
 }
 
 // SendTestMail 發送測試郵件（美觀 HTML 模板）
@@ -105,28 +218,7 @@ func SendTestMail(to string) error {
 	return SendMail(to, subject, body)
 }
 
-// SendNotifyMail 發送留言/表單通知郵件
-// formName: 表單名稱（如「在線留言」「搜集電話」）
-// fields: 字段名→字段值 的有序列表
-func SendNotifyMail(formName string, fields []map[string]string) error {
-	to := model.GetConfigValue("message_send_to", "")
-	if to == "" {
-		return nil
-	}
-
-	subject := fmt.Sprintf("【GbootCMS】您有新的%s信息，請注意查收！", formName)
-
-	var bodyBuilder strings.Builder
-	bodyBuilder.WriteString("<html><body>")
-	bodyBuilder.WriteString(fmt.Sprintf("<h2>新的%s信息</h2>", formName))
-	bodyBuilder.WriteString("<table border='1' cellpadding='8' cellspacing='0' style='border-collapse:collapse;'>")
-	for _, f := range fields {
-		bodyBuilder.WriteString(fmt.Sprintf("<tr><td><strong>%s</strong></td><td>%s</td></tr>",
-			f["label"], f["value"]))
-	}
-	bodyBuilder.WriteString("</table>")
-	bodyBuilder.WriteString("<br><p>來自網站 GbootCMS</p>")
-	bodyBuilder.WriteString("</body></html>")
-
-	return SendMail(to, subject, bodyBuilder.String())
+// encodeBase64 Base64 編碼（用於郵件主旨）
+func encodeBase64(s string) string {
+	return base64.StdEncoding.EncodeToString([]byte(s))
 }
