@@ -5,6 +5,7 @@ import (
 	"pbootcms-go/apps/admin/model"
 	"strconv"
 	"strings"
+	"time"
 
 	mail "github.com/wneessen/go-mail"
 )
@@ -75,14 +76,32 @@ func SendMail(to, subject, body string) error {
 	return nil
 }
 
-// SendTestMail 發送測試郵件
+// SendTestMail 發送測試郵件（美觀 HTML 模板）
 func SendTestMail(to string) error {
-	subject := "【GbootCMS】測試郵件"
-	body := `<html><body>
-<h2>測試郵件</h2>
-<p>歡迎您使用 GbootCMS 網站開發管理系統！</p>
-<p>如果您收到了這封郵件，說明 SMTP 配置正確。</p>
-</body></html>`
+	siteName := model.GetConfigValue("cmsname", "GbootCMS")
+	now := time.Now().Format("2006-01-02 15:04:05")
+	subject := "【" + siteName + "】測試郵件"
+	body := fmt.Sprintf(`<html><body style="margin:0;padding:0;background:#f4f6f9;">
+<div style="max-width:600px;margin:20px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+  <div style="background:linear-gradient(135deg,#4e73df 0%%,#224abe 100%%);padding:30px 40px;">
+    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:600;">%s</h1>
+    <p style="margin:5px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">測試郵件通知</p>
+  </div>
+  <div style="padding:30px 40px;">
+    <h2 style="color:#333;font-size:18px;margin:0 0 15px;">SMTP 配置驗證成功</h2>
+    <p style="color:#555;font-size:14px;line-height:1.8;margin:0 0 15px;">您好！這是一封來自 <strong>%s</strong> 系統的測試郵件。</p>
+    <p style="color:#555;font-size:14px;line-height:1.8;margin:0 0 15px;">如果您收到了這封郵件，說明您的 SMTP 郵件配置已正確生效，系統可以正常發送通知郵件。</p>
+    <div style="background:#f8f9fc;border-left:4px solid #4e73df;padding:15px 20px;margin:20px 0;border-radius:0 4px 4px 0;">
+      <p style="margin:0;color:#666;font-size:13px;">發送時間：%s</p>
+      <p style="margin:5px 0 0;color:#666;font-size:13px;">收件地址：%s</p>
+    </div>
+  </div>
+  <div style="background:#f8f9fc;padding:20px 40px;text-align:center;">
+    <p style="margin:0;color:#999;font-size:12px;">此郵件由系統自動發送，請勿回覆</p>
+    <p style="margin:5px 0 0;color:#999;font-size:12px;">&copy; %d %s</p>
+  </div>
+</div>
+</body></html>`, siteName, siteName, now, to, time.Now().Year(), siteName)
 	return SendMail(to, subject, body)
 }
 

@@ -268,18 +268,40 @@
 		                </div>
 		                
 						 <div class="layui-form-item">
-							 <div class="layui-input-block">
-							    <button class="layui-btn" lay-submit name="submit" value="email">立即提交</button>
-							    <button type="reset" class="layui-btn layui-btn-primary">重置</button>
-							    <a href="{url./admin/Config/index/action/sendemail}" onclick="return sendtest(this,'#smtp_username_test')" class="layui-btn layui-btn-primary">发送测试邮件</a>
-							 </div>
-						</div>
-						<script>
-					    	function sendtest(obj,to){
-					    		$(obj).attr('href',$(obj).attr('href')+'&to='+$(to).val()); 
-					    		return true;
-					    	}
-					    </script>
+						 <div class="layui-input-block">
+						    <button class="layui-btn" lay-submit name="submit" value="email">立即提交</button>
+						    <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+						    <button type="button" class="layui-btn layui-btn-primary" id="btn-sendtest">發送測試郵件</button>
+						 </div>
+					</div>
+					<script>
+				    	$("#btn-sendtest").on("click",function(){
+				    		var to = $("#smtp_username_test").val();
+				    		if(!to){
+				    			layer.msg("請先填寫測試收件郵箱",{icon:2});
+				    			return;
+				    		}
+				    		var idx = layer.load(1,{shade:[0.3,"#fff"]});
+				    		$.ajax({
+				    			url: "{url./admin/Config/index/action/sendemail}",
+				    			type: "GET",
+				    			data: { to: to },
+				    			dataType: "json",
+				    			success: function(res){
+				    				layer.close(idx);
+				    				if(res.code==1){
+				    					layer.msg(res.data,{icon:1,time:3000});
+				    				}else{
+				    					layer.msg(res.data,{icon:2,time:5000});
+				    				}
+				    			},
+				    			error: function(){
+				    				layer.close(idx);
+				    				layer.msg("請求異常，請檢查網絡或重新登入",{icon:2});
+				    			}
+				    		});
+				    	});
+				    </script>
 	              </form>
 		  	   </div>
 		  	   <div class="layui-tab-item">

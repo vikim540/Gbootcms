@@ -4,9 +4,17 @@ import (
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
 	"pbootcms-go/apps/common/mail"
+	"regexp"
 
 	"github.com/gin-gonic/gin"
 )
+
+// isValidEmail 驗證郵箱格式
+func isValidEmail(email string) bool {
+	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+	matched, _ := regexp.MatchString(pattern, email)
+	return matched
+}
 
 // ConfigController - System Configuration Controller
 // Corresponds to PHP: apps/admin/controller/ConfigController.php
@@ -16,21 +24,31 @@ type ConfigController struct {
 
 // Index - Configuration page
 func (cf *ConfigController) Index(c *gin.Context) {
-	// 測試郵件發送
+	// 測試郵件發送（AJAX，返回 JSON）
 	if action := c.Query("action"); action == "sendemail" {
 		to := c.Query("to")
 		if to == "" {
 			to = model.GetConfigValue("smtp_username_test", "")
 		}
 		if to == "" {
-			cf.JSONFail(c, "請先設置測試收件郵箱")
+			cf.JSONFail(c, "請先填寫測試收件郵箱")
+			return
+		}
+		// 郵箱格式驗證（比 PHP 更嚴謹）
+		if !isValidEmail(to) {
+			cf.JSONFail(c, "郵箱格式不正確："+to)
+			return
+		}
+		// 檢查 SMTP 配置是否完整
+		if model.GetConfigValue("smtp_server", "") == "" || model.GetConfigValue("smtp_username", "") == "" {
+			cf.JSONFail(c, "SMTP 配置不完整，請先填寫伺服器地址和發件帳號")
 			return
 		}
 		if err := mail.SendTestMail(to); err != nil {
 			cf.JSONFail(c, "發送失敗："+err.Error())
 			return
 		}
-		cf.JSONOKMsg(c, "測試郵件發送成功")
+		cf.JSONOKMsg(c, "測試郵件已發送至 "+to+"，請查收")
 		return
 	}
 
