@@ -27,32 +27,42 @@ type robotResponse struct {
 	ErrMsg  string `json:"errmsg"`
 }
 
-// Send 異步推送 Webhook 通知到配置的 URL
+// Send 異步推送 Webhook 通知到配置的 URL（無查看詳情連結）
 // 自動偵測釘釘/企業微信/通用格式
 func Send(formName, ip, os, browser string, fields []map[string]string) {
+	SendWithURL(formName, ip, os, browser, fields, "")
+}
+
+// SendIf 帶分項開關檢查的推送（category: message/form/comment）
+// 自動根據 category 構造後台管理 URL 作為查看詳情連結
+func SendIf(category, formName, ip, os, browser string, fields []map[string]string) {
+	if model.GetConfigValue("webhook_"+category, "1") != "1" {
+		return
+	}
+	SendWithURL(formName, ip, os, browser, fields, adminURLFor(category))
+}
+
+// SendWithURL 帶查看詳情 URL 的推送
+func SendWithURL(formName, ip, os, browser string, fields []map[string]string, detailURL string) {
 	webhookURL := model.GetConfigValue("webhook_url", "")
 	if webhookURL == "" {
 		return
 	}
 
-	// 異步發送，不阻塞用戶請求
 	go func() {
 		var jsonData []byte
 		var err error
 
 		switch {
 		case strings.Contains(webhookURL, "oapi.dingtalk.com"):
-			// 釘釘機器人 — 使用 ActionCard 美觀卡片
-			jsonData, err = buildDingTalkActionCard(formName, ip, os, browser, fields)
+			jsonData, err = buildDingTalkActionCard(formName, ip, os, browser, fields, detailURL)
 		case strings.Contains(webhookURL, "qyapi.weixin.qq.com"):
-			// 企業微信機器人 — markdown 格式
 			jsonData, err = buildWeComPayload(formName, ip, os, browser, fields)
 		default:
-			// 通用格式
 			payload := Payload{
 				FormName:  formName,
 				Timestamp: time.Now().Format("2006-01-02 15:04:05"),
-				IP:        ip,
+				IP:        normalizeIP(ip),
 				OS:        os,
 				Browser:   browser,
 				Fields:    fields,
@@ -83,7 +93,6 @@ func Send(formName, ip, os, browser string, fields []map[string]string) {
 
 		body, _ := io.ReadAll(resp.Body)
 
-		// 釘釘/企業微信恆回 HTTP 200，需檢查 JSON body 的 errcode
 		if strings.Contains(webhookURL, "oapi.dingtalk.com") || strings.Contains(webhookURL, "qyapi.weixin.qq.com") {
 			var rr robotResponse
 			if json.Unmarshal(body, &rr) == nil && rr.ErrCode != 0 {
@@ -95,12 +104,23 @@ func Send(formName, ip, os, browser string, fields []map[string]string) {
 	}()
 }
 
-// SendIf 帶分項開關檢查的推送（category: message/form/comment）
-func SendIf(category, formName, ip, os, browser string, fields []map[string]string) {
-	if model.GetConfigValue("webhook_"+category, "1") != "1" {
-		return
+// adminURLFor 根據 category 返回後台管理頁面 URL
+func adminURLFor(category string) string {
+	baseURL := model.GetConfigValue("httpurl", "")
+	if baseURL == "" {
+		baseURL = "http://localhost:8080"
 	}
-	Send(formName, ip, os, browser, fields)
+	baseURL = strings.TrimRight(baseURL, "/")
+	switch category {
+	case "comment":
+		return baseURL + "/admin/member/comment/index"
+	case "message":
+		return baseURL + "/admin/content/message/index"
+	case "form":
+		return baseURL + "/admin/content/form/index"
+	default:
+		return baseURL + "/admin"
+	}
 }
 
 // normalizeIP 將 ::1（IPv6 localhost）轉為 127.0.0.1
@@ -112,7 +132,7 @@ func normalizeIP(ip string) string {
 }
 
 // buildDingTalkActionCard 構建釘釘 ActionCard 訊息（美觀卡片）
-func buildDingTalkActionCard(formName, ip, os, browser string, fields []map[string]string) ([]byte, error) {
+func buildDingTalkActionCard(formName, ip, os, browser string, fields []map[string]string, detailURL string) ([]byte, error) {
 	ip = normalizeIP(ip)
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("#### %s\n\n", formName))
@@ -122,13 +142,17 @@ func buildDingTalkActionCard(formName, ip, os, browser string, fields []map[stri
 		sb.WriteString(fmt.Sprintf("**%s**: %s\n\n", f["label"], f["value"]))
 	}
 
+	if detailURL == "" {
+		detailURL = "#"
+	}
+
 	payload := map[string]interface{}{
 		"msgtype": "actionCard",
 		"actionCard": map[string]string{
 			"title":       formName,
 			"text":        sb.String(),
 			"singleTitle": "查看詳情",
-			"singleURL":   "https://www.dingtalk.com/",
+			"singleURL":   detailURL,
 			"hideAvatar":  "0",
 		},
 	}
