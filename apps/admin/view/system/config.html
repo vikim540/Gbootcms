@@ -283,9 +283,9 @@
 				    		}
 				    		var idx = layer.load(1,{shade:[0.3,"#fff"]});
 				    		$.ajax({
-				    			url: "{url./admin/Config/index/action/sendemail}",
+				    			url: "{url./admin/Config/index}",
 				    			type: "GET",
-				    			data: { to: to },
+				    			data: { action: "sendemail", to: to },
 				    			dataType: "json",
 				    			success: function(res){
 				    				layer.close(idx);
