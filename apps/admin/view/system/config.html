@@ -293,7 +293,12 @@
 				    				if(res.code==1){
 				    					layer.msg(res.data,{icon:1,time:3000});
 				    				}else{
-				    					layer.msg(res.data,{icon:2,time:5000});
+				    					layer.open({
+				    						title: "發送結果",
+				    						content: res.data,
+				    						icon: 2,
+				    						area: ["500px","auto"]
+				    					});
 				    				}
 				    			},
 				    			error: function(){

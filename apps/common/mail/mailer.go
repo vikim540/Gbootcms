@@ -215,32 +215,37 @@ func SendTestMail(to string) error {
   </div>
 </div>
 </body></html>`, siteName, siteName, now, to, time.Now().Year(), siteName)
-	if err := SendMail(to, subject, body); err != nil {
-		return friendlySMTPErr(err)
-	}
-	return nil
+	return SendMail(to, subject, body)
 }
 
-// friendlySMTPErr 將 SMTP 錯誤碼轉換為更友好的中文提示
-func friendlySMTPErr(err error) error {
+// FriendlyErr 將 SMTP 錯誤轉換為簡短的友好提示（不暴露原始錯誤到前端）
+// 原始錯誤由調用方列印到終端日誌
+func FriendlyErr(err error) string {
 	if err == nil {
-		return nil
+		return ""
 	}
 
 	errMsg := err.Error()
-	if strings.Contains(errMsg, "550") {
-		return fmt.Errorf("測試郵件發送失敗：收件人郵箱地址不存在或被拒絕收信 (SMTP 550)。錯誤詳情: %w", err)
-	} else if strings.Contains(errMsg, "535") {
-		return fmt.Errorf("測試郵件發送失敗：SMTP 帳號或密碼認證失敗 (SMTP 535)。錯誤詳情: %w", err)
-	} else if strings.Contains(errMsg, "554") {
-		return fmt.Errorf("測試郵件發送失敗：郵件被伺服器拒絕，可能被判定為垃圾郵件或內容違規 (SMTP 554)。錯誤詳情: %w", err)
-	} else if strings.Contains(errMsg, "552") {
-		return fmt.Errorf("測試郵件發送失敗：郵件大小超過伺服器限制 (SMTP 552)。錯誤詳情: %w", err)
-	} else if strings.Contains(errMsg, "553") {
-		return fmt.Errorf("測試郵件發送失敗：發件人郵箱地址被拒絕或不允許 (SMTP 553)。錯誤詳情: %w", err)
+	switch {
+	case strings.Contains(errMsg, "550"):
+		return "郵件被收件方伺服器拒絕（SMTP 550），可能原因：跨域發送信譽不足、收件地址不存在或被判定為垃圾郵件。建議：測試時用與發件帳號相同的郵箱域名。"
+	case strings.Contains(errMsg, "535"):
+		return "SMTP 帳號或密碼認證失敗（SMTP 535），請檢查郵箱帳號和授權碼是否正確。注意：部分郵箱需使用授權碼而非登入密碼。"
+	case strings.Contains(errMsg, "554"):
+		return "郵件被伺服器拒絕（SMTP 554），可能被判定為垃圾郵件或內容違規。"
+	case strings.Contains(errMsg, "552"):
+		return "郵件大小超過伺服器限制（SMTP 552）。"
+	case strings.Contains(errMsg, "553"):
+		return "發件人郵箱地址被拒絕或不允許（SMTP 553）。"
+	case strings.Contains(errMsg, "TLS") || strings.Contains(errMsg, "tls"):
+		return "TLS/SSL 連線失敗，請檢查連接埠和 SSL 設定是否匹配（465 埠需開啟 SSL，587 埠需關閉 SSL）。"
+	case strings.Contains(errMsg, "dial") || strings.Contains(errMsg, "connection"):
+		return "無法連接 SMTP 伺服器，請檢查伺服器地址和連接埠是否正確。"
+	case strings.Contains(errMsg, "EHLO"):
+		return "SMTP 協議握手失敗（EHLO/HELO），伺服器可能不支援此連線方式。"
+	default:
+		return "郵件發送失敗，請檢查 SMTP 配置後重試。"
 	}
-
-	return fmt.Errorf("測試郵件發送失敗: %w", err)
 }
 
 // encodeBase64 Base64 編碼（用於郵件主旨）

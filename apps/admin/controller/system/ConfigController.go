@@ -1,6 +1,7 @@
 ﻿package system
 
 import (
+	"fmt"
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
 	"pbootcms-go/apps/common/mail"
@@ -45,7 +46,9 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			return
 		}
 		if err := mail.SendTestMail(to); err != nil {
-			cf.JSONFail(c, "發送失敗："+err.Error())
+			// 原始錯誤打到終端日誌，前端只顯示友好提示
+			fmt.Printf("[SMTP] 測試郵件發送失敗 to=%s: %v\n", to, err)
+			cf.JSONFail(c, mail.FriendlyErr(err))
 			return
 		}
 		cf.JSONOKMsg(c, "測試郵件已發送至 "+to+"，請查收")
