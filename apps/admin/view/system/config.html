@@ -281,7 +281,7 @@
 				    	$("#btn-sendtest").on("click",function(){
 				    		var to = $("#smtp_username_test").val();
 				    		if(!to){
-				    			showNotify("請先填寫測試收件郵箱","error");
+				    			layer.msg("請先填寫測試收件郵箱",{icon:2});
 				    			return;
 				    		}
 				    		var idx = layer.load(1,{shade:[0.3,"#fff"]});
@@ -293,14 +293,14 @@
 				    			success: function(res){
 				    				layer.close(idx);
 				    				if(res.code==1){
-				    					showNotify(res.msg,"success");
+				    					layer.msg(res.msg,{icon:1,time:3000});
 				    				}else{
-				    					showNotify(res.msg,"error");
+				    					layer.msg(res.msg,{icon:2,time:5000});
 				    				}
 				    			},
 				    			error: function(){
 				    				layer.close(idx);
-				    				showNotify("請求異常，請檢查網絡或重新登入","error");
+				    				layer.msg("請求異常，請檢查網絡或重新登入",{icon:2});
 				    			}
 				    		});
 				    	});
