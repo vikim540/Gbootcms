@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"html"
+	"strconv"
 	"strings"
 	"time"
 
@@ -140,12 +141,19 @@ func injectSessionData(c *gin.Context, data gin.H) {
 
 // loadConfigToData loads ay_config entries into data["Config"] as a nested map.
 // Config keys use PascalCase: e.g. config name "page_size" → Config.PageSize.
+// Numeric string values are stored as int for correct == comparison in templates.
 func loadConfigToData(data gin.H) {
 	configMap := make(map[string]interface{})
 	var configs []model.Config
 	model.DB.Find(&configs)
 	for _, cfg := range configs {
-		configMap[SnakeToPascal(cfg.Name)] = cfg.Value
+		val := cfg.Value
+		// 嘗試將純數字字串轉為 int，讓模板 {if(Config.Xxx==1)} 能正確比較
+		if n, err := strconv.Atoi(val); err == nil {
+			configMap[SnakeToPascal(cfg.Name)] = n
+		} else {
+			configMap[SnakeToPascal(cfg.Name)] = val
+		}
 	}
 	data["Config"] = configMap
 }

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"net/url"
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
 	"pbootcms-go/apps/common/mail"
@@ -38,10 +39,16 @@ func (cc *CommentController) Add(c *gin.Context) {
 
 	// 登入檢查（未開啟匿名評論時必須登入）
 	if uid == 0 && model.GetConfigValue("comment_anonymous", "0") == "0" {
+		// 帶 backurl 讓登入後返回來源頁面
+		referer := c.Request.Referer()
+		loginURL := "/login"
+		if referer != "" {
+			loginURL = "/login?backurl=" + url.QueryEscape(referer)
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"code":  0,
 			"data":  "請先登入後再評論",
-			"tourl": "/login",
+			"tourl": loginURL,
 		})
 		return
 	}
@@ -124,7 +131,8 @@ func (cc *CommentController) Add(c *gin.Context) {
 func (cc *CommentController) My(c *gin.Context) {
 	uid := common.GetSessionInt(c, "pboot_uid")
 	if uid == 0 {
-		c.Redirect(http.StatusFound, "/login")
+		currentURL := c.Request.URL.String()
+		c.Redirect(http.StatusFound, "/login?backurl="+url.QueryEscape(currentURL))
 		return
 	}
 	cc.renderMemberPage(c, "member/mycomment.html")
