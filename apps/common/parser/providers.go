@@ -404,6 +404,14 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return strconv.FormatUint(uint64(ctx.Member.ID), 10)
 		case "gid":
 			return ctx.Member.GID
+		case "gcode":
+			// 透過 gid 查 ay_member_group 取 gcode（對應 PHP getUser() JOIN）
+			if ctx.Member.GID != "" && ctx.Member.GID != "0" {
+				var group model.MemberGroup
+				model.DB.Where("id = ?", ctx.Member.GID).First(&group)
+				return group.Gcode
+			}
+			return ""
 		case "score":
 			return strconv.Itoa(ctx.Member.Score)
 		case "logincount":
