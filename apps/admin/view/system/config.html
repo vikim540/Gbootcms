@@ -278,32 +278,34 @@
 					<script>
 					var sendemailURL = "{url./admin/Config/index}";
 					{% verbatim %}
-				    	$("#btn-sendtest").on("click",function(){
-				    		var to = $("#smtp_username_test").val();
-				    		if(!to){
-				    			layer.msg("請先填寫測試收件郵箱",{icon:2});
-				    			return;
-				    		}
-				    		var idx = layer.load(1,{shade:[0.3,"#fff"]});
-				    		$.ajax({
-				    			url: sendemailURL,
-				    			type: "GET",
-				    			data: { action: "sendemail", to: to },
-				    			dataType: "json",
-				    			success: function(res){
-				    				layer.close(idx);
-				    				if(res.code==1){
-				    					layer.msg(res.msg,{icon:1,time:3000});
-				    				}else{
-				    					layer.msg(res.msg,{icon:2,time:5000});
-				    				}
-				    			},
-				    			error: function(){
-				    				layer.close(idx);
-				    				layer.msg("請求異常，請檢查網絡或重新登入",{icon:2});
-				    			}
-				    		});
-				    	});
+					layui.use([], function(){
+						$("#btn-sendtest").on("click",function(){
+							var to = $("#smtp_username_test").val();
+							if(!to){
+								layer.msg("請先填寫測試收件郵箱",{icon:2});
+								return;
+							}
+							var idx = layer.load(1,{shade:[0.3,"#fff"]});
+							$.ajax({
+								url: sendemailURL,
+								type: "GET",
+								data: { action: "sendemail", to: to },
+								dataType: "json",
+								success: function(res){
+									layer.close(idx);
+									if(res.code==1){
+										showNotify(res.msg,"success");
+									}else{
+										showNotify(res.msg,"error");
+									}
+								},
+								error: function(){
+									layer.close(idx);
+									showNotify("請求異常，請檢查網絡或重新登入","error");
+								}
+							});
+						});
+					});
 					{% endverbatim %}
 				    </script>
 	              </form>
