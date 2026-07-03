@@ -291,18 +291,18 @@
 				    			data: { action: "sendemail", to: to },
 				    			dataType: "json",
 				    			success: function(res){
-				    				layer.close(idx);
-				    				if(res.code==1){
-				    					layer.msg(res.data,{icon:1,time:3000});
-				    				}else{
-				    					layer.open({
-				    						title: "發送結果",
-				    						content: '<div style="padding:20px 30px;color:#e74c3c;font-size:14px;line-height:1.8;word-break:break-all;">' + res.data + '</div>',
-				    						area: ["500px","auto"],
-				    						btn: ["確定"]
-				    					});
-				    				}
-				    			},
+			    				layer.close(idx);
+			    				if(res.code==1){
+			    					layer.msg(res.msg,{icon:1,time:3000});
+			    				}else{
+			    					layer.open({
+			    						title: "發送結果",
+			    						content: '<div style="padding:20px 30px;color:#e74c3c;font-size:14px;line-height:1.8;word-break:break-all;">' + res.msg + '</div>',
+			    						area: ["500px","auto"],
+			    						btn: ["確定"]
+			    					});
+			    				}
+			    			},
 				    			error: function(){
 				    				layer.close(idx);
 				    				layer.msg("請求異常，請檢查網絡或重新登入",{icon:2});
