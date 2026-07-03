@@ -56,7 +56,7 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			"smtp_server", "smtp_port", "smtp_ssl", "smtp_username",
 			"smtp_password", "smtp_username_test", "message_send_mail",
 			"form_send_mail", "comment_send_mail", "message_send_to",
-			"webhook_url",
+			"webhook_url", "webhook_message", "webhook_form", "webhook_comment",
 			"baidu_zz_token", "baidu_ks_token",
 			"api_open", "api_auth", "api_appid", "api_secret",
 			"watermark_open", "watermark_text", "watermark_text_font",

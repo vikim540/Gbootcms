@@ -5,7 +5,8 @@
 	  <ul class="layui-tab-title">
 	    <li class="layui-this" lay-id="t1">基本配置</li>
 	    <li  lay-id="t2">邮件通知</li>
-	    <li  lay-id="t3">百度接口</li>
+    <li  lay-id="t2b">Webhook推送</li>
+    <li  lay-id="t3">百度接口</li>
 	    <li  lay-id="t4">WebAPI</li>
 	    <li  lay-id="t5">图片水印</li>
 	    <li  lay-id="t6">安全配置</li>
@@ -266,13 +267,6 @@
 		                     </div>
 		                </div>
 		                
-		                <div class="layui-form-item">
-		                     <label class="layui-form-label">Webhook推送</label>
-		                     <div class="layui-input-block">
-		                     	<input type="text" name="webhook_url"  value="{$configs.webhook_url.value}" placeholder="请输入Webhook推送地址（留空则不推送），如 https://example.com/webhook"  class="layui-input">
-		                     </div>
-		                </div>
-		                
 						 <div class="layui-form-item">
 							 <div class="layui-input-block">
 							    <button class="layui-btn" lay-submit name="submit" value="email">立即提交</button>
@@ -286,6 +280,47 @@
 					    		return true;
 					    	}
 					    </script>
+	              </form>
+		  	   </div>
+		  	   <div class="layui-tab-item">
+		  	   	   <form action="{url./admin/Config/index}" method="post" class="layui-form">
+			  	   	   <input type="hidden" name="formcheck" value="{$formcheck}" >
+			  	   	   <div class="layui-form-item">
+		                     <label class="layui-form-label">推送地址</label>
+		                     <div class="layui-input-block">
+		                     	<input type="text" name="webhook_url"  value="{$configs.webhook_url.value}" placeholder="请输入Webhook推送地址（留空则不推送），如 https://example.com/webhook"  class="layui-input">
+		                     </div>
+		                </div>
+		                <div class="layui-form-item">
+		                     <label class="layui-form-label">留言推送</label>
+		                     <div class="layui-input-block">
+		                     	<input type="radio" name="webhook_message" value="1" {if([$configs.webhook_message.value]==1)} checked="checked" {/if} title="开启">
+								<input type="radio" name="webhook_message" value="0" {if([$configs.webhook_message.value]==0)} checked="checked" {/if} title="关闭">
+								<span class="layui-bg-gray">访客提交留言时推送通知</span>
+		                     </div>
+		                </div>
+		                <div class="layui-form-item">
+		                     <label class="layui-form-label">表单推送</label>
+		                     <div class="layui-input-block">
+		                     	<input type="radio" name="webhook_form" value="1" {if([$configs.webhook_form.value]==1)} checked="checked" {/if} title="开启">
+								<input type="radio" name="webhook_form" value="0" {if([$configs.webhook_form.value]==0)} checked="checked" {/if} title="关闭">
+								<span class="layui-bg-gray">访客提交自定义表单时推送通知</span>
+		                     </div>
+		                </div>
+		                <div class="layui-form-item">
+		                     <label class="layui-form-label">评论推送</label>
+		                     <div class="layui-input-block">
+		                     	<input type="radio" name="webhook_comment" value="1" {if([$configs.webhook_comment.value]==1)} checked="checked" {/if} title="开启">
+								<input type="radio" name="webhook_comment" value="0" {if([$configs.webhook_comment.value]==0)} checked="checked" {/if} title="关闭">
+								<span class="layui-bg-gray">访客提交评论时推送通知</span>
+		                     </div>
+		                </div>
+						<div class="layui-form-item">
+							 <div class="layui-input-block">
+							    <button class="layui-btn" lay-submit name="submit" value="webhook">立即提交</button>
+							    <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+							 </div>
+						</div>
 	              </form>
 		  	   </div>
 		  	   

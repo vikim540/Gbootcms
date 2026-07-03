@@ -334,7 +334,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 				{"label": "瀏覽器", "value": msg.Browser},
 			}
 			mail.SendNotifyMail("在線留言", notifyFields)
-			webhook.Send("在線留言", msg.IP, msg.OS, msg.Browser, notifyFields)
+			webhook.SendIf("message", "在線留言", msg.IP, msg.OS, msg.Browser, notifyFields)
 		}
 
 		messageRateLimit[clientIP] = time.Now()
@@ -417,7 +417,7 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 	// 郵件通知 + Webhook 推送（form_send_mail=1 時啟用）
 	if model.GetConfigValue("form_send_mail", "0") == "1" {
 		mail.SendNotifyMail(form.FormName, notifyFields)
-		webhook.Send(form.FormName, clientIP, "", "", notifyFields)
+		webhook.SendIf("form", form.FormName, clientIP, "", "", notifyFields)
 	}
 
 	messageRateLimit[clientIP] = time.Now()

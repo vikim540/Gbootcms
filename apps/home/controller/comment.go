@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"pbootcms-go/apps/admin/model"
 	"pbootcms-go/apps/common"
+	"pbootcms-go/apps/common/mail"
+	"pbootcms-go/apps/common/webhook"
 	"strconv"
 	"time"
 
@@ -98,6 +100,18 @@ func (cc *CommentController) Add(c *gin.Context) {
 
 	// 記錄提交時間（防刷）
 	common.SetSession(c, "lastsub", now)
+
+	// 評論郵件通知 + Webhook 推送
+	notifyFields := []map[string]string{
+		{"label": "評論內容", "value": comment},
+		{"label": "來源IP", "value": c.ClientIP()},
+		{"label": "作業系統", "value": parseUserOS(c.Request.UserAgent())},
+		{"label": "瀏覽器", "value": parseUserBrowser(c.Request.UserAgent())},
+	}
+	if model.GetConfigValue("comment_send_mail", "0") == "1" {
+		mail.SendNotifyMail("新評論通知", notifyFields)
+	}
+	webhook.SendIf("comment", "新評論", c.ClientIP(), parseUserOS(c.Request.UserAgent()), parseUserBrowser(c.Request.UserAgent()), notifyFields)
 
 	if status == 1 {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "data": "評論成功"})

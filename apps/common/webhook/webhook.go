@@ -63,3 +63,12 @@ func Send(formName, ip, os, browser string, fields []map[string]string) {
 		}
 	}()
 }
+
+// SendIf 帶分項開關檢查的推送（category: message/form/comment）
+// 對應配置項：webhook_message / webhook_form / webhook_comment（預設 "1" 啟用）
+func SendIf(category, formName, ip, os, browser string, fields []map[string]string) {
+	if model.GetConfigValue("webhook_"+category, "1") != "1" {
+		return
+	}
+	Send(formName, ip, os, browser, fields)
+}
