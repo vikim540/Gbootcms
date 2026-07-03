@@ -35,7 +35,6 @@ func (cf *ConfigController) Index(c *gin.Context) {
 	}
 
 	if c.Request.Method == "POST" {
-		submit := c.PostForm("submit")
 		names := []string{
 			"close_site", "close_site_note", "open_wap", "wap_domain",
 			"tpl_html_cache", "tpl_html_cache_time", "gzip", "session_in_sitepath",
@@ -64,8 +63,12 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			"watermark_position",
 		}
 		for _, name := range names {
-			val := c.PostForm(name)
-			if submit != "" && name == "submit" {
+			if name == "submit" {
+				continue
+			}
+			// 只更新表單中實際提交的欄位，避免其他 tab 的配置被空值覆蓋
+			val, exists := c.GetPostForm(name)
+			if !exists {
 				continue
 			}
 			var config model.Config
