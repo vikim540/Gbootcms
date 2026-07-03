@@ -42,10 +42,10 @@ func Send(formName, ip, os, browser string, fields []map[string]string) {
 
 		switch {
 		case strings.Contains(webhookURL, "oapi.dingtalk.com"):
-			// 釘釘機器人
-			jsonData, err = buildDingTalkPayload(formName, ip, os, browser, fields)
+			// 釘釘機器人 — 使用 ActionCard 美觀卡片
+			jsonData, err = buildDingTalkActionCard(formName, ip, os, browser, fields)
 		case strings.Contains(webhookURL, "qyapi.weixin.qq.com"):
-			// 企業微信機器人
+			// 企業微信機器人 — markdown 格式
 			jsonData, err = buildWeComPayload(formName, ip, os, browser, fields)
 		default:
 			// 通用格式
@@ -103,33 +103,33 @@ func SendIf(category, formName, ip, os, browser string, fields []map[string]stri
 	Send(formName, ip, os, browser, fields)
 }
 
-// buildDingTalkPayload 構建釘釘機器人 Markdown 訊息
-func buildDingTalkPayload(formName, ip, os, browser string, fields []map[string]string) ([]byte, error) {
+// normalizeIP 將 ::1（IPv6 localhost）轉為 127.0.0.1
+func normalizeIP(ip string) string {
+	if ip == "::1" {
+		return "127.0.0.1"
+	}
+	return ip
+}
+
+// buildDingTalkActionCard 構建釘釘 ActionCard 訊息（美觀卡片）
+func buildDingTalkActionCard(formName, ip, os, browser string, fields []map[string]string) ([]byte, error) {
+	ip = normalizeIP(ip)
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("#### %s\n\n", formName))
 	sb.WriteString(fmt.Sprintf("> **時間**: %s\n\n", time.Now().Format("2006-01-02 15:04:05")))
-	if ip != "" {
-		sb.WriteString(fmt.Sprintf("> **IP**: %s\n", ip))
-	}
-	if os != "" {
-		sb.WriteString(fmt.Sprintf("> **系統**: %s\n", os))
-	}
-	if browser != "" {
-		sb.WriteString(fmt.Sprintf("> **瀏覽器**: %s\n", browser))
-	}
-	sb.WriteString("\n")
+	sb.WriteString(fmt.Sprintf("> **IP**: %s  |  **系統**: %s  |  **瀏覽器**: %s\n\n---\n", ip, os, browser))
 	for _, f := range fields {
-		sb.WriteString(fmt.Sprintf("> **%s**: %s\n", f["label"], f["value"]))
+		sb.WriteString(fmt.Sprintf("**%s**: %s\n\n", f["label"], f["value"]))
 	}
 
 	payload := map[string]interface{}{
-		"msgtype": "markdown",
-		"markdown": map[string]string{
-			"title": formName,
-			"text":  sb.String(),
-		},
-		"at": map[string]interface{}{
-			"isAtAll": false,
+		"msgtype": "actionCard",
+		"actionCard": map[string]string{
+			"title":       formName,
+			"text":        sb.String(),
+			"singleTitle": "查看詳情",
+			"singleURL":   "https://www.dingtalk.com/",
+			"hideAvatar":  "0",
 		},
 	}
 	return json.Marshal(payload)
@@ -137,19 +137,11 @@ func buildDingTalkPayload(formName, ip, os, browser string, fields []map[string]
 
 // buildWeComPayload 構建企業微信機器人 Markdown 訊息
 func buildWeComPayload(formName, ip, os, browser string, fields []map[string]string) ([]byte, error) {
+	ip = normalizeIP(ip)
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("### %s\n\n", formName))
 	sb.WriteString(fmt.Sprintf("**時間**: %s\n", time.Now().Format("2006-01-02 15:04:05")))
-	if ip != "" {
-		sb.WriteString(fmt.Sprintf("**IP**: %s\n", ip))
-	}
-	if os != "" {
-		sb.WriteString(fmt.Sprintf("**系統**: %s\n", os))
-	}
-	if browser != "" {
-		sb.WriteString(fmt.Sprintf("**瀏覽器**: %s\n", browser))
-	}
-	sb.WriteString("\n")
+	sb.WriteString(fmt.Sprintf("**IP**: %s  |  **系統**: %s  |  **瀏覽器**: %s\n\n", ip, os, browser))
 	for _, f := range fields {
 		sb.WriteString(fmt.Sprintf("**%s**: %s\n", f["label"], f["value"]))
 	}

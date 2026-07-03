@@ -1,6 +1,11 @@
 {include file=comm/head.html}
 
-{include file=comm/top.html}
+<div class="jumbotron jumbotron-fluid mb-2" style="background:#e9ecef url(/static/upload/202606/1523501459462835.jpg);background-size:cover;background-repeat:no-repeat">
+  <div class="container text-light">
+    <h1 class="fs-18 fs-sm-26 wow fadeInDown">我的評論</h1>
+    <p class="fs-14 fs-sm-18 wow fadeInDown">管理您發表的所有評論</p>
+  </div>
+</div>
 
 <div class="container pages">
 
@@ -33,6 +38,7 @@
 			    {/gboot:mycomment}
 			  </tbody>
 			</table>
+			{include file=comm/page.html}
         </div>
    </div>
 
@@ -65,4 +71,4 @@ $(".del").on("click",function(){
 });
 </script>
 
-{include file=foot.html}
+{include file=comm/foot.html}

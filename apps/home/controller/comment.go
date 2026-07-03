@@ -109,16 +109,20 @@ func (cc *CommentController) Add(c *gin.Context) {
 	common.SetSession(c, "lastsub", now)
 
 	// 評論郵件通知 + Webhook 推送
-	notifyFields := []map[string]string{
+	mailFields := []map[string]string{
 		{"label": "評論內容", "value": comment},
 		{"label": "來源IP", "value": c.ClientIP()},
 		{"label": "作業系統", "value": parseUserOS(c.Request.UserAgent())},
 		{"label": "瀏覽器", "value": parseUserBrowser(c.Request.UserAgent())},
 	}
 	if model.GetConfigValue("comment_send_mail", "0") == "1" {
-		mail.SendNotifyMail("新評論通知", notifyFields)
+		mail.SendNotifyMail("新評論通知", mailFields)
 	}
-	webhook.SendIf("comment", "新評論", c.ClientIP(), parseUserOS(c.Request.UserAgent()), parseUserBrowser(c.Request.UserAgent()), notifyFields)
+	// webhook fields 只保留業務欄位（IP/OS/瀏覽器已在卡片 header）
+	webhookFields := []map[string]string{
+		{"label": "評論內容", "value": comment},
+	}
+	webhook.SendIf("comment", "新評論", c.ClientIP(), parseUserOS(c.Request.UserAgent()), parseUserBrowser(c.Request.UserAgent()), webhookFields)
 
 	if status == 1 {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "data": "評論成功"})

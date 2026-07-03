@@ -325,7 +325,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 
 		// 郵件通知 + Webhook 推送（message_send_mail=1 時啟用）
 		if model.GetConfigValue("message_send_mail", "0") == "1" {
-			notifyFields := []map[string]string{
+			mailFields := []map[string]string{
 				{"label": "聯繫人", "value": msg.Contacts},
 				{"label": "手機", "value": msg.Mobile},
 				{"label": "內容", "value": msg.Content},
@@ -333,8 +333,14 @@ func (fc *FrontController) Message(c *gin.Context) {
 				{"label": "操作系統", "value": msg.OS},
 				{"label": "瀏覽器", "value": msg.Browser},
 			}
-			mail.SendNotifyMail("在線留言", notifyFields)
-			webhook.SendIf("message", "在線留言", msg.IP, msg.OS, msg.Browser, notifyFields)
+			mail.SendNotifyMail("在線留言", mailFields)
+			// webhook fields 只保留業務欄位（IP/OS/瀏覽器已在卡片 header）
+			webhookFields := []map[string]string{
+				{"label": "聯繫人", "value": msg.Contacts},
+				{"label": "手機", "value": msg.Mobile},
+				{"label": "內容", "value": msg.Content},
+			}
+			webhook.SendIf("message", "在線留言", msg.IP, msg.OS, msg.Browser, webhookFields)
 		}
 
 		messageRateLimit[clientIP] = time.Now()
