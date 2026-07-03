@@ -88,16 +88,16 @@
 		               <div class="layui-form-item">
 		                     <label class="layui-form-label">跨语言自动切换</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="lgautosw" value="1" {if([$configs.lgautosw.value]=='1'||[$configs.lgautosw.value]=='')} checked="checked" {/if} title="启用">
-								<input type="radio" name="lgautosw" value="0" {if([$configs.lgautosw.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="lgautosw" value="1" {if([$configs.lgautosw.value]==1||[$configs.lgautosw.value]=='')} checked="checked" {/if} title="启用">
+								<input type="radio" name="lgautosw" value="0" {if([$configs.lgautosw.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">记录蜘蛛访问</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="spiderlog" value="1" {if([$configs.spiderlog.value]=='1'||[$configs.spiderlog.value]=='')} checked="checked" {/if} title="启用">
-								<input type="radio" name="spiderlog" value="0" {if([$configs.spiderlog.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="spiderlog" value="1" {if([$configs.spiderlog.value]==1||[$configs.spiderlog.value]=='')} checked="checked" {/if} title="启用">
+								<input type="radio" name="spiderlog" value="0" {if([$configs.spiderlog.value]==0)} checked="checked" {/if} title="禁用">
 		                     	<span class="layui-icon layui-icon-about tips" data-content="开启后自动在系统日志进行记录！"></span>
 		                     </div>
 		                </div>
@@ -276,37 +276,32 @@
 						 </div>
 					</div>
 					<script>
-					var sendemailURL = "{url./admin/Config/index}";
-					{% verbatim %}
-					layui.use([], function(){
-						$("#btn-sendtest").on("click",function(){
-							var to = $("#smtp_username_test").val();
-							if(!to){
-								layer.msg("請先填寫測試收件郵箱",{icon:2});
-								return;
-							}
-							var idx = layer.load(1,{shade:[0.3,"#fff"]});
-							$.ajax({
-								url: sendemailURL,
-								type: "GET",
-								data: { action: "sendemail", to: to },
-								dataType: "json",
-								success: function(res){
-									layer.close(idx);
-									if(res.code==1){
-										showNotify(res.msg,"success");
-									}else{
-										showNotify(res.msg,"error");
-									}
-								},
-								error: function(){
-									layer.close(idx);
-									showNotify("請求異常，請檢查網絡或重新登入","error");
-								}
-							});
-						});
-					});
-					{% endverbatim %}
+				    	$("#btn-sendtest").on("click",function(){
+				    		var to = $("#smtp_username_test").val();
+				    		if(!to){
+				    			layer.msg("請先填寫測試收件郵箱",{icon:2});
+				    			return;
+				    		}
+				    		var idx = layer.load(1,{shade:[0.3,"#fff"]});
+				    		$.ajax({
+				    			url: "/admin/config/index",
+				    			type: "GET",
+				    			data: { action: "sendemail", to: to },
+				    			dataType: "json",
+				    			success: function(res){
+				    				layer.close(idx);
+				    				if(res.code==1){
+				    					layer.msg(res.msg,{icon:1,time:3000});
+				    				}else{
+				    					layer.msg(res.msg,{icon:2,time:5000});
+				    				}
+				    			},
+				    			error: function(){
+				    				layer.close(idx);
+				    				layer.msg("請求異常，請檢查網絡或重新登入",{icon:2});
+				    			}
+				    		});
+				    	});
 				    </script>
 	              </form>
 		  	   </div>
@@ -504,24 +499,24 @@
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">留言功能</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="message_status" value="1" {if([$configs.message_status.value]=='1'||[$configs.message_status.value]=='')} checked="checked" {/if} title="启用">
-								<input type="radio" name="message_status" value="0" {if([$configs.message_status.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="message_status" value="1" {if([$configs.message_status.value]==1||[$configs.message_status.value]=='')} checked="checked" {/if} title="启用">
+								<input type="radio" name="message_status" value="0" {if([$configs.message_status.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">留言驗證碼</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="message_check_code" value="1" {if([$configs.message_check_code.value]=='1'||[$configs.message_check_code.value]=='')} checked="checked" {/if} title="启用">
-								<input type="radio" name="message_check_code" value="0" {if([$configs.message_check_code.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="message_check_code" value="1" {if([$configs.message_check_code.value]==1||[$configs.message_check_code.value]=='')} checked="checked" {/if} title="启用">
+								<input type="radio" name="message_check_code" value="0" {if([$configs.message_check_code.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">留言審核</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="message_verify" value="1" {if([$configs.message_verify.value]=='1'||[$configs.message_verify.value]=='')} checked="checked" {/if} title="启用">
-								<input type="radio" name="message_verify" value="0" {if([$configs.message_verify.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="message_verify" value="1" {if([$configs.message_verify.value]==1||[$configs.message_verify.value]=='')} checked="checked" {/if} title="启用">
+								<input type="radio" name="message_verify" value="0" {if([$configs.message_verify.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                
@@ -529,23 +524,23 @@
 		                     <label class="layui-form-label">留言需登錄</label>
 		                     <div class="layui-input-block">
 		                     	<input type="radio" name="message_rqlogin" value="1" {if([$configs.message_rqlogin.value]==1)} checked="checked" {/if} title="启用">
-								<input type="radio" name="message_rqlogin" value="0" {if([$configs.message_rqlogin.value]==0)} checked="checked" {/if} title="禁用">
+								<input type="radio" name="message_rqlogin" value="0" {if([$configs.message_rqlogin.value]==0||[$configs.message_rqlogin.value]=='')} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">表單功能</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="form_status" value="1" {if([$configs.form_status.value]=='1'||[$configs.form_status.value]=='')} checked="checked" {/if} title="启用">
-								<input type="radio" name="form_status" value="0" {if([$configs.form_status.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="form_status" value="1" {if([$configs.form_status.value]==1||[$configs.form_status.value]=='')} checked="checked" {/if} title="启用">
+								<input type="radio" name="form_status" value="0" {if([$configs.form_status.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">表單驗證碼</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="form_check_code" value="1" {if([$configs.form_check_code.value]=='1'||[$configs.form_check_code.value]=='')} checked="checked" {/if} title="启用">
-								<input type="radio" name="form_check_code" value="0" {if([$configs.form_check_code.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="form_check_code" value="1" {if([$configs.form_check_code.value]==1||[$configs.form_check_code.value]=='')} checked="checked" {/if} title="启用">
+								<input type="radio" name="form_check_code" value="0" {if([$configs.form_check_code.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 
@@ -578,8 +573,8 @@
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">後台驗證碼</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="admin_check_code" value="1" {if([$configs.admin_check_code.value]=='1'||[$configs.admin_check_code.value]=='')} checked="checked" {/if} title="启用">
-								<input type="radio" name="admin_check_code" value="0" {if([$configs.admin_check_code.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="admin_check_code" value="1" {if([$configs.admin_check_code.value]==1||[$configs.admin_check_code.value]=='')} checked="checked" {/if} title="启用">
+								<input type="radio" name="admin_check_code" value="0" {if([$configs.admin_check_code.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                

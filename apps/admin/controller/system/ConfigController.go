@@ -32,17 +32,17 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			to = model.GetConfigValue("smtp_username_test", "")
 		}
 		if to == "" {
-			cf.JSONFail(c, common.NoticeMailTestEmpty)
+			cf.JSONFail(c, "請先填寫測試收件郵箱")
 			return
 		}
 		// 郵箱格式驗證（比 PHP 更嚴謹）
 		if !isValidEmail(to) {
-			cf.JSONFail(c, common.NoticeMailTestBadFormat+"："+to)
+			cf.JSONFail(c, "郵箱格式不正確："+to)
 			return
 		}
 		// 檢查 SMTP 配置是否完整
 		if model.GetConfigValue("smtp_server", "") == "" || model.GetConfigValue("smtp_username", "") == "" {
-			cf.JSONFail(c, common.NoticeMailTestNoSMTP)
+			cf.JSONFail(c, "SMTP 配置不完整，請先填寫伺服器地址和發件帳號")
 			return
 		}
 		if err := mail.SendTestMail(to); err != nil {
@@ -51,7 +51,7 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			cf.JSONFail(c, mail.FriendlyErr(err))
 			return
 		}
-		cf.JSONOKMsg(c, common.NoticeMailTestSent(to))
+		cf.JSONOKMsg(c, "測試郵件已發送至 "+to+"，請查收")
 		return
 	}
 

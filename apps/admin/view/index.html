@@ -35,7 +35,7 @@
 					<label class="user-login-icon layui-icon layui-icon-password"></label>
 					<input name="password" id="password" type="password" lay-verify="required" lay-reqtext="密碼不能為空" placeholder="密碼" autocomplete="off" class="layui-input">
 				</div>
-				{if([$config.admin_check_code]!='0')}
+				{if([$configs.admin_check_code.value]!=0)}
 				<div class="layui-form-item">
 					<div class="layui-row">
 						<div class="layui-col-xs7 layui-col-sm8">
