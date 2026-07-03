@@ -71,6 +71,20 @@ const (
 	NoticeCacheContent  = "內容已更新"
 )
 
+// ─── 郵件測試 ───
+const (
+	NoticeMailTestEmpty     = "請先填寫測試收件郵箱"
+	NoticeMailTestBadFormat = "郵箱格式不正確"
+	NoticeMailTestNoSMTP    = "SMTP 配置不完整，請先填寫伺服器地址和發件帳號"
+	NoticeMailTestFail      = "郵件發送失敗，請檢查 SMTP 配置後重試"
+	NoticeMailTestRequest   = "請求異常，請檢查網絡或重新登入"
+)
+
+// NoticeMailTestSent 測試郵件已發送
+func NoticeMailTestSent(to string) string {
+	return "測試郵件已發送至 " + to + "，請查收"
+}
+
 // ─── 表單系統 ───
 const (
 	NoticeFormAdd      = "表單新增成功"
