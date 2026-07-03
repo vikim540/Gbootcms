@@ -215,7 +215,32 @@ func SendTestMail(to string) error {
   </div>
 </div>
 </body></html>`, siteName, siteName, now, to, time.Now().Year(), siteName)
-	return SendMail(to, subject, body)
+	if err := SendMail(to, subject, body); err != nil {
+		return friendlySMTPErr(err)
+	}
+	return nil
+}
+
+// friendlySMTPErr 將 SMTP 錯誤碼轉換為更友好的中文提示
+func friendlySMTPErr(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	errMsg := err.Error()
+	if strings.Contains(errMsg, "550") {
+		return fmt.Errorf("測試郵件發送失敗：收件人郵箱地址不存在或被拒絕收信 (SMTP 550)。錯誤詳情: %w", err)
+	} else if strings.Contains(errMsg, "535") {
+		return fmt.Errorf("測試郵件發送失敗：SMTP 帳號或密碼認證失敗 (SMTP 535)。錯誤詳情: %w", err)
+	} else if strings.Contains(errMsg, "554") {
+		return fmt.Errorf("測試郵件發送失敗：郵件被伺服器拒絕，可能被判定為垃圾郵件或內容違規 (SMTP 554)。錯誤詳情: %w", err)
+	} else if strings.Contains(errMsg, "552") {
+		return fmt.Errorf("測試郵件發送失敗：郵件大小超過伺服器限制 (SMTP 552)。錯誤詳情: %w", err)
+	} else if strings.Contains(errMsg, "553") {
+		return fmt.Errorf("測試郵件發送失敗：發件人郵箱地址被拒絕或不允許 (SMTP 553)。錯誤詳情: %w", err)
+	}
+
+	return fmt.Errorf("測試郵件發送失敗: %w", err)
 }
 
 // encodeBase64 Base64 編碼（用於郵件主旨）

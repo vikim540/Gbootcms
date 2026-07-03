@@ -184,11 +184,12 @@
 			  	   	    <input type="hidden" name="formcheck" value="{$formcheck}" > 
 		                
 		                <div class="layui-form-item">
-			                   <label class="layui-form-label">服务器状态 </label>
+			                   <label class="layui-form-label">服務器狀態 </label>
 			                   <div class="layui-input-block" style="line-height:36px;">
-									stream_socket_client函数<i class="layui-icon layui-icon-ok-circle" style="color: {php}echo function_exists('stream_socket_client')?'#5FB878':'#f2f2f2';{/php}"></i>&nbsp;&nbsp;&nbsp; 
-									fsockopen函数 <i class="layui-icon layui-icon-ok-circle" style="color: {php}echo function_exists('fsockopen')?'#5FB878':'#f2f2f2';{/php}"></i>
-									<span class="layui-icon layui-icon-about tips" data-content="至少需要支持其中一个函数才能正常使用！"></span>
+									net.Dial (TLS)<i class="layui-icon layui-icon-ok-circle" style="color: #5FB878"></i>&nbsp;&nbsp;&nbsp;
+									net/smtp (AUTH)<i class="layui-icon layui-icon-ok-circle" style="color: #5FB878"></i>&nbsp;&nbsp;&nbsp;
+									crypto/tls (SSL)<i class="layui-icon layui-icon-ok-circle" style="color: #5FB878"></i>
+									<span class="layui-icon layui-icon-about tips" data-content="Go 標準庫已內建，無需額外擴展，SSL/TLS 發送郵件均受支援"></span>
 			                   </div>
 			             </div>
 			             
