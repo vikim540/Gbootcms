@@ -1,6 +1,6 @@
-# PbootCMS-Go
+# Gbootcms
 
-> PbootCMS 3.2.12 的 Go 語言移植版 — 保留原版數據庫結構、模板語法、URL 路由，用 Go 技術棧替換 PHP 後端。
+> 基於 PbootCMS 3.2.12 的 Go 語言移植版 — 保留原版數據庫結構、模板語法、URL 路由，用 Go 技術棧替換 PHP 後端。
 
 [![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8)](https://go.dev/)
 [![Gin](https://img.shields.io/badge/Gin-v1.12-00ADD8)](https://gin-gonic.com/)
@@ -11,13 +11,13 @@
 
 ```powershell
 # 編譯
-go build -o bin/pbootcms-go.exe .
+go build -o bin/gbootcms.exe .
 
 # 運行
-.\bin\pbootcms-go.exe
+.\bin\gbootcms.exe
 
 # 或用構建腳本
-.\build.ps1 -Run
+.\build-run.bat
 ```
 
 - 前台：http://localhost:8080/
@@ -85,6 +85,25 @@ go build -o bin/pbootcms-go.exe .
   - 10 秒防刷註冊
   - 雙 MD5 密碼兼容
   - AJAX 表單提交
+- **多語言區域隔離**（sc/tc/en 三語言）
+  - GORM AcodePlugin 自動數據隔離（Query/Create/Update 自動注入 acode 條件）
+  - URL 前綴路由（`/sc/`、`/tc/`、`/en/`，默認語言無前綴）
+  - 語言切換保持當前頁面（切換語言不跳回首頁）
+  - 連結前綴自動重寫（href / action / data-action 三種屬性同時重寫）
+  - 會員重定向語言保持（langPath 函數自動為所有重定向和 tourl 添加語言前綴）
+  - backurl 帶語言前綴（登入後返回正確語言的頁面）
+  - 留言區域自動隔離（Acode 從 context 動態取得，非硬編碼）
+  - 前台 Bootstrap 下拉語言切換器
+  - 後台全局區域切換下拉（所有 32 個後台頁面）
+  - 跨區查詢 `acodeplugin.SkipAcode(ctx)`
+  - 動態語言標籤 `{gboot:homename}`、`{gboot:morename}`、`{gboot:language}`
+- **SEO 多語言最佳實踐**
+  - hreflang 標籤（自引用 + 雙向對稱 + x-default）
+  - canonical 標籤指向自身
+  - 每語言獨立 XML sitemap（`/sitemap.xml` 索引 + `/sitemap-{acode}.xml`）
+  - robots.txt（含多語言 sitemap 引用）
+  - Open Graph 社交分享標籤（og:title / og:locale / og:locale:alternate）
+  - 動態 `<html lang>` 屬性（zh-Hans / zh-Hant / en）
 
 ## 目錄結構
 
@@ -112,9 +131,9 @@ pbootcms-go/
 
 | 文檔 | 說明 |
 |------|------|
-| [開發技術文檔](docs/0701pbootcms-go-dev-guide.md) | 完整技術文檔（含防遺忘清單、API 速查、反模式） |
+| [開發技術文檔](docs/pbootcms-go-dev-guide.md) | 完整技術文檔（含防遺忘清單、API 速查、反模式） |
 | [AI 開發指南](docs/AI_GUIDELINES.md) | AI 輔助開發約定 |
-| [架構評測報告](docs/ARCHITECTURE_REVIEW.md) | 架構分析與建議 |
+| [多語言架構文檔](docs/multilingual.md) | 區域隔離、URL 前綴路由、語言切換器設計 |
 
 ## 開發約束
 
@@ -138,8 +157,9 @@ pbootcms-go/
 - [x] 階段 1：前台會員系統（登入/註冊/登出/個人中心/資料修改）
 - [x] 後台會員管理（等級/欄位/會員/評論）
 - [ ] 階段 2：會員中心增強（積分系統、等級自動升級）
-- [ ] 階段 3：前台評論系統（提交/列表/我的評論/刪除）
-- [ ] 階段 4：密碼找回 + 郵件驗證
+- [x] 階段 3：前台評論系統（提交/列表/我的評論/刪除）
+- [x] 階段 4：密碼找回 + 郵件驗證
+- [x] 階段 5：多語言區域隔離（sc/tc/en，GORM Plugin + URL 前綴路由）
 
 ## License
 

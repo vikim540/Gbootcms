@@ -1,8 +1,8 @@
-﻿package content
+package content
 
 import (
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,14 +16,16 @@ type CompanyController struct {
 // Index - Company information page
 func (co *CompanyController) Index(c *gin.Context) {
 	var company model.Company
-	model.DB.FirstOrCreate(&company, model.Company{ID: 1})
+	// AcodePlugin 自動按當前區域過濾，取該區域的公司記錄
+	model.DB.WithContext(c.Request.Context()).FirstOrCreate(&company)
 	common.Render(c, "content/company.html", gin.H{"companys": company})
 }
 
 // Mod - Modify company information
 func (co *CompanyController) Mod(c *gin.Context) {
 	var company model.Company
-	model.DB.FirstOrCreate(&company, model.Company{ID: 1})
+	// AcodePlugin 自動按當前區域過濾，取該區域的公司記錄
+	model.DB.WithContext(c.Request.Context()).FirstOrCreate(&company)
 
 	// 臟檢測：比對提交數據與現有數據
 	newName := c.PostForm("name")
@@ -49,7 +51,7 @@ func (co *CompanyController) Mod(c *gin.Context) {
 		return
 	}
 
-	result := model.DB.Model(&company).Updates(map[string]interface{}{
+	result := model.DB.WithContext(c.Request.Context()).Model(&company).Updates(map[string]interface{}{
 		"name":     newName,
 		"address":  newAddress,
 		"postcode": newPostcode,

@@ -14,6 +14,7 @@
 	                    <tr>
 	                    	<th>序號</th>
 	                        <th>內容模型</th>
+	                        <th>適用欄目</th>
 	                        <th>字段描述</th>
 	                        <th>字段名稱</th>
 	                        <th>字段類型</th>
@@ -21,18 +22,25 @@
 	                        <th>操作</th>
 	                    </tr>
 	                </thead>
-	                <tbody>
-	                    {foreach $extfields(key,value)}
-	                    <tr>
-	                    	<td>[num]</td>
-	                    	<td>
-	                    		{foreach $models(key2,value2,num2)}	
-	                        		{if($value2->mcode==$value->mcode)}
+                <tbody>
+                    {foreach $extfields(key,value)}
+                    <tr>
+                    	<td>[num]</td>
+                    	<td>
+                    		{foreach $models(key2,value2,num2)}	
+                        		{if($value2->mcode==$value->mcode)}
 										[value2->name]
 									{/if}                        	
 			                	{/foreach}
 							</td>
-	                        <td>[value->description]</td>
+						<td>
+						{if([$value->scode]=='')}
+							<span class="layui-badge layui-bg-green">全展示</span>
+						{else}
+							<span class="layui-badge layui-bg-blue">[value->ScodeDisplay]</span>
+						{/if}
+					</td>
+                        <td>[value->description]</td>
 	                        <td>[value->field]</td>
 	                        <td>
 	                        	{if($value->type=='1')}單行文本{/if}
@@ -52,10 +60,10 @@
 	                            {fun=get_btn_mod($value->id)}
 	                        </td>
 	                    </tr>
-	                    {/foreach}
-	                </tbody>
-	            </table>
-	            <div class="page">{$pagebar}</div>
+                    {/foreach}
+                </tbody>
+            </table>
+            <div class="page">{$pagebar}</div>
 	  	   </div>
 	  	   
 	  	    <div class="layui-tab-item">
@@ -64,26 +72,40 @@
 	   				<div class="layui-form-item">
 	                     <label class="layui-form-label">內容模型</label>
 	                     <div class="layui-input-block">
-	                     	 <select name="mcode" lay-verify="required">
+	                     	 <select name="mcode" lay-verify="required" lay-filter="mcode">
 		                        <option value="">請選擇內容模型</option>
 		                        {foreach $models(key,value)}	                        	
 		                        	<option value="[value->mcode]">[value->name]</option>
 		                        {/foreach}
 		                    </select>
 	                     </div>
-	                </div>
-	                
-	                <div class="layui-form-item">
-	                     <label class="layui-form-label">字段描述</label>
-	                     <div class="layui-input-block">
-	                     	<input type="text" name="description" required lay-verify="required"  placeholder="請輸入字段描述，如：產品價格" class="layui-input">
-	                     </div>
-	                </div>
-	                                
+                </div>
+                
+                <div class="layui-form-item">
+                     <label class="layui-form-label">適用欄目</label>
+                     <div class="layui-input-block" id="scodeCheckboxList">
+                     	<div class="layui-form-mid layui-word-aux" style="margin-bottom:10px;">不勾選則該字段在所有同模型欄目下都顯示。可勾選多個欄目。</div>
+                     	<!-- JS 動態填充 checkbox -->
+                     </div>
+                </div>
+                
+                <div class="layui-form-item">
+                     <label class="layui-form-label">字段描述</label>
+                     <div class="layui-input-block">
+                     	<input type="text" name="description" required lay-verify="required"  placeholder="請輸入字段描述，如：產品價格" class="layui-input">
+                     </div>
+                </div>
+                                
 	                <div class="layui-form-item">
 	                     <label class="layui-form-label">字段名稱</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="field" required maxlength="20" lay-verify="required"  placeholder="請輸入字段名稱，字母、數字、下劃線，如：price" class="layui-input">
+	                     	<div class="layui-input-inline" style="width:50px;">
+	                     		<span class="layui-input layui-input-prefix" style="line-height:38px;text-align:center;color:#999;">ext_</span>
+	                     	</div>
+	                     	<div class="layui-input-inline" style="width:calc(100% - 60px);margin-left:0;">
+	                     		<input type="text" name="field" required maxlength="20" lay-verify="required"  placeholder="請輸入字段名稱，字母、數字、下劃線，如：price" class="layui-input">
+	                     	</div>
+	                     	<div class="layui-form-mid layui-word-aux">系統自動補加 ext_ 前綴，只需填寫純名稱。最終欄位名為 ext_+您填寫的名稱</div>
 	                     </div>
 	                </div>
 	                
@@ -108,8 +130,8 @@
 	                <div class="layui-form-item">
 	                     <label class="layui-form-label">選擇按鈕值</label>
 	                     <div class="layui-input-block">
-	                     	<textarea name="value" placeholder="多個選項用逗號隔開或者回車"  class="layui-textarea"></textarea>
-	                     	<div class="layui-form-mid layui-word-aux">只在類型為單選、多選或下拉時填寫有效。</div>
+	                     	<textarea name="value" placeholder="多個選項用逗號或回車換行隔開&#10;例如：&#10;選項一&#10;選項二&#10;選項三"  class="layui-textarea"></textarea>
+	                     	<div class="layui-form-mid layui-word-aux">只在類型為單選、多選或下拉時填寫有效，支援逗號或回車分隔。</div>
 	                     </div>
 	                </div>
 	                
@@ -144,12 +166,20 @@
 	  			<div class="layui-form-item">
                      <label class="layui-form-label">內容模型</label>
                      <div class="layui-input-block">
-                     	 <select name="mcode" lay-verify="required">
+                     	 <select name="mcode" lay-verify="required" lay-filter="mcode">
 	                        <option value="">請選擇內容模型</option>
 	                        {foreach $models(key,value)}	                        	
 	                        	<option value="[value->mcode]" {if($value->mcode==[$extfield->mcode])}selected{/if}>[value->name]</option>
 	                        {/foreach}
 	                    </select>
+                     </div>
+                </div>
+                
+                <div class="layui-form-item">
+                     <label class="layui-form-label">適用欄目</label>
+                     <div class="layui-input-block" id="scodeCheckboxList">
+                     	<div class="layui-form-mid layui-word-aux" style="margin-bottom:10px;">不勾選則該字段在所有同模型欄目下都顯示。可勾選多個欄目。</div>
+                     	<!-- JS 動態填充 checkbox，並回顯已選 -->
                      </div>
                 </div>
                 
@@ -202,8 +232,8 @@
                 <div class="layui-form-item">
                      <label class="layui-form-label">選擇按鈕值</label>
                      <div class="layui-input-block">
-                     	<textarea name="value" placeholder="多個選項用逗號或回車隔開"  class="layui-textarea">{$extfield->value}</textarea>
-                     	<div class="layui-form-mid layui-word-aux">只在類型為單選、多選或下拉時填寫有效，多個選項用逗號或回車隔開。</div>
+	                     	<textarea name="value" placeholder="多個選項用逗號或回車換行隔開&#10;例如：&#10;選項一&#10;選項二&#10;選項三"  class="layui-textarea">{$extfield->value}</textarea>
+	                     	<div class="layui-form-mid layui-word-aux">只在類型為單選、多選或下拉時填寫有效，支援逗號或回車分隔。</div>
                      </div>
                 </div>
                 
@@ -234,25 +264,77 @@ layui.use(['form', 'element'], function(){
     var element = layui.element;
     var $ = layui.$;
 
+    // 從模板直接輸出所有欄目數據
+    var allSorts = [];
+    {foreach $sorts(key,value)}
+    allSorts.push({mcode: "[value->mcode]", scode: "[value->scode]", name: "[value->name]", pcode: "[value->pcode]"});
+    {/foreach}
+
+    // 修改頁面已選的 scode 列表
+    var selectedScodes = [];
+    {if([$extfieldScodes])}
+    {foreach $extfieldScodes(key,value)}
+    selectedScodes.push("[value]");
+    {/foreach}
+    {/if}
+
     function syncValueInput(selectEl) {
         if (!selectEl) return;
         var val = $(selectEl).val();
-        // 3=單選 4=多選 9=下拉 → 顯示；其他類型隱藏
         var show = (val === '3' || val === '4' || val === '9');
         $(selectEl).closest('form').find('textarea[name="value"]').closest('.layui-form-item').toggle(show);
     }
 
-    // LayUI select change event
     form.on('select(type)', function(data){
         syncValueInput(data.elem);
     });
 
-    // Tab 切換時重新渲染表單再同步可見性
+    // === 欄目級聯：根據模型(mcode)動態生成 checkbox 列表 ===
+    function renderScodeCheckboxes(mcode) {
+        var $container = $('#scodeCheckboxList');
+        if (!$container.length) return;
+        var html = '<div class="layui-form-mid layui-word-aux" style="margin-bottom:10px;">不勾選則該字段在所有同模型欄目下都顯示。可勾選多個欄目。</div>';
+        var hasAny = false;
+        for (var i = 0; i < allSorts.length; i++) {
+            if (allSorts[i].mcode === mcode) {
+                hasAny = true;
+                var prefix = (allSorts[i].pcode !== '0') ? '├ ' : '';
+                var checked = '';
+                for (var j = 0; j < selectedScodes.length; j++) {
+                    if (selectedScodes[j] === allSorts[i].scode) {
+                        checked = ' checked';
+                        break;
+                    }
+                }
+                html += '<input type="checkbox" name="scode[]" value="' + allSorts[i].scode + '" title="' + prefix + allSorts[i].name + '"' + checked + '>';
+            }
+        }
+        if (!hasAny) {
+            html += '<span class="layui-form-mid layui-word-aux">請先選擇內容模型</span>';
+        }
+        $container.html(html);
+        form.render('checkbox');
+    }
+
+    // 監聽模型變化 → 重新生成欄目 checkbox
+    form.on('select(mcode)', function(data){
+        // 切換模型時清空已選（避免跨模型選擇殘留）
+        selectedScodes = [];
+        renderScodeCheckboxes(data.value);
+    });
+
+    // 初始化：根據當前已選模型生成欄目 checkbox
+    var initMcode = $('select[name="mcode"]').val() || '';
+    renderScodeCheckboxes(initMcode);
+
+    // Tab 切換時重新渲染
     element.on('tab(tab)', function(){
         form.render();
         $('form.layui-form:visible select[name="type"]').each(function(){
             syncValueInput(this);
         });
+        var mcode = $('form.layui-form:visible select[name="mcode"]').val() || '';
+        renderScodeCheckboxes(mcode);
     });
 
     // 初始化同步每個表單的選擇按鈕值可見性

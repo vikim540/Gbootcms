@@ -1,12 +1,12 @@
-﻿package system
+package system
 
 import (
 	"os"
 	"path/filepath"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
+	"gbootcms/core/acodeplugin"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -25,18 +25,13 @@ func (ie *ImageExtController) Index(c *gin.Context) {
 
 // CheckDataFile - Check data file
 func (ie *ImageExtController) CheckDataFile(c *gin.Context) {
-	count := 30
-	pageStr := c.Query("page")
-	page, _ := strconv.Atoi(pageStr)
-	if page < 1 {
-		page = 1
-	}
-	start := (page - 1) * count
+	_, pageSize, offset := ie.Paginate(c)
+	scanCtx := acodeplugin.SkipAcode(c.Request.Context())
 
 	var dbImages []string
 
 	var contents []model.Content
-	model.DB.Limit(2000).Find(&contents)
+	model.DB.WithContext(scanCtx).Limit(2000).Find(&contents)
 	imgRe := regexp.MustCompile(`<img[^>]+src=["']([^"']+)["']`)
 	for _, ct := range contents {
 		if ct.Ico != "" {
@@ -58,7 +53,7 @@ func (ie *ImageExtController) CheckDataFile(c *gin.Context) {
 	}
 
 	var sorts []model.ContentSort
-	model.DB.Find(&sorts)
+	model.DB.WithContext(scanCtx).Find(&sorts)
 	for _, s := range sorts {
 		if s.Ico != "" {
 			dbImages = append(dbImages, s.Ico)
@@ -69,7 +64,7 @@ func (ie *ImageExtController) CheckDataFile(c *gin.Context) {
 	}
 
 	var slides []model.Slide
-	model.DB.Find(&slides)
+	model.DB.WithContext(scanCtx).Find(&slides)
 	for _, s := range slides {
 		if s.Pic != "" {
 			dbImages = append(dbImages, s.Pic)
@@ -77,7 +72,7 @@ func (ie *ImageExtController) CheckDataFile(c *gin.Context) {
 	}
 
 	var links []model.Link
-	model.DB.Find(&links)
+	model.DB.WithContext(scanCtx).Find(&links)
 	for _, l := range links {
 		if l.Logo != "" {
 			dbImages = append(dbImages, l.Logo)
@@ -85,7 +80,7 @@ func (ie *ImageExtController) CheckDataFile(c *gin.Context) {
 	}
 
 	var sites []model.Site
-	model.DB.Find(&sites)
+	model.DB.WithContext(scanCtx).Find(&sites)
 	for _, s := range sites {
 		if s.Logo != "" {
 			dbImages = append(dbImages, s.Logo)
@@ -119,12 +114,12 @@ func (ie *ImageExtController) CheckDataFile(c *gin.Context) {
 	}
 
 	total := len(difference)
-	end := start + count
+	end := offset + pageSize
 	if end > total {
 		end = total
 	}
 	var pageList []gin.H
-	for i := start; i < end; i++ {
+	for i := offset; i < end; i++ {
 		pageList = append(pageList, gin.H{
 			"real_path":   difference[i],
 			"static_path": difference[i],
@@ -162,9 +157,10 @@ func (ie *ImageExtController) DoExt(c *gin.Context) {
 	}
 
 	if extType == "1" {
+		scanCtx := acodeplugin.SkipAcode(c.Request.Context())
 		var dbImages []string
 		var contents []model.Content
-		model.DB.Limit(2000).Find(&contents)
+		model.DB.WithContext(scanCtx).Limit(2000).Find(&contents)
 		imgRe := regexp.MustCompile(`<img[^>]+src=["']([^"']+)["']`)
 		for _, ct := range contents {
 			if ct.Ico != "" {
@@ -185,14 +181,14 @@ func (ie *ImageExtController) DoExt(c *gin.Context) {
 			}
 		}
 		var slides []model.Slide
-		model.DB.Find(&slides)
+		model.DB.WithContext(scanCtx).Find(&slides)
 		for _, s := range slides {
 			if s.Pic != "" {
 				dbImages = append(dbImages, s.Pic)
 			}
 		}
 		var links []model.Link
-		model.DB.Find(&links)
+		model.DB.WithContext(scanCtx).Find(&links)
 		for _, l := range links {
 			if l.Logo != "" {
 				dbImages = append(dbImages, l.Logo)

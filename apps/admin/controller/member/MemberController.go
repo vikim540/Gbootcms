@@ -3,13 +3,21 @@ package member
 import (
 	"crypto/md5"
 	"fmt"
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
+	"regexp"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+)
+
+// 會員格式驗證正則（對齊 PHP preg_match 規則）
+var (
+	memberUsernameRe = regexp.MustCompile(`^[\w@\.]+$`)
+	memberEmailRe    = regexp.MustCompile(`^[\w]+@[\w\.]+\.[a-zA-Z]+$`)
+	memberMobileRe   = regexp.MustCompile(`^1[0-9]{10}$`)
 )
 
 // MemberController - 會員管理控制器
@@ -20,8 +28,16 @@ type MemberController struct {
 
 // Index - 會員列表（含新增Tab）
 func (mb *MemberController) Index(c *gin.Context) {
+	// 分頁處理
+	page, pageSize, offset := mb.Paginate(c)
+	baseURL := "/admin/member/index"
+
+	// 統計總記錄數
+	var total int64
+	model.DB.Model(&model.Member{}).Count(&total)
+
 	var members []model.Member
-	model.DB.Order("register_time DESC, id DESC").Find(&members)
+	model.DB.Order("register_time DESC, id DESC").Offset(offset).Limit(pageSize).Find(&members)
 	var groups []model.MemberGroup
 	model.DB.Where("status = 1").Find(&groups)
 	// 填充等級名稱
@@ -38,10 +54,12 @@ func (mb *MemberController) Index(c *gin.Context) {
 		}
 	}
 	common.Render(c, "member/member.html", gin.H{
-		"list":    true,
-		"members": members,
-		"groups":  groups,
-		"C":       "member",
+		"list":     true,
+		"members":  members,
+		"groups":   groups,
+		"C":        "member",
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
 	})
 }
 
@@ -52,10 +70,32 @@ func (mb *MemberController) Add(c *gin.Context) {
 		password := c.PostForm("password")
 
 		if username == "" {
+			mb.LogAction(c, "新增會員失敗")
 			mb.JSONFail(c, "用戶帳號不能為空")
 			return
 		}
+		// 用戶名格式驗證（對齊 PHP: preg_match('/^[\w\@\.]+$/', $username)）
+		if !memberUsernameRe.MatchString(username) {
+			mb.LogAction(c, "新增會員失敗")
+			mb.JSONFail(c, "用戶帳號只能包含字母、數字、底線、@和句點")
+			return
+		}
+		// 郵箱格式驗證（對齊 PHP: preg_match('/^[\w]+@[\w\.]+\.[a-zA-Z]+$/')）
+		useremail := c.PostForm("useremail")
+		if useremail != "" && !memberEmailRe.MatchString(useremail) {
+			mb.LogAction(c, "新增會員失敗")
+			mb.JSONFail(c, "郵箱格式不正確")
+			return
+		}
+		// 手機號格式驗證（對齊 PHP: preg_match('/^1[0-9]{10}$/', $usermobile)）
+		usermobile := c.PostForm("usermobile")
+		if usermobile != "" && !memberMobileRe.MatchString(usermobile) {
+			mb.LogAction(c, "新增會員失敗")
+			mb.JSONFail(c, "手機號格式不正確")
+			return
+		}
 		if password == "" {
+			mb.LogAction(c, "新增會員失敗")
 			mb.JSONFail(c, "密碼不能為空")
 			return
 		}
@@ -64,6 +104,7 @@ func (mb *MemberController) Add(c *gin.Context) {
 		var count int64
 		model.DB.Model(&model.Member{}).Where("username = ? OR useremail = ? OR usermobile = ?", username, username, username).Count(&count)
 		if count > 0 {
+			mb.LogAction(c, "新增會員失敗")
 			mb.JSONFail(c, "用戶名已經存在")
 			return
 		}
@@ -104,6 +145,7 @@ func (mb *MemberController) Add(c *gin.Context) {
 			LoginCount:   0,
 			RegisterTime: time.Now(),
 		})
+		mb.LogAction(c, "新增會員成功")
 		mb.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
@@ -129,8 +171,10 @@ func (mb *MemberController) Mod(c *gin.Context) {
 			}
 			model.DB.Model(&model.Member{}).Where("id IN ?", list).Update("status", status)
 			if status == 1 {
+				mb.LogAction(c, "會員批量啟用成功")
 				mb.JSONOKMsg(c, "啟用成功")
 			} else {
+				mb.LogAction(c, "會員批量禁用成功")
 				mb.JSONOKMsg(c, "禁用成功")
 			}
 			return
@@ -160,7 +204,28 @@ func (mb *MemberController) Mod(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		username := c.PostForm("username")
 		if username == "" {
+			mb.LogAction(c, "修改會員失敗")
 			mb.JSONFail(c, "用戶帳號不能為空")
+			return
+		}
+		// 用戶名格式驗證（對齊 PHP: preg_match('/^[\w\@\.]+$/', $username)）
+		if !memberUsernameRe.MatchString(username) {
+			mb.LogAction(c, "修改會員失敗")
+			mb.JSONFail(c, "用戶帳號只能包含字母、數字、底線、@和句點")
+			return
+		}
+		// 郵箱格式驗證
+		useremail := c.PostForm("useremail")
+		if useremail != "" && !memberEmailRe.MatchString(useremail) {
+			mb.LogAction(c, "修改會員失敗")
+			mb.JSONFail(c, "郵箱格式不正確")
+			return
+		}
+		// 手機號格式驗證
+		usermobile := c.PostForm("usermobile")
+		if usermobile != "" && !memberMobileRe.MatchString(usermobile) {
+			mb.LogAction(c, "修改會員失敗")
+			mb.JSONFail(c, "手機號格式不正確")
 			return
 		}
 
@@ -168,6 +233,7 @@ func (mb *MemberController) Mod(c *gin.Context) {
 		var count int64
 		model.DB.Model(&model.Member{}).Where("(username = ? OR useremail = ? OR usermobile = ?) AND id <> ?", username, username, username, id).Count(&count)
 		if count > 0 {
+			mb.LogAction(c, "修改會員失敗")
 			mb.JSONFail(c, "用戶名已經存在")
 			return
 		}
@@ -191,6 +257,7 @@ func (mb *MemberController) Mod(c *gin.Context) {
 			updates["password"] = fmt.Sprintf("%x", md5.Sum([]byte(pwdMd5)))
 		}
 		model.DB.Model(&model.Member{}).Where("id = ?", id).Updates(updates)
+		mb.LogAction(c, "修改會員成功")
 		mb.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
@@ -222,6 +289,7 @@ func (mb *MemberController) Del(c *gin.Context) {
 		list := c.PostFormArray("list[]")
 		if len(list) > 0 {
 			model.DB.Where("id IN ?", list).Delete(&model.Member{})
+			mb.LogAction(c, "刪除會員成功")
 			mb.JSONOKMsg(c, common.NoticeDelete)
 			return
 		}
@@ -237,9 +305,11 @@ func (mb *MemberController) Del(c *gin.Context) {
 		idStr = c.PostForm("id")
 	}
 	if idStr == "" {
+		mb.LogAction(c, "刪除會員失敗")
 		mb.JSONFail(c, "缺少刪除目標ID")
 		return
 	}
 	model.DB.Delete(&model.Member{}, idStr)
+	mb.LogAction(c, "刪除會員成功")
 	mb.JSONOKMsg(c, common.NoticeDelete)
 }

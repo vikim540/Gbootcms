@@ -1,7 +1,7 @@
 package content
 
 import (
-	"pbootcms-go/core/db"
+	"gbootcms/core/db"
 )
 
 // ContentExt 操作 ay_content_ext 表（動態列，使用 map 而非 struct）

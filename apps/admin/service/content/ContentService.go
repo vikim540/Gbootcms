@@ -1,12 +1,13 @@
 package content
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model"
-	contentModel "pbootcms-go/apps/admin/model/content"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/apps/common"
 	"strconv"
 	"strings"
 	"time"
@@ -16,12 +17,12 @@ import (
 type ContentService struct{}
 
 // ListContents returns paginated content list and total count
-func (s *ContentService) ListContents(mcode, scode, keyword string, page, pageSize int) ([]model.Content, int64, error) {
+func (s *ContentService) ListContents(ctx context.Context, mcode, scode, keyword string, page, pageSize int) ([]model.Content, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	var total int64
-	query := model.DB.Model(&model.Content{}).Where("status >= 0")
+	query := model.DB.WithContext(ctx).Model(&model.Content{}).Where("status >= 0")
 	if mcode != "" {
 		query = query.Where("scode IN (SELECT scode FROM ay_content_sort WHERE mcode = ?)", mcode)
 	}
@@ -43,9 +44,9 @@ func (s *ContentService) ListContents(mcode, scode, keyword string, page, pageSi
 }
 
 // GetContent returns a single content by ID
-func (s *ContentService) GetContent(id int) (*model.Content, error) {
+func (s *ContentService) GetContent(ctx context.Context, id int) (*model.Content, error) {
 	var doc model.Content
-	err := model.DB.First(&doc, id).Error
+	err := model.DB.WithContext(ctx).First(&doc, id).Error
 	if err != nil {
 		return nil, errors.New("內容不存在")
 	}
@@ -53,8 +54,8 @@ func (s *ContentService) GetContent(id int) (*model.Content, error) {
 }
 
 // GetContentWithExt 返回內容及其擴展數據，合併為一個 map（用於編輯表單回填）
-func (s *ContentService) GetContentWithExt(id int) (map[string]interface{}, error) {
-	doc, err := s.GetContent(id)
+func (s *ContentService) GetContentWithExt(ctx context.Context, id int) (map[string]interface{}, error) {
+	doc, err := s.GetContent(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +82,7 @@ func (s *ContentService) GetContentWithExt(id int) (map[string]interface{}, erro
 // postForm: 從 gin.Context 獲取單值表單參數的函數
 // postFormArray: 從 gin.Context 獲取多值表單參數的函數
 func (s *ContentService) CollectExtFieldData(
+	ctx context.Context,
 	extFields []contentModel.ExtField,
 	postForm func(key string) string,
 	postFormArray func(key string) []string,
@@ -95,23 +97,19 @@ func (s *ContentService) CollectExtFieldData(
 			continue
 		}
 		// 多選 checkbox 提交時帶 [] 後綴
-		arr := postFormArray(fieldName + "[]")
-		// Layui form.on('submit') 會將 checkbox name 從 ext_type[] 改為 ext_type[0]、ext_type[1]...
-		// 所以 PostFormArray("ext_type[]") 返回空。此時需逐個讀取索引形式。
-		if len(arr) == 0 {
-			for i := 0; ; i++ {
-				val := postForm(fmt.Sprintf("%s[%d]", fieldName, i))
-				if val == "" && i > 0 {
-					break
-				}
-				if val != "" {
-					arr = append(arr, val)
-				}
-				if i > 100 {
-					break // 安全上限
-				}
+	arr := postFormArray(fieldName + "[]")
+	// Layui form.getValue() 會將 field[] 重命名為 field[0]、field[1] 等，
+	// 導致 PostFormArray("field[]") 返回空。此時需逐個讀取索引形式。
+	// 注意：未勾選的 checkbox 不會出現在表單數據中，造成索引間隙，
+	// 因此不能在遇到空值時 break，必須掃描所有可能的索引。
+	if len(arr) == 0 {
+		for i := 0; i < 50; i++ {
+			val := postForm(fmt.Sprintf("%s[%d]", fieldName, i))
+			if val != "" {
+				arr = append(arr, val)
 			}
 		}
+	}
 		if len(arr) > 0 {
 			data[fieldName] = strings.Join(arr, ",")
 		} else {
@@ -128,7 +126,8 @@ func (s *ContentService) CollectExtFieldData(
 }
 
 // CreateContent creates a new content record with optional ext field data
-func (s *ContentService) CreateContent(doc *model.Content, extData map[string]interface{}) error {
+// 對齊 PHP: addContent($data) → autoTime() 自動設置 create_time/update_time
+func (s *ContentService) CreateContent(ctx context.Context, doc *model.Content, extData map[string]interface{}) error {
 	if doc.Title == "" || doc.Scode == "" {
 		return errors.New("標題和欄目不能為空")
 	}
@@ -138,7 +137,11 @@ func (s *ContentService) CreateContent(doc *model.Content, extData map[string]in
 	if doc.Status == 0 {
 		doc.Status = 1
 	}
-	if err := model.DB.Create(doc).Error; err != nil {
+	// autoTime: 設置創建和更新時間（SQLite 無 ON UPDATE CURRENT_TIMESTAMP）
+	now := time.Now()
+	doc.CreateTime = now
+	doc.UpdateTime = now
+	if err := model.DB.WithContext(ctx).Create(doc).Error; err != nil {
 		return err
 	}
 	// 如果有擴展數據，插入 ay_content_ext
@@ -146,7 +149,7 @@ func (s *ContentService) CreateContent(doc *model.Content, extData map[string]in
 		extData["contentid"] = doc.ID
 		if err := contentModel.InsertContentExt(extData); err != nil {
 			// 回滾：刪除已插入的內容
-			model.DB.Delete(&model.Content{}, doc.ID)
+			model.DB.WithContext(ctx).Delete(&model.Content{}, doc.ID)
 			return errors.New("創建擴展數據失敗: " + err.Error())
 		}
 	}
@@ -154,8 +157,11 @@ func (s *ContentService) CreateContent(doc *model.Content, extData map[string]in
 }
 
 // UpdateContent updates a content record with a map of fields and optional ext data
-func (s *ContentService) UpdateContent(id int, updates map[string]interface{}, extData map[string]interface{}) error {
-	if err := model.DB.Model(&model.Content{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+// 對齊 PHP: modContent($id, $data) → autoTime() 自動更新 update_time
+func (s *ContentService) UpdateContent(ctx context.Context, id int, updates map[string]interface{}, extData map[string]interface{}) error {
+	// autoTime: 更新修改時間（SQLite 無 ON UPDATE CURRENT_TIMESTAMP）
+	updates["update_time"] = time.Now()
+	if err := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		return err
 	}
 	if len(extData) > 0 {
@@ -167,9 +173,9 @@ func (s *ContentService) UpdateContent(id int, updates map[string]interface{}, e
 }
 
 // DeleteContent deletes contents by comma-separated IDs (also deletes ext data)
-func (s *ContentService) DeleteContent(ids []string) error {
+func (s *ContentService) DeleteContent(ctx context.Context, ids []string) error {
 	for _, id := range ids {
-		if err := model.DB.Delete(&model.Content{}, id).Error; err != nil {
+		if err := model.DB.WithContext(ctx).Delete(&model.Content{}, id).Error; err != nil {
 			return err
 		}
 		// 同步刪除擴展數據
@@ -181,12 +187,12 @@ func (s *ContentService) DeleteContent(ids []string) error {
 }
 
 // CopyContent copies content to a target scode (also copies ext data)
-func (s *ContentService) CopyContent(id int, targetScode string) error {
+func (s *ContentService) CopyContent(ctx context.Context, id int, targetScode string) error {
 	if targetScode == "" {
 		return errors.New("目標欄目不能為空")
 	}
 	var src model.Content
-	if err := model.DB.First(&src, id).Error; err != nil {
+	if err := model.DB.WithContext(ctx).First(&src, id).Error; err != nil {
 		return errors.New("內容不存在")
 	}
 	copyDoc := model.Content{
@@ -209,7 +215,7 @@ func (s *ContentService) CopyContent(id int, targetScode string) error {
 		Sorting:     src.Sorting,
 		Status:      1,
 	}
-	if err := model.DB.Create(&copyDoc).Error; err != nil {
+	if err := model.DB.WithContext(ctx).Create(&copyDoc).Error; err != nil {
 		return err
 	}
 	// 複製擴展數據
@@ -230,17 +236,17 @@ func (s *ContentService) CopyContent(id int, targetScode string) error {
 }
 
 // MoveContent moves content to a target scode
-func (s *ContentService) MoveContent(id int, targetScode string) error {
+func (s *ContentService) MoveContent(ctx context.Context, id int, targetScode string) error {
 	if targetScode == "" {
 		return errors.New("目標欄目不能為空")
 	}
-	return model.DB.Model(&model.Content{}).Where("id = ?", id).Update("scode", targetScode).Error
+	return model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).Update("scode", targetScode).Error
 }
 
 // UpdateSorting updates sorting for multiple contents
-func (s *ContentService) UpdateSorting(idSortingMap map[string]int) error {
+func (s *ContentService) UpdateSorting(ctx context.Context, idSortingMap map[string]int) error {
 	for idStr, sorting := range idSortingMap {
-		if err := model.DB.Model(&model.Content{}).Where("id = ?", idStr).Update("sorting", sorting).Error; err != nil {
+		if err := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", idStr).Update("sorting", sorting).Error; err != nil {
 			return err
 		}
 	}
@@ -258,24 +264,30 @@ var allowedSingleFields = map[string]bool{
 }
 
 // UpdateSingleField updates a single field with whitelist validation
-func (s *ContentService) UpdateSingleField(id int, field, value string) error {
+func (s *ContentService) UpdateSingleField(ctx context.Context, id int, field, value string) error {
 	if !allowedSingleFields[field] {
 		return errors.New("不允許修改的欄位: " + field)
 	}
-	return model.DB.Model(&model.Content{}).Where("id = ?", id).Update(field, value).Error
+	// 對齊 PHP: modContent($id, "$field='$value',update_user='...'") 同時更新 update_time
+	return model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			field:        value,
+			"update_time": time.Now(),
+		}).Error
 }
 
 // GetAllSorts returns all active sorts ordered by sorting
-func (s *ContentService) GetAllSorts() ([]model.ContentSort, error) {
+func (s *ContentService) GetAllSorts(ctx context.Context) ([]model.ContentSort, error) {
 	var sorts []model.ContentSort
-	err := model.DB.Where("status = 1").Order("sorting ASC").Find(&sorts).Error
+	err := model.DB.WithContext(ctx).Where("status = 1").Order("sorting ASC").Find(&sorts).Error
 	return sorts, err
 }
 
 // BuildExtFieldTemplateData 為每個擴展字段構建模板友好的數據結構，
 // 包含當前值（編輯時）、選項列表（單選/多選/下拉/多圖）、已選值等。
-func (s *ContentService) BuildExtFieldTemplateData(mcode string, contentMap map[string]interface{}) []map[string]interface{} {
-	fields := helper.GetExtFieldsByMcode(mcode)
+// scode 用於過濾：只返回 scode 為空（全展示）或匹配指定 scode 的字段
+func (s *ContentService) BuildExtFieldTemplateData(ctx context.Context, mcode, scode string, contentMap map[string]interface{}) []map[string]interface{} {
+	fields := helper.GetExtFieldsByMcodeAndScode(mcode, scode)
 	if len(fields) == 0 {
 		return []map[string]interface{}{}
 	}
@@ -287,7 +299,7 @@ func (s *ContentService) BuildExtFieldTemplateData(mcode string, contentMap map[
 			"Type":           parseIntOrZero(ef.Type),
 			"Description":    ef.Description,
 			"Required":       ef.Required,
-			"Value":          ef.Value,
+			"Value":          ef.Value, // 直接用 value 欄位（純 options，不再含 scode 前綴）
 			"CurrentValue":   "",
 			"Options":        []string{},
 			"SelectedValues": []string{},
@@ -315,7 +327,7 @@ func (s *ContentService) BuildExtFieldTemplateData(mcode string, contentMap map[
 			}
 		}
 
-		// 選項類字段：預處理選項列表
+		// 選項類字段：預處理選項列表（直接用 ef.Value，不再需要解析 scode 前綴）
 		if ef.Type == "3" || ef.Type == "4" || ef.Type == "9" {
 			if ef.Value != "" {
 				item["Options"] = strings.Split(ef.Value, ",")

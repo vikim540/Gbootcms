@@ -1,117 +1,184 @@
-﻿package content
+package content
 
 import (
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
-	"pbootcms-go/config"
+	"fmt"
 	"strconv"
+	"time"
+
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/apps/admin/model/system"
+	"gbootcms/apps/common"
+	"gbootcms/config"
 
 	"github.com/gin-gonic/gin"
 )
 
-// FormController - Custom Form Controller
-// Corresponds to PHP: apps/admin/controller/FormController.php
+// FormController 自定義表單控制器（對齊 PHP: FormController.php）
 type FormController struct {
 	common.BaseController
 }
 
-// Index - Form management
-func (fm *FormController) Index(c *gin.Context) {
-	fcode := c.Query("fcode")
-	action := c.Query("action")
-
-	if fcode == "" {
-		field := c.Query("field")
-		keyword := c.Query("keyword")
-
-		var forms []model.Form
-		query := model.DB.Model(&model.Form{})
-		if field != "" && keyword != "" {
-			query = query.Where(field+" LIKE ?", "%"+keyword+"%")
+// parseFormParams 從 *action 通配符或 query 中解析參數
+func parseFormParams(c *gin.Context) map[string]string {
+	params := helper.ParseWildcardAction(c.Param("action"))
+	// 補充 query 參數（path 中沒有的）
+	for _, key := range []string{"fcode", "action", "id", "field", "value", "export"} {
+		if params[key] == "" {
+			if v := c.Query(key); v != "" {
+				params[key] = v
+			}
 		}
-		query.Order("id ASC").Find(&forms)
-
-		common.Render(c, "content/form.html", gin.H{
-			"forms":   forms,
-			"field":   field,
-			"keyword": keyword,
-		})
-		return
 	}
+	return params
+}
 
-	switch action {
-	case "showdata":
-		var form model.Form
-		if err := model.DB.Where("fcode = ?", fcode).First(&form).Error; err != nil {
-			fm.JSONFail(c, "Form does not exist")
-			return
-		}
-
-		var fields []model.FormField
-		model.DB.Where("fcode = ?", fcode).Order("sorting ASC").Find(&fields)
-
-		var dataList []map[string]interface{}
-		tableName := form.Table
-		if tableName == "" {
-			tableName = model.TableName("form_data_" + fcode)
-		}
-		model.DB.Raw("SELECT * FROM " + tableName + " ORDER BY id DESC").Scan(&dataList)
-
-		common.Render(c, "content/form.html", gin.H{
-			"form":     form,
-			"fields":   fields,
-			"dataList": dataList,
-			"action":   "showdata",
-		})
-
-	case "showfield":
-		var form model.Form
-		if err := model.DB.Where("fcode = ?", fcode).First(&form).Error; err != nil {
-			fm.JSONFail(c, "Form does not exist")
-			return
-		}
-
-		var fields []model.FormField
-		model.DB.Where("fcode = ?", fcode).Order("sorting ASC").Find(&fields)
-
-		common.Render(c, "content/form.html", gin.H{
-			"form":   form,
-			"fields": fields,
-			"action": "showfield",
-		})
-
-	default:
-		var form model.Form
-		if err := model.DB.Where("fcode = ?", fcode).First(&form).Error; err != nil {
-			fm.JSONFail(c, "Form does not exist")
-			return
-		}
-
-		var fields []model.FormField
-		model.DB.Where("fcode = ?", fcode).Order("sorting ASC").Find(&fields)
-
-		common.Render(c, "content/form.html", gin.H{
-			"form":   form,
-			"fields": fields,
-		})
+// injectGetFlat 注入 path 參數為 get_xxx 扁平變量，供模板 [$get.xxx] 使用
+func injectGetFlat(data gin.H, params map[string]string) {
+	for k, v := range params {
+		data["get_"+k] = v
 	}
 }
 
-// Add - Add form/field
-func (fm *FormController) Add(c *gin.Context) {
-	action := c.PostForm("action")
+// Index 表單管理（列表/查看數據/編輯字段）
+func (fm *FormController) Index(c *gin.Context) {
+	params := parseFormParams(c)
+	fcode := params["fcode"]
+	action := params["action"]
 
-	switch action {
-	case "addform":
-		formName := c.PostForm("form_name")
-		if formName == "" {
-			fm.JSONFail(c, "Form name cannot be empty")
+	if fcode != "" {
+		form := contentModel.GetFormByCode(fcode)
+		if form == nil {
+			fm.JSONFail(c, "表單不存在")
 			return
 		}
 
+		fields := contentModel.GetFormFieldByCode(fcode)
+
+		if action == "showdata" {
+			// 查看數據
+			tableName := form.TableName
+			var rawData []map[string]interface{}
+			// 動態表（ay_diy_*）無 acode 欄位，不需 WithContext
+			model.DB.Raw("SELECT * FROM `" + tableName + "` ORDER BY id DESC").Scan(&rawData)
+
+			// 將 map 鍵名轉為 PascalCase，讓模板引擎 [value->field] 能正確訪問
+			dataList := make([]map[string]interface{}, len(rawData))
+			for i, row := range rawData {
+				pascalRow := make(map[string]interface{})
+				for k, v := range row {
+					pascalRow[helper.SnakeToPascal(k)] = v
+				}
+				dataList[i] = pascalRow
+			}
+
+			// 建立 fieldNameMap：字段名(lowercase) → PascalCase，供模板動態訪問 {{ val1[FieldNameMap[val2.Name]] }}
+			fieldNameMap := make(map[string]string)
+			for _, f := range fields {
+				fieldNameMap[f.Name] = helper.SnakeToPascal(f.Name)
+			}
+
+			page, pageSize, offset := fm.Paginate(c)
+			total := int64(len(dataList))
+			if offset < len(dataList) {
+				end := offset + pageSize
+				if end > len(dataList) {
+					end = len(dataList)
+				}
+				dataList = dataList[offset:end]
+			} else {
+				dataList = []map[string]interface{}{}
+			}
+			baseURL := fmt.Sprintf("/admin/content/form/index/fcode/%s/action/showdata", fcode)
+			data := gin.H{
+				"showdata":     true,
+				"form":         form,
+				"fields":       fields,
+				"formdata":     dataList,
+				"fieldNameMap": fieldNameMap,
+				"pagebar":      helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+				"pagesize":     pageSize,
+				"get":          params,
+			}
+			injectGetFlat(data, params)
+			common.Render(c, "content/form.html", data)
+			return
+		}
+
+		if action == "showfield" {
+			// 編輯字段
+			page, pageSize, _ := fm.Paginate(c)
+			var total int64
+			model.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("fcode = ?", fcode).Count(&total)
+			baseURL := fmt.Sprintf("/admin/content/form/index/fcode/%s/action/showfield", fcode)
+			data := gin.H{
+				"showfield": true,
+				"form":      form,
+				"fields":    fields,
+				"pagebar":   helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+				"pagesize":  pageSize,
+				"get":       params,
+			}
+			injectGetFlat(data, params)
+			common.Render(c, "content/form.html", data)
+			return
+		}
+	}
+
+	// 表單列表
+	page, pageSize, offset := fm.Paginate(c)
+	field := c.Query("field")
+	keyword := c.Query("keyword")
+
+	var forms []contentModel.Form
+	query := model.DB.WithContext(c.Request.Context()).Model(&contentModel.Form{})
+	if field != "" && keyword != "" {
+		query = query.Where(field+" LIKE ?", "%"+keyword+"%")
+	}
+	var total int64
+	query.Count(&total)
+	query.Order("id ASC").Offset(offset).Limit(pageSize).Find(&forms)
+
+	baseURL := "/admin/content/form/index"
+	if field != "" && keyword != "" {
+		baseURL += "?field=" + field + "&keyword=" + keyword
+	}
+	common.Render(c, "content/form.html", gin.H{
+		"list":     true,
+		"forms":    forms,
+		"field":    field,
+		"keyword":  keyword,
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
+	})
+}
+
+// Add 新增表單/字段
+func (fm *FormController) Add(c *gin.Context) {
+	params := parseFormParams(c)
+	action := params["action"]
+	if action == "" {
+		action = c.PostForm("action")
+	}
+
+	if action == "addform" {
+		// 新增表單
+		formName := c.PostForm("form_name")
+		tableNameInput := c.PostForm("table_name")
+		if formName == "" {
+			fm.JSONFail(c, "表單名稱不能為空")
+			return
+		}
+		if tableNameInput == "" {
+			fm.JSONFail(c, "表名稱不能為空")
+			return
+		}
+
+		// 生成 fcode（取最大值+1）
 		var maxFcode int
-		var existingForms []model.Form
-		model.DB.Order("id ASC").Find(&existingForms)
+		var existingForms []contentModel.Form
+		model.DB.WithContext(c.Request.Context()).Order("id ASC").Find(&existingForms)
 		for _, f := range existingForms {
 			code, _ := strconv.Atoi(f.Fcode)
 			if code > maxFcode {
@@ -120,286 +187,313 @@ func (fm *FormController) Add(c *gin.Context) {
 		}
 		newFcode := strconv.Itoa(maxFcode + 1)
 
-		tableName := c.PostForm("table_name")
-		if tableName == "" {
-			tableName = model.TableName("form_data_" + newFcode)
-		}
+		// 對齊 PHP: table_name = 'ay_diy_' + 用戶輸入
+		tableName := "ay_diy_" + tableNameInput
 
-		form := model.Form{
-			Fcode:    newFcode,
-			FormName: formName,
-			Table:    tableName,
-			Status:   1,
-		}
-		model.DB.Create(&form)
-
+		// 創建物理表（DDL 操作，無需 WithContext）
 		cfg := config.Get()
 		if cfg.Database.Type == "mysql" {
-			model.DB.Exec("CREATE TABLE `" + tableName + "` (" +
-				"`id` INT UNSIGNED NOT NULL AUTO_INCREMENT," +
-				"`createtime` DATETIME NULL DEFAULT NULL," +
-				"PRIMARY KEY (`id`)" +
-				") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+			model.DB.Exec("CREATE TABLE `" + tableName + "` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`create_time` datetime NOT NULL,PRIMARY KEY (`id`)) ENGINE=MyISam DEFAULT CHARSET=utf8")
+		} else {
+			model.DB.Exec("CREATE TABLE `" + tableName + "` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,`create_time` TEXT NOT NULL)")
 		}
 
-		fm.JSONOKMsg(c, common.NoticeFormAdd)
-
-	case "addfield":
-		fcode := c.PostForm("fcode")
-		if fcode == "" {
-			fm.JSONFail(c, "Form code cannot be empty")
+		username := fm.GetAdminUsername(c)
+		now := time.Now()
+		form := contentModel.Form{
+			Fcode:      newFcode,
+			FormName:   formName,
+			TableName:  tableName,
+			CreateUser: username,
+			UpdateUser: username,
+			CreateTime: now,
+			UpdateTime: now,
+		}
+		if err := model.DB.WithContext(c.Request.Context()).Create(&form).Error; err != nil {
+			fm.JSONFail(c, "新增失敗")
 			return
 		}
-
-		var form model.Form
-		if err := model.DB.Where("fcode = ?", fcode).First(&form).Error; err != nil {
-			fm.JSONFail(c, "Form does not exist")
-			return
-		}
-
-		name := c.PostForm("name")
-		fieldName := c.PostForm("field")
-		length := c.DefaultPostForm("length", "255")
-		if name == "" || fieldName == "" {
-			fm.JSONFail(c, "Field name and identifier cannot be empty")
-			return
-		}
-
-		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
-		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
-
-		formField := model.FormField{
-			Fcode:    fcode,
-			Name:     name,
-			Field:    fieldName,
-			Type:     c.DefaultPostForm("type", "text"),
-			Required: required,
-			Sorting:  sorting,
-			Status:   1,
-		}
-		model.DB.Create(&formField)
-
-		tableName := form.Table
-		if tableName == "" {
-			tableName = model.TableName("form_data_" + fcode)
-		}
-		model.DB.Exec("ALTER TABLE `" + tableName + "` ADD COLUMN `" + fieldName + "` VARCHAR(" + length + ") NULL")
-
-		fm.JSONOKMsg(c, common.NoticeFieldAdd)
-
-	default:
-		fm.JSONFail(c, "Unknown operation")
+		fm.LogAction(c, "新增自定義表單成功")
+		fm.JSONOKMsg(c, "新增成功")
+		return
 	}
+
+	// 新增字段
+	fcode := c.PostForm("fcode")
+	if fcode == "" {
+		fm.JSONFail(c, "表單編碼不能為空")
+		return
+	}
+	form := contentModel.GetFormByCode(fcode)
+	if form == nil {
+		fm.JSONFail(c, "表單不存在")
+		return
+	}
+
+	name := c.PostForm("name")
+	description := c.PostForm("description")
+	length, _ := strconv.Atoi(c.DefaultPostForm("length", "20"))
+	required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
+	sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
+
+	if name == "" {
+		fm.JSONFail(c, "字段名稱不能為空")
+		return
+	}
+	if description == "" {
+		fm.JSONFail(c, "字段描述不能為空")
+		return
+	}
+
+	tableName := form.TableName
+	// 動態建列（DDL 操作，無需 WithContext）
+	var columnType string
+	if cfg := config.Get(); cfg.Database.Type == "mysql" {
+		columnType = fmt.Sprintf("varchar(%d)", length)
+	} else {
+		columnType = fmt.Sprintf("TEXT(%d)", length)
+	}
+	model.DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s NULL", tableName, name, columnType))
+
+	username := fm.GetAdminUsername(c)
+	now := time.Now()
+	formField := contentModel.FormField{
+		Fcode:       fcode,
+		Name:        name,
+		Length:      length,
+		Required:    required,
+		Description: description,
+		Sorting:     sorting,
+		CreateUser:  username,
+		UpdateUser:  username,
+		CreateTime:  now,
+		UpdateTime:  now,
+	}
+	if err := model.DB.WithContext(c.Request.Context()).Create(&formField).Error; err != nil {
+		fm.JSONFail(c, "新增字段失敗")
+		return
+	}
+	fm.LogAction(c, "新增表單字段成功")
+	fm.JSONOKMsg(c, "新增成功")
 }
 
-// Del - Delete form/field/data
+// Del 刪除表單/字段/數據
 func (fm *FormController) Del(c *gin.Context) {
-	action := c.Query("action")
+	params := parseFormParams(c)
+	idStr := params["id"]
+	if idStr == "" {
+		fm.JSONFail(c, "參數錯誤")
+		return
+	}
+	id, _ := strconv.Atoi(idStr)
+	action := params["action"]
 
 	switch action {
 	case "delform":
-		fcode := c.Query("fcode")
-		if fcode == "" {
-			fm.JSONFail(c, "Form code cannot be empty")
+		if id == 1 {
+			fm.JSONFail(c, "留言表單不允許刪除")
 			return
 		}
-
-		var form model.Form
-		if err := model.DB.Where("fcode = ?", fcode).First(&form).Error; err != nil {
-			fm.JSONFail(c, "Form does not exist")
+		var form contentModel.Form
+		if err := model.DB.WithContext(c.Request.Context()).First(&form, id).Error; err != nil {
+			fm.JSONFail(c, "表單不存在")
 			return
 		}
-
-		tableName := form.Table
-		if tableName == "" {
-			tableName = model.TableName("form_data_" + fcode)
-		}
+		tableName := form.TableName
+		fcode := form.Fcode
+		model.DB.WithContext(c.Request.Context()).Where("fcode = ?", fcode).Delete(&contentModel.FormField{})
+		// DDL 操作，無需 WithContext
 		model.DB.Exec("DROP TABLE IF EXISTS `" + tableName + "`")
-		model.DB.Where("fcode = ?", fcode).Delete(&model.FormField{})
-		model.DB.Where("fcode = ?", fcode).Delete(&model.Form{})
-
-		fm.JSONOKMsg(c, common.NoticeFormDelete)
+		model.DB.WithContext(c.Request.Context()).Delete(&contentModel.Form{}, id)
+		// ay_menu 無 acode 欄位，無需 WithContext
+		model.DB.Where("url LIKE ?", "%Form/index/fcode/"+fcode+"/action/showdata%").Delete(&system.Menu{})
+		fm.LogAction(c, "刪除自定義表單成功")
+		fm.JSONOKMsg(c, "刪除成功")
 
 	case "deldata":
-		fcode := c.Query("fcode")
-		id := c.Query("id")
-		if fcode == "" || id == "" {
-			fm.JSONFail(c, "Incomplete parameters")
+		fcode := params["fcode"]
+		if fcode == "" {
+			fm.JSONFail(c, "參數 fcode 錯誤")
 			return
 		}
-
-		var form model.Form
-		if err := model.DB.Where("fcode = ?", fcode).First(&form).Error; err != nil {
-			fm.JSONFail(c, "Form does not exist")
-			return
-		}
-
-		tableName := form.Table
+		tableName := contentModel.GetFormTableByCode(fcode)
 		if tableName == "" {
-			tableName = model.TableName("form_data_" + fcode)
+			fm.JSONFail(c, "表單不存在")
+			return
 		}
+		// 動態表（ay_diy_*）無 acode 欄位，無需 WithContext
 		model.DB.Exec("DELETE FROM `"+tableName+"` WHERE id = ?", id)
-
-		fm.JSONOKMsg(c, common.NoticeDataDelete)
+		fm.LogAction(c, "刪除表單數據成功")
+		fm.JSONOKMsg(c, "刪除成功")
 
 	default:
-		idStr := c.Query("id")
-		if idStr == "" {
-			fm.JSONFail(c, "Field ID cannot be empty")
+		var formField contentModel.FormField
+		if err := model.DB.WithContext(c.Request.Context()).First(&formField, id).Error; err != nil {
+			fm.JSONFail(c, "字段不存在")
 			return
 		}
-		id, _ := strconv.Atoi(idStr)
-
-		var formField model.FormField
-		if err := model.DB.First(&formField, id).Error; err != nil {
-			fm.JSONFail(c, "Field does not exist")
-			return
-		}
-
 		fcode := formField.Fcode
-		var form model.Form
-		if err := model.DB.Where("fcode = ?", fcode).First(&form).Error; err == nil {
-			tableName := form.Table
-			if tableName == "" {
-				tableName = model.TableName("form_data_" + fcode)
-			}
-			cfg := config.Get()
-			if cfg.Database.Type == "mysql" {
-				model.DB.Exec("ALTER TABLE `" + tableName + "` DROP COLUMN `" + formField.Field + "`")
-			}
+		tableName := contentModel.GetFormTableByCode(fcode)
+		// MySQL 刪列，SQLite 不支持（DDL 操作，無需 WithContext）
+		cfg := config.Get()
+		if cfg.Database.Type == "mysql" && tableName != "" {
+			model.DB.Exec("ALTER TABLE `" + tableName + "` DROP COLUMN `" + formField.Name + "`")
 		}
-
-		model.DB.Delete(&formField)
-		fm.JSONOKMsg(c, common.NoticeFieldDelete)
+		model.DB.WithContext(c.Request.Context()).Delete(&formField)
+		fm.LogAction(c, "刪除表單字段成功")
+		fm.JSONOKMsg(c, "刪除成功")
 	}
 }
 
-// Mod - Modify form/field
+// Mod 修改表單/字段
 func (fm *FormController) Mod(c *gin.Context) {
-	field := c.PostForm("field")
-	value := c.PostForm("value")
+	params := parseFormParams(c)
+	idStr := params["id"]
+	if idStr == "" {
+		fm.JSONFail(c, "參數錯誤")
+		return
+	}
+	id, _ := strconv.Atoi(idStr)
 
-	if field != "" && value != "" {
-		idStr := c.PostForm("id")
-		if idStr == "" {
-			fm.JSONFail(c, "ID cannot be empty")
-			return
-		}
-
-		target := c.PostForm("target")
-		if target == "form" {
-			model.DB.Model(&model.Form{}).Where("id = ?", idStr).Update(field, value)
-		} else if target == "field" {
-			model.DB.Model(&model.FormField{}).Where("id = ?", idStr).Update(field, value)
-		} else {
-			model.DB.Model(&model.FormField{}).Where("id = ?", idStr).Update(field, value)
-		}
-		fm.JSONOKMsg(c, common.NoticeModify)
+	// 單欄位快速切換（GET: /mod/id/5/field/required/value/1）
+	fieldName := params["field"]
+	value := params["value"]
+	if fieldName != "" && value != "" {
+		model.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("id = ?", id).
+			Updates(map[string]interface{}{
+				fieldName:     value,
+				"update_time": time.Now(),
+				"update_user": fm.GetAdminUsername(c),
+			})
+		fm.JSONOKMsg(c, "修改成功")
 		return
 	}
 
-	action := c.PostForm("action")
+	action := params["action"]
 
-	switch action {
-	case "addmenu":
-		fcode := c.PostForm("fcode")
-		if fcode == "" {
-			fm.JSONFail(c, "Form code cannot be empty")
+	// 添加到菜單
+	if action == "addmenu" {
+		var form contentModel.Form
+		if err := model.DB.WithContext(c.Request.Context()).First(&form, id).Error; err != nil {
+			fm.JSONFail(c, "表單不存在")
 			return
 		}
-
-		var form model.Form
-		if err := model.DB.Where("fcode = ?", fcode).First(&form); err.Error != nil {
-			fm.JSONFail(c, "Form does not exist")
+		menuURL := fmt.Sprintf("/admin/Form/index/fcode/%s/action/showdata", form.Fcode)
+		// ay_menu 無 acode 欄位，無需 WithContext
+		var existingMenu system.Menu
+		model.DB.Where("url LIKE ?", "%"+menuURL+"%").First(&existingMenu)
+		if existingMenu.ID > 0 {
+			model.DB.Model(&system.Menu{}).Where("id = ?", existingMenu.ID).Update("name", form.FormName)
+			c.JSON(200, gin.H{"code": 1, "data": "菜單已更新", "msg": "菜單已更新", "tourl": "/admin/Form/index"})
 			return
 		}
-
-		var menu model.Menu
-		model.DB.Where("url = ?", "/admin/content/form/index?fcode="+fcode).First(&menu)
-		if menu.ID > 0 {
-			fm.JSONFail(c, "Menu already exists")
-			return
+		var lastMcode string
+		model.DB.Model(&system.Menu{}).Order("mcode DESC").Limit(1).Pluck("mcode", &lastMcode)
+		newMcode := "MF" + form.Fcode
+		if lastMcode != "" {
+			if n, err := strconv.Atoi(lastMcode[1:]); err == nil {
+				newMcode = fmt.Sprintf("M%d", n+1)
+			}
 		}
-
-		var maxSort int
-		model.DB.Model(&model.Menu{}).Where("pcode = 'M130'").
-			Select("MAX(sorting)").Scan(&maxSort)
-
-		model.DB.Create(&model.Menu{
-			Mcode:   "MF" + fcode,
-			Pcode:   "M130",
-			Name:    form.FormName,
-			URL:     "/admin/content/form/index?fcode=" + fcode,
-			Ico:     "fa-wpforms",
-			Sorting: maxSort + 1,
-			Status:  1,
+		model.DB.Create(&system.Menu{
+			Mcode:      newMcode,
+			Pcode:      "M157",
+			Name:       form.FormName,
+			URL:        menuURL,
+			Sorting:    599,
+			Status:     1,
+			Shortcut:   0,
+			Ico:        "fa-plus-square-o",
+			CreateUser: fm.GetAdminUsername(c),
+			UpdateUser: fm.GetAdminUsername(c),
 		})
-
-		fm.JSONOKMsg(c, common.NoticeMenuAdd)
-
-	case "modform":
-		fcode := c.PostForm("fcode")
-		if fcode == "" {
-			fm.JSONFail(c, "Form code cannot be empty")
-			return
-		}
-
-		formName := c.PostForm("form_name")
-		if formName == "" {
-			fm.JSONFail(c, "Form name cannot be empty")
-			return
-		}
-
-		model.DB.Model(&model.Form{}).Where("fcode = ?", fcode).Update("form_name", formName)
-		fm.JSONOKMsg(c, common.NoticeFormModify)
-
-	default:
-		idStr := c.PostForm("id")
-		if idStr == "" {
-			fm.JSONFail(c, "Field ID cannot be empty")
-			return
-		}
-		id, _ := strconv.Atoi(idStr)
-
-		updates := map[string]interface{}{
-			"name":     c.PostForm("name"),
-			"required": c.DefaultPostForm("required", "0"),
-			"sorting":  c.DefaultPostForm("sorting", "0"),
-		}
-		if v, err := strconv.Atoi(c.DefaultPostForm("required", "0")); err == nil {
-			updates["required"] = v
-		}
-		if v, err := strconv.Atoi(c.DefaultPostForm("sorting", "0")); err == nil {
-			updates["sorting"] = v
-		}
-
-		model.DB.Model(&model.FormField{}).Where("id = ?", id).Updates(updates)
-		fm.JSONOKMsg(c, common.NoticeFieldModify)
+		fm.LogAction(c, "添加自定義表單到菜單成功")
+		c.JSON(200, gin.H{"code": 1, "data": "添加成功", "msg": "添加成功", "tourl": "/admin/Form/index"})
+		return
 	}
+
+	// POST 修改操作
+	if c.Request.Method == "POST" {
+		if action == "modform" {
+			formName := c.PostForm("form_name")
+			if formName == "" {
+				fm.JSONFail(c, "表單名稱不能為空")
+				return
+			}
+			model.DB.WithContext(c.Request.Context()).Model(&contentModel.Form{}).Where("id = ?", id).Updates(map[string]interface{}{
+				"form_name":   formName,
+				"update_time": time.Now(),
+				"update_user": fm.GetAdminUsername(c),
+			})
+			fm.LogAction(c, "修改自定義表單成功")
+			fm.JSONOKMsg(c, "修改成功")
+			return
+		}
+		description := c.PostForm("description")
+		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
+		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
+		if description == "" {
+			fm.JSONFail(c, "字段描述不能為空")
+			return
+		}
+		model.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"description": description,
+			"required":    required,
+			"sorting":     sorting,
+			"update_time": time.Now(),
+			"update_user": fm.GetAdminUsername(c),
+		})
+		fm.LogAction(c, "修改表單字段成功")
+		fm.JSONOKMsg(c, "修改成功")
+		return
+	}
+
+	// GET 顯示修改表單
+	if action == "modform" {
+		var form contentModel.Form
+		if err := model.DB.WithContext(c.Request.Context()).First(&form, id).Error; err != nil {
+			fm.JSONFail(c, "編輯的內容已不存在")
+			return
+		}
+		data := gin.H{
+			"mod":  true,
+			"form": form,
+			"get":  params,
+		}
+		injectGetFlat(data, params)
+		common.Render(c, "content/form.html", data)
+		return
+	}
+
+	// 顯示字段修改表單
+	var field contentModel.FormField
+	if err := model.DB.WithContext(c.Request.Context()).First(&field, id).Error; err != nil {
+		fm.JSONFail(c, "編輯的內容已不存在")
+		return
+	}
+	data := gin.H{
+		"mod":   true,
+		"field": field,
+		"get":   params,
+	}
+	injectGetFlat(data, params)
+	common.Render(c, "content/form.html", data)
 }
 
-// Clear - Clear form data
+// Clear 清空表單數據
 func (fm *FormController) Clear(c *gin.Context) {
-	fcode := c.Query("fcode")
+	params := parseFormParams(c)
+	fcode := params["fcode"]
 	if fcode == "" {
-		fcode = c.PostForm("fcode")
-	}
-	if fcode == "" {
-		fm.JSONFail(c, "Form code cannot be empty")
+		fm.JSONFail(c, "參數 fcode 錯誤")
 		return
 	}
-
-	var form model.Form
-	if err := model.DB.Where("fcode = ?", fcode).First(&form).Error; err != nil {
-		fm.JSONFail(c, "Form does not exist")
-		return
-	}
-
-	tableName := form.Table
+	tableName := contentModel.GetFormTableByCode(fcode)
 	if tableName == "" {
-		tableName = model.TableName("form_data_" + fcode)
+		fm.JSONFail(c, "表單不存在")
+		return
 	}
+	// 動態表（ay_diy_*）無 acode 欄位，無需 WithContext
 	model.DB.Exec("DELETE FROM `" + tableName + "`")
-
-	fm.JSONOKMsg(c, common.NoticeFormDataClear)
+	fm.JSONOKMsg(c, "清空成功")
 }

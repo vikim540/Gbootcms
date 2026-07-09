@@ -3,12 +3,14 @@ package common
 import (
 	"fmt"
 	"html"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/core/basic"
+	"gbootcms/apps/admin/model"
+	"gbootcms/core/acodeplugin"
+	"gbootcms/core/basic"
 
 	"github.com/flosch/pongo2/v6"
 	"github.com/gin-gonic/gin"
@@ -30,7 +32,7 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 	injectSessionData(c, data)
 
 	// Inject CMS constants
-	data["CmsName"] = "gbootcms"
+	data["CmsName"] = model.GetConfigValue("cmsname", "Gbootcms")
 	data["CoreVersion"] = "1.8.1"
 	data["AppVersion"] = "3.2.12"
 	data["ReleaseTime"] = "2025-04-24"
@@ -67,14 +69,19 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 	}
 
 	// Inject backurl / pathinfo / btnqs (used by PbootCMS mod-form action URLs)
+	// 安全處理：query key 和 value 都需要轉義，防止 HTML 注入和 URL 注入
 	qParams := c.Request.URL.Query()
 	var backParts, btnParts []string
 	var pathinfoBuilder strings.Builder
 	for key, values := range qParams {
 		v := values[0]
-		backParts = append(backParts, key+"="+v)
-		btnParts = append(btnParts, key+"="+v)
-		pathinfoBuilder.WriteString(fmt.Sprintf(`<input type="hidden" name="%s" value="%s">`, key, html.EscapeString(v)))
+		// backParts/btnParts 用於 URL 查詢字串，key 和 value 都需 URL 編碼
+		encodedKey := url.QueryEscape(key)
+		encodedVal := url.QueryEscape(v)
+		backParts = append(backParts, encodedKey+"="+encodedVal)
+		btnParts = append(btnParts, encodedKey+"="+encodedVal)
+		// pathinfo 用於 HTML hidden input，key 和 value 都需 HTML 轉義
+		pathinfoBuilder.WriteString(fmt.Sprintf(`<input type="hidden" name="%s" value="%s">`, html.EscapeString(key), html.EscapeString(v)))
 	}
 	if len(backParts) > 0 {
 		data["backurl"] = "&" + strings.Join(backParts, "&")
@@ -87,6 +94,22 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 
 	// Inject current datetime for {fun=date(...)} replacements
 	data["now"] = time.Now().Format("2006-01-02 15:04:05")
+
+	// 自動注入 PageStart（對齊 PbootCMS PAGE/PAGESIZE 常量，用於 [num] 序號偏移）
+	// 無分頁時 page=1，PageStart=0，序號從 1 開始
+	pageNum, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if pageNum < 1 {
+		pageNum = 1
+	}
+	ps := 15
+	if v, err := strconv.Atoi(c.Query("pagesize")); err == nil && v > 0 {
+		ps = v
+	} else if cfgVal := model.GetConfigValue("pagesize", ""); cfgVal != "" {
+		if v, err := strconv.Atoi(cfgVal); err == nil && v > 0 {
+			ps = v
+		}
+	}
+	data["pageStart"] = (pageNum - 1) * ps
 
 	// Flatten struct fields for template access
 	data = flattenData(data)
@@ -106,6 +129,37 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 		}
 		if _, exists := data["MenuModels"]; !exists {
 			data["MenuModels"] = buildMenuModels()
+		}
+		// Inject area switcher data (對齊 PHP AdminController::__construct 全局注入)
+		// 所有後台頁面的公共頭部 head.html 需要 Areas/CurrentAcode/OneArea
+		if _, exists := data["Areas"]; !exists {
+			var allAreas []model.Area
+			model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Order("pcode, acode").Find(&allAreas)
+			currentAcode := GetSessionString(c, "area_code")
+			if currentAcode == "" {
+				currentAcode = GetSessionString(c, "acode")
+			}
+			// 找出默認區域（用於「網站主頁」按鈕：默認區域用 / ，非默認用 /{acode}/）
+			defaultAcode := ""
+			for _, a := range allAreas {
+				if a.IsDefault == "1" {
+					defaultAcode = a.Acode
+					break
+				}
+			}
+			if defaultAcode == "" && len(allAreas) > 0 {
+				defaultAcode = allAreas[0].Acode
+			}
+			// 構建前台首頁 URL（默認區域用 / ，非默認用 /{acode}/）
+			homeURL := "/"
+			if currentAcode != "" && currentAcode != defaultAcode {
+				homeURL = "/" + currentAcode + "/"
+			}
+			data["Areas"] = allAreas
+			data["CurrentAcode"] = currentAcode
+			data["OneArea"] = len(allAreas) <= 1
+			data["DefaultAcode"] = defaultAcode
+			data["HomeURL"] = homeURL
 		}
 	}
 
@@ -248,6 +302,7 @@ func SnakeToPascal(s string) string {
 		"db":   "DB",
 		"cms":  "CMS",
 		"html": "HTML",
+		"os":   "OS",
 	}
 	// PbootCMS compound words without underscore separator
 	// These need special handling because SnakeToPascal can't split them

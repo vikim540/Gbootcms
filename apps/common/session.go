@@ -4,13 +4,25 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"gbootcms/config"
 	"strconv"
 	"sync"
 
 	"github.com/gin-gonic/gin"
 )
 
-var sessionKey = []byte("pbootcms-go-session-key-32byte!")
+// sessionKey 從配置讀取（可透過環境變數 PBOOTCMS_GO_APP_SESSION_KEY 覆蓋）
+var sessionKey []byte
+
+func init() {
+	cfg := config.Get()
+	if cfg.App.SessionKey != "" {
+		sessionKey = []byte(cfg.App.SessionKey)
+	} else {
+		// 降級：配置未設定時使用默認值
+		sessionKey = []byte("gbootcms-session-key-32byte!!!")
+	}
+}
 
 type SessionData map[string]interface{}
 
@@ -129,6 +141,24 @@ func ClearSession(c *gin.Context) {
 
 	delete(sessionStore, sid)
 	c.SetCookie("PbootGo", "", -1, "/", "", false, false)
+}
+
+// ClearAllSessions 清除所有會話（排除當前用戶，避免管理員被踢出）
+// 用於後台「清理會話」功能，讓所有其他用戶強制重新登入
+func ClearAllSessions(c *gin.Context) int {
+	currentSID := getSessionID(c)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	count := 0
+	for sid := range sessionStore {
+		if sid != currentSID {
+			delete(sessionStore, sid)
+			count++
+		}
+	}
+	return count
 }
 
 func SetSessionData(c *gin.Context, sid string, data map[string]interface{}) {

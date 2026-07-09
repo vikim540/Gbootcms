@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
-	"pbootcms-go/apps/admin/model"
+	"gbootcms/apps/admin/model"
 )
 
 // === 統一驗證碼模塊 ===
@@ -120,7 +120,7 @@ func getCaptchaSessionID(c *gin.Context) string {
 			Value:    cookie,
 			Path:     "/",
 			MaxAge:   86400,
-			HttpOnly: false,
+			HttpOnly: true,
 			Secure:   false,
 		})
 	}

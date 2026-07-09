@@ -44,13 +44,13 @@
                     <h5 class="card-title"><a href="[list:link]">[list:title lencn=12]</a></h5>
                     <p class="card-text">
 	                    {gboot:if([list:istop]==1)}
-	                		<span class="badge badge-danger">置頂</span>
+	                		<span class="badge badge-danger">{gboot:2if({gboot:acode}=='sc')}置顶{gboot:2else}{gboot:2if({gboot:acode}=='en')}Top{gboot:2else}置頂{/gboot:2if}{/gboot:2if}</span>
 	                	{/gboot:if}
 	                	{gboot:if([list:isrecommend]==1)}
-	                		<span class="badge badge-warning">推薦</span>
+	                		<span class="badge badge-warning">{gboot:2if({gboot:acode}=='sc')}推荐{gboot:2else}{gboot:2if({gboot:acode}=='en')}Hot{gboot:2else}推薦{/gboot:2if}{/gboot:2if}</span>
 	                	{/gboot:if}
 	                	{gboot:if([list:isheadline]==1)}
-	                		<span class="badge badge-info">頭條</span>
+	                		<span class="badge badge-info">{gboot:2if({gboot:acode}=='sc')}头条{gboot:2else}{gboot:2if({gboot:acode}=='en')}News{gboot:2else}頭條{/gboot:2if}{/gboot:2if}</span>
 	                	{/gboot:if}
 	                	[list:content drophtml=1 dropblank=1 len=50]
                 	</p>
@@ -60,7 +60,7 @@
         {/gboot:list}
       </div>
 	  {gboot:sort scode=5}
-			<div class="text-center mt-4 wow fadeInDown" data-wow-delay="1s"><h4><a href="[sort:link]" class="text-secondary fs-14 fs-sm-16">查看更多</a></h4></div>
+			<div class="text-center mt-4 wow fadeInDown" data-wow-delay="1s"><h4><a href="[sort:link]" class="text-secondary fs-14 fs-sm-16">{gboot:morename}</a></h4></div>
 	  {/gboot:sort}
     </div>
 </div>
@@ -73,11 +73,11 @@
       	<div class="text-center fs-14 fs-sm-16 mb-4 text-secondary wow fadeInUp" data-wow-delay="1s">- [sort:subname] -</div>
       {/gboot:sort}
       
-      {gboot:content id=1}
+      {gboot:content scode=1}
       	<div class="row text-secondary mb-5 px-3 lh-2 wow fadeInDown" data-wow-delay="500ms" style="text-indent:30px;">
             [content:content drophtml=1 dropblank=1 len=442 more='']
       	</div>
-     	<div class="text-center wow fadeInDown" data-wow-delay="1s"><h4><a href="[content:link]" class="text-secondary fs-14 fs-sm-16">查看更多</a></h4></div>
+     	<div class="text-center wow fadeInDown" data-wow-delay="1s"><h4><a href="[content:link]" class="text-secondary fs-14 fs-sm-16">{gboot:morename}</a></h4></div>
       {/gboot:content}
     </div>
 </div>
@@ -103,7 +103,7 @@
         {/gboot:list}
       </div>
 	  {gboot:sort scode=2}
-		<div class="text-center wow fadeInDown" data-wow-delay="1s"><h4><a href="[sort:link]" class="text-secondary fs-14 fs-sm-16">查看更多</a></h4></div>
+		<div class="text-center wow fadeInDown" data-wow-delay="1s"><h4><a href="[sort:link]" class="text-secondary fs-14 fs-sm-16">{gboot:morename}</a></h4></div>
 	  {/gboot:sort}
     </div>
 </div>
@@ -137,4 +137,3 @@
 </script>
   
 {include file=comm/foot.html}
-

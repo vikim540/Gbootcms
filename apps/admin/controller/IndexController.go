@@ -1,20 +1,26 @@
-﻿package admin
+package admin
 
 import (
 	"crypto/md5"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
-	"pbootcms-go/config"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
+	"gbootcms/apps/common/watermark"
+	"gbootcms/config"
+	basic "gbootcms/core/basic"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
+
+	"gbootcms/core/acodeplugin"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -63,7 +69,9 @@ func (ic *IndexController) Login(c *gin.Context) {
 	secondHash := md5.Sum([]byte(fmt.Sprintf("%x", firstHash)))
 	encPwd := fmt.Sprintf("%x", secondHash)
 
-	if err := model.DB.Where("username = ? AND password = ? AND status = 1", username, encPwd).First(&user).Error; err != nil {
+	// 登入查詢必須跳過 acode 隔離（用戶可能屬於任何區域）
+	loginCtx := acodeplugin.SkipAcode(c.Request.Context())
+	if err := model.DB.WithContext(loginCtx).Where("username = ? AND password = ? AND status = 1", username, encPwd).First(&user).Error; err != nil {
 		ic.setLoginBlack(c)
 		ic.log(c, "登录失败!")
 		ic.JSONFail(c, "用户名或密码错误！")
@@ -82,26 +90,39 @@ func (ic *IndexController) Login(c *gin.Context) {
 	if user.Acodes == "" {
 		acodes = []string{}
 	}
-	acode := ""
-	if len(acodes) > 0 {
-		acode = acodes[0]
-	}
 
 	var levels []string
 	if user.Rcodes != "" {
 		rcodeList := strings.Split(user.Rcodes, ",")
 		var roleLevels []model.RoleLevel
-		model.DB.Where("rcode IN ?", rcodeList).Find(&roleLevels)
+		model.DB.WithContext(loginCtx).Where("rcode IN ?", rcodeList).Find(&roleLevels)
 		for _, rl := range roleLevels {
 			levels = append(levels, rl.URL)
 		}
 	}
 
 	var areas []model.Area
-	model.DB.Find(&areas)
+	model.DB.WithContext(loginCtx).Find(&areas)
 	areaMap := make(map[string]string)
 	for _, a := range areas {
-		areaMap[a.Code] = a.Name
+		areaMap[a.Acode] = a.Name
+	}
+
+	// 初始 acode：優先選擇用戶有權限的默認區域（is_default=1），否則取第一個
+	acode := ""
+	if len(acodes) > 0 {
+		acode = acodes[0]
+		for _, a := range areas {
+			if a.IsDefault == "1" {
+				for _, uac := range acodes {
+					if uac == a.Acode {
+						acode = a.Acode
+						break
+					}
+				}
+				break
+			}
+		}
 	}
 
 	newSessionID := ic.generateSessionID()
@@ -114,6 +135,7 @@ func (ic *IndexController) Login(c *gin.Context) {
 		"admin_rcodes":     user.Rcodes,
 		"pwsecurity":       pwsecurity,
 		"acodes":           acodes,
+		"user_acodes":      strings.Join(acodes, ","),
 		"acode":            acode,
 		"levels":           levels,
 		"area_map":         areaMap,
@@ -124,11 +146,11 @@ func (ic *IndexController) Login(c *gin.Context) {
 		Value:    newSessionID,
 		Path:     "/",
 		MaxAge:   86400,
-		HttpOnly: false,
+		HttpOnly: true,
 		Secure:   false,
 	})
 
-	model.DB.Model(&user).Updates(map[string]interface{}{
+	model.DB.WithContext(loginCtx).Model(&user).Updates(map[string]interface{}{
 		"login_count":    gorm.Expr("login_count + 1"),
 		"last_login_ip":  c.ClientIP(),
 		"lastlogintime":  time.Now(),
@@ -189,10 +211,12 @@ func (ic *IndexController) Home(c *gin.Context) {
 
 	ucode, _ := common.GetSession(c, "admin_ucode").(string)
 	var user model.AdminUser
-	model.DB.Where("ucode = ?", ucode).First(&user)
+	// 用戶查詢跳過 acode 隔離（當前用戶可能屬於任何區域）
+	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Where("ucode = ?", ucode).First(&user)
 
+	// 留言計數：按當前區域過濾
 	var msgCount int64
-	model.DB.Model(&model.Message{}).Where("status = 0").Count(&msgCount)
+	model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Where("status = 0").Count(&msgCount)
 
 	var models []model.ContentModel
 	model.DB.Where("status = 1").Order("sorting ASC").Find(&models)
@@ -206,8 +230,8 @@ func (ic *IndexController) Home(c *gin.Context) {
 		"ServerSoftware":    "Go/Gin",
 		"PhpVersion":        "Go " + runtime.Version(),
 		"DbDriver":          strings.ToUpper(dbType),
-		"UploadMaxFilesize": "50M",
-		"PostMaxSize":       "50M",
+		"UploadMaxFilesize": model.GetConfigValue("upload_max_size", "50") + "M",
+		"PostMaxSize":       model.GetConfigValue("upload_max_size", "50") + "M",
 	}
 
 	branch := model.GetConfigValue("upgrade_branch", "3.X")
@@ -231,13 +255,13 @@ func (ic *IndexController) Home(c *gin.Context) {
 	}
 	site := scheme + "://" + c.Request.Host
 
+	// 區域切換數據已由 common.Render 全局注入（Areas/CurrentAcode/OneArea）
+
 	data := gin.H{
 		"C":              "Index",
 		"URL":            "/admin/index/home",
 		"PrimaryMenuURL": "/admin/index/home",
-		"OneArea":        true,
 		"DBSecurity":     dbsecurity,
-		"AreaHtml":       "",
 		"User":           user,
 		"UserInfo":       user,
 		"SumMsg":         msgCount,
@@ -246,8 +270,8 @@ func (ic *IndexController) Home(c *gin.Context) {
 		"Revise":         revise,
 		"Snuser":         snuser,
 		"Site":           site,
-		"ModelMsg":       buildModelMsg(models),
-		"ModelCounts":    buildModelCounts(),
+		"ModelMsg":       buildModelMsg(c, models),
+		"ModelCounts":    buildModelCounts(c),
 	}
 
 	common.Render(c, "system/home.html", data)
@@ -256,7 +280,7 @@ func (ic *IndexController) Home(c *gin.Context) {
 func (ic *IndexController) Ucenter(c *gin.Context) {
 	uid := common.GetSessionInt(c, "admin_uid")
 	var user model.AdminUser
-	model.DB.First(&user, uid)
+	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).First(&user, uid)
 	common.Render(c, "system/ucenter.html", gin.H{"user": user})
 }
 
@@ -268,7 +292,7 @@ func (ic *IndexController) UcenterMod(c *gin.Context) {
 	rePwd := c.PostForm("repassword")
 
 	var user model.AdminUser
-	model.DB.First(&user, uid)
+	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).First(&user, uid)
 
 	encOld1 := fmt.Sprintf("%x", md5.Sum([]byte(oldPwd)))
 	encOld := fmt.Sprintf("%x", md5.Sum([]byte(encOld1)))
@@ -287,24 +311,60 @@ func (ic *IndexController) UcenterMod(c *gin.Context) {
 
 	encNew1 := fmt.Sprintf("%x", md5.Sum([]byte(newPwd)))
 	encNew := fmt.Sprintf("%x", md5.Sum([]byte(encNew1)))
-	model.DB.Model(&user).Update("password", encNew)
+	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Model(&user).Update("password", encNew)
 	ic.JSONOKMsg(c, common.NoticePassword)
 }
 
+// ClearCache 清理模板快取（內存 + debug 文件）
 func (ic *IndexController) ClearCache(c *gin.Context) {
-	os.RemoveAll("runtime/cache")
-	os.RemoveAll("runtime/compile")
-	os.RemoveAll("runtime/config")
-	os.MkdirAll("runtime/cache", 0755)
-	os.MkdirAll("runtime/compile", 0755)
-	os.MkdirAll("runtime/config", 0755)
-	ic.JSONOKMsg(c, common.NoticeCacheCleaned)
+	// 清除內存中的模板快取（核心操作）
+	basic.ClearTemplateCache()
+
+	// 清除 runtime 目錄下的 pongo2 debug 文件
+	debugFiles, _ := filepath.Glob("runtime/pongo2_debug_*.html")
+	for _, f := range debugFiles {
+		os.Remove(f)
+	}
+
+	// ajaxlink JS 讀 response.data，用 JSONOK 返回 data 欄位
+	ic.JSONOK(c, common.NoticeCacheCleaned)
+}
+
+// ClearOnlySysCache 清理系統快取（與 ClearCache 語義相同，Go 版模板快取全在內存）
+func (ic *IndexController) ClearOnlySysCache(c *gin.Context) {
+	basic.ClearTemplateCache()
+	ic.JSONOK(c, common.NoticeSystemCacheCleaned)
+}
+
+// ClearSession 清理所有會話（排除當前管理員）
+func (ic *IndexController) ClearSession(c *gin.Context) {
+	count := common.ClearAllSessions(c)
+	ic.JSONOK(c, common.NoticeSessionCleaned(count))
 }
 
 func (ic *IndexController) Area(c *gin.Context) {
-	code := c.PostForm("code")
+	code := c.PostForm("acode")
+
+	// 權限驗證：檢查用戶是否有權切換到此區域
+	// 對齊 PHP: IndexController::area() 中 in_array($acode, session('acodes'))
+	userAcodes := common.GetSessionString(c, "user_acodes")
+	if userAcodes != "" {
+		allowed := false
+		for _, a := range strings.Split(userAcodes, ",") {
+			if strings.TrimSpace(a) == code {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			c.JSON(403, gin.H{"code": 0, "data": "", "msg": "無權限切換到此區域", "tourl": ""})
+			return
+		}
+	}
+
 	common.SetSession(c, "area_code", code)
-	ic.JSONOKMsg(c, common.NoticeSwitch)
+	common.SetSession(c, "acode", code)
+	c.JSON(200, gin.H{"code": 1, "data": common.NoticeSwitch, "msg": common.NoticeSwitch, "tourl": "/admin/Index/home"})
 }
 
 func (ic *IndexController) CheckCode(c *gin.Context) {
@@ -312,14 +372,39 @@ func (ic *IndexController) CheckCode(c *gin.Context) {
 }
 
 func (ic *IndexController) log(c *gin.Context, msg string) {
+	// 嘗試從 session 取用戶名；登錄時 session 剛寫入可能讀不到，降級用表單值
 	username, _ := common.GetSession(c, "admin_username").(string)
+	if username == "" {
+		username = c.PostForm("username")
+	}
+	if username == "" {
+		username = "unknown"
+	}
+
+	ua := c.Request.UserAgent()
+	chPlatformVer := c.GetHeader("Sec-CH-UA-Platform-Version")
+	osName, browser := common.ParseUserAgent(ua, chPlatformVer)
+	now := time.Now()
+
 	entry := model.Syslog{
+		// 原始 PbootCMS NOT NULL 欄位
+		Level:      "admin",
+		Event:      msg,
+		UserIP:     c.ClientIP(),
+		UserOS:     osName,
+		UserBs:     browser,
+		CreateUser: username,
+		CreateTime: now.Format("2006-01-02 15:04:05"),
+		// GORM 擴展欄位（模板顯示用）
 		Username: username,
+		URL:      c.Request.URL.Path,
 		Content:  msg,
 		IP:       c.ClientIP(),
-		URL:      c.Request.URL.Path,
+		LogTime:  now,
 	}
-	model.DB.Create(&entry)
+	if err := model.DB.Create(&entry).Error; err != nil {
+		slog.Error("[Syslog] 寫入失敗", "err", err, "msg", msg)
+	}
 }
 
 func (ic *IndexController) getCookie(c *gin.Context, name string) string {
@@ -336,7 +421,7 @@ func (ic *IndexController) setCookie(c *gin.Context, name, value string, maxAge 
 		Value:    value,
 		Path:     "/",
 		MaxAge:   maxAge,
-		HttpOnly: false,
+		HttpOnly: true,
 		Secure:   false,
 	})
 }
@@ -347,12 +432,10 @@ func (ic *IndexController) generateSessionID() string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-const (
-	LoginLockTime   = 900
-	LoginLockCount  = 5
-)
-
 func (ic *IndexController) checkLoginBlack(c *gin.Context) int {
+	lockCount, _ := strconv.Atoi(model.GetConfigValue("lock_count", "5"))
+	lockTime, _ := strconv.Atoi(model.GetConfigValue("lock_time", "900"))
+
 	blackFile := filepath.Join("runtime", "data", fmt.Sprintf("%x.php", md5.Sum([]byte("login_black"))))
 	if _, err := os.Stat(blackFile); os.IsNotExist(err) {
 		return 0
@@ -394,9 +477,9 @@ func (ic *IndexController) checkLoginBlack(c *gin.Context) int {
 			}
 		}
 
-		if count >= LoginLockCount {
+		if count >= int64(lockCount) {
 			elapsed := time.Now().Unix() - timestamp
-			remain := LoginLockTime - int(elapsed)
+			remain := lockTime - int(elapsed)
 			if remain > 0 {
 				return remain
 			}
@@ -406,6 +489,9 @@ func (ic *IndexController) checkLoginBlack(c *gin.Context) int {
 }
 
 func (ic *IndexController) setLoginBlack(c *gin.Context) {
+	lockCount, _ := strconv.Atoi(model.GetConfigValue("lock_count", "5"))
+	lockTime, _ := strconv.Atoi(model.GetConfigValue("lock_time", "900"))
+
 	blackFile := filepath.Join("runtime", "data", fmt.Sprintf("%x.php", md5.Sum([]byte("login_black"))))
 	os.MkdirAll(filepath.Dir(blackFile), 0755)
 
@@ -447,7 +533,7 @@ func (ic *IndexController) setLoginBlack(c *gin.Context) {
 	}
 
 	if entry, ok := existingData[userIP]; ok {
-		if entry["count"] < LoginLockCount && now-entry["time"] < LoginLockTime {
+		if entry["count"] < int64(lockCount) && now-entry["time"] < int64(lockTime) {
 			entry["count"]++
 			entry["time"] = now
 		} else {
@@ -545,11 +631,16 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-func buildModelMsg(models []model.ContentModel) []interface{} {
+func buildModelMsg(c *gin.Context, models []model.ContentModel) []interface{} {
 	var result []interface{}
+	acode := acodeplugin.GetAcode(c.Request.Context())
 	for _, m := range models {
 		var count int64
-		model.DB.Model(&model.Content{}).Where("scode IN (SELECT scode FROM ay_content_sort WHERE type = ?)", m.Type).Count(&count)
+		// 對齊 PHP: getModelCount() — JOIN ay_content_sort ON scode，WHERE mcode = ?
+		// Raw SQL 繞過 AcodePlugin，需手動加 acode 條件（content 和 content_sort 都要過濾）
+		model.DB.WithContext(c.Request.Context()).
+			Raw("SELECT COUNT(*) FROM ay_content a LEFT JOIN ay_content_sort b ON a.scode = b.scode AND b.acode = a.acode WHERE b.mcode = ? AND a.acode = ?", m.Mcode, acode).
+			Scan(&count)
 		result = append(result, gin.H{
 			"Mcode": m.Mcode,
 			"Name":  m.Name,
@@ -560,65 +651,89 @@ func buildModelMsg(models []model.ContentModel) []interface{} {
 	return result
 }
 
-func buildModelCounts() gin.H {
+func buildModelCounts(c *gin.Context) gin.H {
 	var total int64
-	model.DB.Model(&model.Content{}).Count(&total)
+	model.DB.WithContext(c.Request.Context()).Model(&model.Content{}).Count(&total)
 	return gin.H{
 		"Content": total,
 	}
 }
 
-// Upload - File upload endpoint for layui upload component
+// Upload - 檔案上傳端點（供 layui 上傳元件使用）
 func (ic *IndexController) Upload(c *gin.Context) {
 	file, err := c.FormFile("upload")
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "未接收到上传文件"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "未接收到上傳檔案"})
 		return
 	}
 
-	// Validate file extension
+	// 驗證副檔名（從資料庫配置 home_upload_ext 讀取允許的副檔名清單）
 	ext := strings.ToLower(filepath.Ext(file.Filename))
-	allowedExts := map[string]bool{
-		".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
-		".bmp": true, ".webp": true, ".avif": true, ".ico": true,
-		".doc": true, ".docx": true, ".pdf": true,
-		".xls": true, ".xlsx": true, ".ppt": true, ".pptx": true,
-		".rar": true, ".zip": true, ".7z": true,
-		".mp3": true, ".mp4": true, ".avi": true, ".flv": true,
-		".txt": true, ".csv": true,
+	allowedExtStr := model.GetConfigValue("home_upload_ext", "jpg,jpeg,png,gif,bmp,webp,avif,ico,doc,docx,pdf,xls,xlsx,ppt,pptx,rar,zip,7z,mp3,mp4,avi,flv,txt,csv")
+	allowedExts := make(map[string]bool)
+	for _, e := range strings.Split(allowedExtStr, ",") {
+		e = strings.TrimSpace(strings.ToLower(e))
+		if e == "" {
+			continue
+		}
+		if !strings.HasPrefix(e, ".") {
+			e = "." + e
+		}
+		allowedExts[e] = true
 	}
 	if !allowedExts[ext] {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "不支持的文件类型：" + ext})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "不支援的檔案類型：" + ext})
 		return
 	}
 
-	// Validate file size (50MB)
-	if file.Size > 50*1024*1024 {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "文件大小超过50MB限制"})
+	// 驗證檔案大小（從資料庫配置 upload_max_size 讀取，單位 MB，預設 50MB）
+	maxSizeMB, err := strconv.Atoi(model.GetConfigValue("upload_max_size", "50"))
+	if err != nil || maxSizeMB <= 0 {
+		maxSizeMB = 50
+	}
+	if file.Size > int64(maxSizeMB)*1024*1024 {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": fmt.Sprintf("檔案大小超過%dMB限制", maxSizeMB)})
 		return
 	}
 
-	// Create upload directory: static/upload/YYYYMM/
+	// 建立上傳目錄：static/upload/YYYYMM/
 	dateDir := time.Now().Format("200601")
 	uploadDir := filepath.Join("static", "upload", dateDir)
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "创建上传目录失败"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "建立上傳目錄失敗"})
 		return
 	}
 
-	// Generate unique filename
+	// 產生唯一檔名
 	ts := time.Now().Format("20060102150405")
 	randStr := fmt.Sprintf("%04d", rand.Intn(10000))
 	newFilename := ts + "_" + randStr + ext
 	savePath := filepath.Join(uploadDir, newFilename)
 
-	// Save file
+	// 儲存檔案
 	if err := c.SaveUploadedFile(file, savePath); err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "文件保存失败：" + err.Error()})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "檔案儲存失敗：" + err.Error()})
 		return
 	}
 
-	// Return path relative to project root (layui expects this format)
+	// 對圖片應用水印（對齊 PHP watermark_img，僅圖片格式且水印開啟時生效）
+	if isImageExt(ext) {
+		if err := watermark.ApplyWatermark(savePath); err != nil {
+			// 水印失敗不影響上傳，僅記錄日誌
+			slog.Warn("水印處理失敗", "err", err)
+		}
+	}
+
+	// 回傳相對於專案根目錄的路徑（layui 期望此格式）
 	relPath := filepath.ToSlash(savePath)
 	c.JSON(http.StatusOK, gin.H{"code": 1, "data": []string{relPath}})
+}
+
+// isImageExt 判斷是否為圖片副檔名
+func isImageExt(ext string) bool {
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".gif", ".bmp":
+		return true
+	}
+	return false
 }

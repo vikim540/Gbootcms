@@ -1,9 +1,12 @@
 package member
 
 import (
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	memberModel "gbootcms/apps/admin/model/member"
+	"gbootcms/apps/common"
+	"gbootcms/config"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -18,16 +21,26 @@ type MemberFieldController struct {
 
 // Index - 會員欄位列表（含新增Tab）
 func (mf *MemberFieldController) Index(c *gin.Context) {
+	// 分頁處理
+	page, pageSize, offset := mf.Paginate(c)
+	baseURL := "/admin/member/field/index"
+
+	// 統計總記錄數
+	var total int64
+	model.DB.Model(&model.MemberField{}).Count(&total)
+
 	var fields []model.MemberField
-	model.DB.Order("sorting ASC, id ASC").Find(&fields)
+	model.DB.Order("sorting ASC, id ASC").Offset(offset).Limit(pageSize).Find(&fields)
 	common.Render(c, "member/field.html", gin.H{
-		"list":   true,
-		"fields": fields,
-		"C":      "member/field",
+		"list":     true,
+		"fields":   fields,
+		"C":        "member/field",
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
 	})
 }
 
-// Add - 新增會員欄位
+// Add - 新增會員欄位（對齊 PHP MemberFieldController::add()）
 func (mf *MemberFieldController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		name := c.PostForm("name")
@@ -37,6 +50,14 @@ func (mf *MemberFieldController) Add(c *gin.Context) {
 			mf.JSONFail(c, "欄位名稱不能為空")
 			return
 		}
+
+		// 欄位名稱必須以字母開頭（對齊 PHP: preg_match('/^[a-zA-Z][\w]+$/', $name)）
+		matched, _ := regexp.MatchString(`^[a-zA-Z][\w]+$`, name)
+		if !matched {
+			mf.JSONFail(c, "欄位名稱必須以字母開頭，且只能包含字母、數字、下劃線")
+			return
+		}
+
 		if description == "" {
 			mf.JSONFail(c, "欄位描述不能為空")
 			return
@@ -46,6 +67,18 @@ func (mf *MemberFieldController) Add(c *gin.Context) {
 		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
 		length, _ := strconv.Atoi(c.DefaultPostForm("length", "20"))
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
+
+		// 欄位不存在時創建物理列（對齊 PHP: isExistField → ALTER TABLE）
+		if !memberModel.ColumnExistsInMember(name) {
+			if err := memberModel.AddColumnToMember(name, length); err != nil {
+				mf.JSONFail(c, "創建欄位失敗："+err.Error())
+				return
+			}
+		} else if memberModel.IsFieldRegistered(name) {
+			// 欄位存在且已登記則報錯（對齊 PHP: checkField）
+			mf.JSONFail(c, "欄位已經存在，不能重複添加")
+			return
+		}
 
 		now := time.Now()
 		username := mf.GetAdminUsername(c)
@@ -120,7 +153,7 @@ func (mf *MemberFieldController) Mod(c *gin.Context) {
 	})
 }
 
-// Del - 刪除會員欄位
+// Del - 刪除會員欄位（對齊 PHP MemberFieldController::del()）
 func (mf *MemberFieldController) Del(c *gin.Context) {
 	// 支援 *action 通配符路徑: /del/id/123
 	params := helper.ParseWildcardAction(c.Param("action"))
@@ -135,6 +168,19 @@ func (mf *MemberFieldController) Del(c *gin.Context) {
 		mf.JSONFail(c, "缺少刪除目標ID")
 		return
 	}
+
+	// 取得欄位名稱（刪除前查詢，用於 DROP COLUMN）
+	fieldName := memberModel.GetFieldNameByID(idStr)
+
 	model.DB.Delete(&model.MemberField{}, idStr)
+
+	// MySQL 執行欄位刪除，SQLite 暫不支援（對齊 PHP: get_db_type() == 'mysql'）
+	if fieldName != "" {
+		cfg := config.Get()
+		if cfg.Database.Type == "mysql" {
+			memberModel.DropColumnFromMember(fieldName)
+		}
+	}
+
 	mf.JSONOKMsg(c, common.NoticeDelete)
 }

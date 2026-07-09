@@ -6,13 +6,13 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/admin/model/content"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/apps/common"
 	"sort"
 	"strconv"
 	"strings"
@@ -196,7 +196,7 @@ func validateFileRefs() {
 			}
 			var actualCols []colInfo
 			if err := model.DB.Raw(fmt.Sprintf("PRAGMA table_info(`%s`)", tableName)).Scan(&actualCols).Error; err != nil {
-				log.Printf("[WARN] MediaController: 無法查詢 %s: %v", tableName, err)
+				slog.Warn("[MediaController] 無法查詢", "table", tableName, "err", err)
 				continue
 			}
 			actualSet := make(map[string]bool, len(actualCols))
@@ -205,7 +205,7 @@ func validateFileRefs() {
 			}
 			for _, c := range cols {
 				if !actualSet[c.column] {
-					log.Printf("[WARN] MediaController: 檔案引用欄位 %s.%s（%s）在數據庫中不存在", tableName, c.column, c.label)
+					slog.Warn("[MediaController] 檔案引用欄位在數據庫中不存在", "table", tableName, "column", c.column, "label", c.label)
 				}
 			}
 		}
@@ -253,17 +253,9 @@ func (c *MediaController) Index(ctx *gin.Context) {
 
 // List 分頁 JSON API（支持篩選 + 搜索）
 func (c *MediaController) List(ctx *gin.Context) {
-	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(ctx.DefaultQuery("pagesize", "40"))
+	page, pageSize, offset := c.Paginate(ctx)
 	filter := ctx.DefaultQuery("filter", "all")
 	search := strings.ToLower(ctx.DefaultQuery("search", ""))
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 200 {
-		pageSize = 40
-	}
 
 	cache := ensureCache()
 	if cache == nil {
@@ -328,7 +320,6 @@ func (c *MediaController) List(ctx *gin.Context) {
 	if totalPages < 1 {
 		totalPages = 1
 	}
-	offset := (page - 1) * pageSize
 	if offset > total {
 		offset = total
 	}
@@ -470,15 +461,20 @@ func (c *MediaController) BackupList(ctx *gin.Context) {
 }
 
 // Restore 從回收站還原文件
+//
+// 路徑約定（與 Clean/BackupList 保持一致）：
+//   - backupDir = static/backup/media/
+//   - 備份時保留 static/ 下的相對結構，所以 backup 中的路徑形如 upload/202606/xxx.jpg
+//   - 還原時直接拼回 static/ 即可：static/upload/202606/xxx.jpg
 func (c *MediaController) Restore(ctx *gin.Context) {
-	path := ctx.PostForm("path")
-	if path == "" {
+	relPath := ctx.PostForm("path")
+	if relPath == "" {
 		ctx.JSON(http.StatusOK, gin.H{"code": 0, "msg": "缺少文件路徑"})
 		return
 	}
 
 	backupDir := filepath.Join("static", "backup", "media")
-	srcPath := filepath.Join(backupDir, filepath.FromSlash(path))
+	srcPath := filepath.Join(backupDir, filepath.FromSlash(relPath))
 
 	// 防止路徑穿越
 	if !strings.HasPrefix(filepath.Clean(srcPath), filepath.Clean(backupDir)) {
@@ -491,8 +487,8 @@ func (c *MediaController) Restore(ctx *gin.Context) {
 		return
 	}
 
-	// 還原到 static/upload/ 下的原始位置
-	dstPath := filepath.Join("static", "upload", filepath.FromSlash(path))
+	// 還原到原始位置：relPath 已含 upload/ 前綴，直接拼 static/
+	dstPath := filepath.Join("static", filepath.FromSlash(relPath))
 	os.MkdirAll(filepath.Dir(dstPath), 0755)
 
 	if err := os.Rename(srcPath, dstPath); err != nil {
@@ -599,17 +595,7 @@ func (c *MediaController) Detail(ctx *gin.Context) {
 	}
 
 	// MIME 類型
-	ext := strings.ToLower(filepath.Ext(info.Name()))
-	mimeMap := map[string]string{
-		".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
-		".gif": "image/gif", ".bmp": "image/bmp", ".webp": "image/webp",
-		".avif": "image/avif", ".svg": "image/svg+xml", ".ico": "image/x-icon",
-		".doc": "application/msword", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-		".xls": "application/vnd.ms-excel", ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-		".pdf": "application/pdf", ".txt": "text/plain", ".csv": "text/csv",
-		".mp4": "video/mp4", ".avi": "video/x-msvideo", ".webm": "video/webm",
-	}
-	if mt, ok := mimeMap[ext]; ok {
+	if mt := getMime(info.Name()); mt != "" {
 		result["mime"] = mt
 	}
 
@@ -623,50 +609,20 @@ func (c *MediaController) Detail(ctx *gin.Context) {
 
 // getImageDimension 讀取圖片寬高
 func getImageDimension(path string) (int, int) {
+	ext := strings.ToLower(filepath.Ext(path))
+	if fileTypes[ext].category != "image" {
+		return 0, 0
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return 0, 0
 	}
 	defer f.Close()
-
-	ext := strings.ToLower(filepath.Ext(path))
-	switch ext {
-	case ".jpg", ".jpeg":
-		cfg, _, err := image.DecodeConfig(f)
-		if err != nil {
-			return 0, 0
-		}
-		return cfg.Width, cfg.Height
-	case ".png":
-		f.Seek(0, 0)
-		cfg, _, err := image.DecodeConfig(f)
-		if err != nil {
-			return 0, 0
-		}
-		return cfg.Width, cfg.Height
-	case ".gif":
-		f.Seek(0, 0)
-		cfg, _, err := image.DecodeConfig(f)
-		if err != nil {
-			return 0, 0
-		}
-		return cfg.Width, cfg.Height
-	case ".bmp":
-		f.Seek(0, 0)
-		cfg, _, err := image.DecodeConfig(f)
-		if err != nil {
-			return 0, 0
-		}
-		return cfg.Width, cfg.Height
-	case ".webp":
-		f.Seek(0, 0)
-		cfg, _, err := image.DecodeConfig(f)
-		if err != nil {
-			return 0, 0
-		}
-		return cfg.Width, cfg.Height
+	cfg, _, err := image.DecodeConfig(f)
+	if err != nil {
+		return 0, 0
 	}
-	return 0, 0
+	return cfg.Width, cfg.Height
 }
 
 // findUsages 查找文件在數據庫中的使用位置
@@ -881,18 +837,52 @@ func addPaths(set map[string]bool, val string) {
 	set["/"+np] = true
 }
 
+// fileTypes 是副檔名 → 分類 + MIME 的單一數據源。
+// getCategory / getMime / getImageDimension 均從此查詢，改一處即全局生效。
+type fileTypeInfo struct {
+	category string
+	mime     string
+}
+
+var fileTypes = map[string]fileTypeInfo{
+	".jpg":  {"image", "image/jpeg"},
+	".jpeg": {"image", "image/jpeg"},
+	".png":  {"image", "image/png"},
+	".gif":  {"image", "image/gif"},
+	".bmp":  {"image", "image/bmp"},
+	".webp": {"image", "image/webp"},
+	".avif": {"image", "image/avif"},
+	".svg":  {"image", "image/svg+xml"},
+	".ico":  {"image", "image/x-icon"},
+	".doc":  {"document", "application/msword"},
+	".docx": {"document", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+	".xls":  {"document", "application/vnd.ms-excel"},
+	".xlsx": {"document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+	".pdf":  {"document", "application/pdf"},
+	".txt":  {"document", "text/plain"},
+	".csv":  {"document", "text/csv"},
+	".mp4":  {"video", "video/mp4"},
+	".avi":  {"video", "video/x-msvideo"},
+	".mov":  {"video", "video/quicktime"},
+	".wmv":  {"video", "video/x-ms-wmv"},
+	".flv":  {"video", "video/x-flv"},
+	".webm": {"video", "video/webm"},
+}
+
 func getCategory(name string) string {
 	ext := strings.ToLower(filepath.Ext(name))
-	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".avif", ".svg", ".ico":
-		return "image"
-	case ".doc", ".docx", ".xls", ".xlsx", ".pdf", ".txt", ".csv":
-		return "document"
-	case ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm":
-		return "video"
-	default:
-		return "other"
+	if info, ok := fileTypes[ext]; ok {
+		return info.category
 	}
+	return "other"
+}
+
+func getMime(name string) string {
+	ext := strings.ToLower(filepath.Ext(name))
+	if info, ok := fileTypes[ext]; ok {
+		return info.mime
+	}
+	return ""
 }
 
 func formatSize(bytes int64) string {

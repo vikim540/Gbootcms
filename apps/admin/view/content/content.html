@@ -146,17 +146,21 @@
 	                    {/if}
 	                    
 	                    {if(check_level('del'))}
-				     		<button type="submit" name="submit" onclick="return setDelAction();" class="layui-btn layui-btn-sm">批量刪除</button>
+				     		<button type="submit" name="submit" value="del" onclick="return setDelAction();" class="layui-btn layui-btn-sm">批量刪除</button>
 				     	{/if}
 				     	
 				     	{if(check_level('mod'))}
-				     		<button type="submit" lay-submit name="submit" value="sorting" class="layui-btn layui-btn-sm">保存排序</button>
+				     		<button type="submit" name="submit" value="sorting" class="layui-btn layui-btn-sm">保存排序</button>
 					     	{if([$baidu_zz_token])}
-					     		<button type="submit" lay-submit name="submit" value="baiduzz" class="layui-btn layui-btn-sm">百度普通推送</button>
+					     		<button type="submit" name="submit" value="baiduzz" class="layui-btn layui-btn-sm">百度普通推送</button>
 					     	{/if}
 					     	{if([$baidu_ks_token])}
-					     		<button type="submit" lay-submit name="submit" value="baiduks" class="layui-btn layui-btn-sm">百度快速推送</button>
+					     		<button type="submit" name="submit" value="baiduks" class="layui-btn layui-btn-sm">百度快速推送</button>
 					     	{/if}
+					     	{if([$bing_indexnow_key])}
+					     		<button type="submit" name="submit" value="bingpush" class="layui-btn layui-btn-sm">Bing推送</button>
+					     	{/if}
+					     	<button type="submit" name="submit" value="googlepush" class="layui-btn layui-btn-sm">Google推送</button>
 				     	 {/if}
 			     	 </div>
 			     	<script>
@@ -195,9 +199,9 @@
 			                </div>
 			                
 			                <div class="layui-form-item">
-			                     <label class="layui-form-label">内容标题   <span class="layui-text-red">*</span></label>
+			                     <label class="layui-form-label">內容標題   <span class="layui-text-red">*</span></label>
 			                     <div class="layui-input-block">
-			                     	<input type="text" name="title" required lay-verify="required" placeholder="请输入内容标题" class="layui-input">
+			                     	<input type="text" name="title" required lay-verify="required" placeholder="請輸入內容標題" class="layui-input">
 			                     </div>
 			                </div>
 			                
@@ -213,7 +217,7 @@
 			                <div class="layui-form-item">
 			                     <label class="layui-form-label">tags</label>
 			                     <div class="layui-input-block">
-			                     	<input type="text" name="tags" placeholder="请输入文章tag，英文逗号隔开" class="layui-input">
+			                     	<input type="text" name="tags" placeholder="請輸入文章tag，英文逗號隔開" class="layui-input">
 			                     </div>
 			                </div>
 			                
@@ -401,16 +405,16 @@
 	  			<input type="hidden" name="mcode" value="{$mcode}" >
 	  			<div class="layui-tab">
 					  <ul class="layui-tab-title">
-					    <li class="layui-this">基本内容</li>
-					    <li>高级内容</li>
+					    <li class="layui-this">基本內容</li>
+					    <li>高級內容</li>
 					  </ul>
 					  <div class="layui-tab-content">
 					    <div class="layui-tab-item layui-show">
 					    	<div class="layui-form-item">
-			                     <label class="layui-form-label">内容栏目   <span class="layui-text-red">*</span></label>
+			                     <label class="layui-form-label">內容欄目   <span class="layui-text-red">*</span></label>
 			                     <div class="layui-input-block">
 			                     	<select name="scode" lay-verify="required">
-				                        <option value="">请选择内容栏目</option>
+				                        <option value="">請選擇內容欄目</option>
 			                        	{$sort_select}
 				                    </select>
 			                     </div>
@@ -528,77 +532,77 @@
 			                </div>
 			                
 					   		 <div class="layui-form-item">
-			                     <label class="layui-form-label">标题颜色</label>
+			                     <label class="layui-form-label">標題顏色</label>
 			                     <div class="layui-input-inline">
-			                     	<input type="text" name="titlecolor" value="{$content->titlecolor}" placeholder="请选择标题颜色"  class="layui-input jscolor {hash:true}">
+			                     	<input type="text" name="titlecolor" value="{$content->titlecolor}" placeholder="請選擇標題顏色"  class="layui-input jscolor {hash:true}">
 			                     </div>
 			                 </div>
 			                 
 			                 <div class="layui-form-item">
-			                     <label class="layui-form-label">副标题</label>
+			                     <label class="layui-form-label">副標題</label>
 			                     <div class="layui-input-block">
-			                     	<input type="text" name="subtitle" value="{$content->subtitle}" placeholder="请输入副标题" class="layui-input">
+			                     	<input type="text" name="subtitle" value="{$content->subtitle}" placeholder="請輸入副標題" class="layui-input">
 			                     </div>
 			                 </div>
 			                 
 			                 <div class="layui-form-item">
-			                     <label class="layui-form-label">URL名称</label>
+			                     <label class="layui-form-label">URL名稱</label>
 			                     <div class="layui-input-block">
-			                     	<input type="text" name="filename" value="{$content->filename}" placeholder="请输入URL名称，如:test，test/a/b" class="layui-input">
+			                     	<input type="text" name="filename" value="{$content->filename}" placeholder="請輸入URL名稱，如:test，test/a/b" class="layui-input">
 			                     </div>
 			                 </div>
 			                 
 			                  <div class="layui-form-item">
-			                     <label class="layui-form-label">跳转外链接</label>
+			                     <label class="layui-form-label">跳轉外鏈接</label>
 			                     <div class="layui-input-block">
-			                     	<input type="text" name="outlink" value="{$content->outlink}" placeholder="请输入跳转外链接" class="layui-input">
+			                     	<input type="text" name="outlink" value="{$content->outlink}" placeholder="請輸入跳轉外鏈接" class="layui-input">
 			                     </div>
 			                 </div>
 			                 
 			                <div class="layui-form-item">
-			                     <label class="layui-form-label">权限不足提示</label>
+			                     <label class="layui-form-label">權限不足提示</label>
 			                     <div class="layui-input-block">
-			                     	<input type="text" name="gnote" value="{$content->gnote}"  placeholder="请输入权限不足时提示文本"  class="layui-input">
+			                     	<input type="text" name="gnote" value="{$content->gnote}"  placeholder="請輸入權限不足時提示文本"  class="layui-input">
 			                     </div>
 			                </div>
 			                 
 			                 <div class="layui-form-item">
-			                     <label class="layui-form-label">发布时间</label>
+			                     <label class="layui-form-label">發佈時間</label>
 			                     <div class="layui-input-inline">
-			                     	<input type="text" name="date" value="{$dateStr}" readonly placeholder="请选择发布时间"  class="layui-input datetime">
+			                     	<input type="text" name="date" value="{$dateStr}" readonly placeholder="請選擇發佈時間"  class="layui-input datetime">
 			                     </div>
-			                     <div class="layui-form-mid layui-word-aux">温馨提示：设置未来时间可定时发布！</div>
+			                     <div class="layui-form-mid layui-word-aux">溫馨提示：設置未來時間可定時發佈！</div>
 			                </div>
 			                
 			                <div class="layui-form-item">
 		                		<label class="layui-form-label">附件</label>
 		                		<div class="layui-input-inline">
-			                     	<input type="text" name="enclosure" id="enclosure" value="{$content->enclosure}" placeholder="请上传附件"  class="layui-input">
+			                     	<input type="text" name="enclosure" id="enclosure" value="{$content->enclosure}" placeholder="請上傳附件"  class="layui-input">
 			                     </div>
 			                     <button type="button" class="layui-btn file" data-des="enclosure">
-								 	 <i class="layui-icon">&#xe67c;</i>上传附件
+								 	 <i class="layui-icon">&#xe67c;</i>上傳附件
 								 </button>
 			                </div>
 			                
 			                <div class="layui-form-item">
-			                     <label class="layui-form-label">SEO关键字</label>
+			                     <label class="layui-form-label">SEO關鍵字</label>
 			                     <div class="layui-input-block">
-			                     	<input type="text" name="keywords" value="{$content->keywords}"  placeholder="请输入详情页SEO关键字" class="layui-input">
+			                     	<input type="text" name="keywords" value="{$content->keywords}"  placeholder="請輸入詳情頁SEO關鍵字" class="layui-input">
 			                     </div>
 			                </div>
 			                
 			                <div class="layui-form-item">
 			                     <label class="layui-form-label">SEO描述</label>
 			                     <div class="layui-input-block">
-			                     	<textarea name="description" placeholder="请输入详情页SEO描述" class="layui-textarea">{$content->description}</textarea>
+			                     	<textarea name="description" placeholder="請輸入詳情頁SEO描述" class="layui-textarea">{$content->description}</textarea>
 			                     </div>
 			                </div>
 			                
 			                <div class="layui-form-item">
-			                     <label class="layui-form-label">状态</label>
+			                     <label class="layui-form-label">狀態</label>
 			                     <div class="layui-input-block">
-			                     	<input type="radio" name="status" value="1" title="显示" {if([$content->status]==1)} checked="checked"{/if}>
-									<input type="radio" name="status" value="0" title="隐藏" {if([$content->status]==0)} checked="checked"{/if}>
+			                     	<input type="radio" name="status" value="1" title="顯示" {if([$content->status]==1)} checked="checked"{/if}>
+									<input type="radio" name="status" value="0" title="隱藏" {if([$content->status]==0)} checked="checked"{/if}>
 			                     </div>
 			                </div>
 					    </div>

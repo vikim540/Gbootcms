@@ -3,7 +3,7 @@
 <div class="layui-body">
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 		  <ul class="layui-tab-title">
-		    <li class="layui-this" lay-id="t1">数据库管理</li>
+		    <li class="layui-this" lay-id="t1">數據庫管理</li>
 		  </ul>
 		  <div class="layui-tab-content">
 		  	   <div class="layui-tab-item layui-show">
@@ -13,16 +13,16 @@
 				  	   	<table class="layui-table">
 				  	   		<thead>
 		                        <tr>
-		                            <th>选择</th>
-		                            <th>表名称</th>
+		                            <th>選擇</th>
+		                            <th>表名稱</th>
 		                            <th>表引擎</th>
-		                            <th>编码</th>
+		                            <th>編碼</th>
 		                            <th>版本</th>
-		                            <th>行数</th>
-		                            <th>表创建时间</th>
-		                            <th>最后更新时间</th>
+		                            <th>行數</th>
+		                            <th>表創建時間</th>
+		                            <th>最後更新時間</th>
 		                            <th>大小</th>
-		                            <th>多余</th>
+		                            <th>多餘</th>
 		                            
 		                        </tr>
 		                    </thead>
@@ -57,29 +57,29 @@
 		                        </tr>
 		                    {/foreach}
 		                        <tr>
-		                            <td><input type="checkbox" class="checkbox" id="checkall" title="全选"></td>
-		                            <td>[num] 张表</td>
+		                            <td><input type="checkbox" class="checkbox" id="checkall" title="全選"></td>
+		                            <td>[num] 張表</td>
 		                            <td></td>
 		                            <td></td>
 		                            <td></td>
 		                            <td></td>
 		                            <td></td>
-		                            <td>总计：</td>
+		                            <td>總計：</td>
 		                            <td>{php}echo $sum1{/php} KB</td>
 		                            <td>{php}echo $sum2?:0{/php} KB</td>
 		                        </tr>
 		                    </tbody>
 				  	   	</table>
 				  	   	 {if([fun=check_level('mod')])}
-			                <button class="layui-btn" lay-submit type="submit" name="submit" value="yh">优化</button>
-			                <button class="layui-btn" lay-submit type="submit" name="submit" value="xf">修复</button>
-			                <button class="layui-btn" lay-submit type="submit" name="submit" value="bf">备份表</button>
-			                <button class="layui-btn" lay-submit type="submit" name="submit" value="bfdb">备份数据库</button>
+			                <button class="layui-btn" lay-submit type="submit" name="submit" value="yh">優化</button>
+			                <button class="layui-btn" lay-submit type="submit" name="submit" value="xf">修復</button>
+			                <button class="layui-btn" lay-submit type="submit" name="submit" value="bf">備份表</button>
+			                <button class="layui-btn" lay-submit type="submit" name="submit" value="bfdb">備份數據庫</button>
 			            {/if}
 			  	   	{/if}
 			  	   	{if([$db]=='sqlite')}
-		            	<button class="layui-btn" lay-submit type="submit" name="submit" value="bfsqlite" >备份</button>
-		            	<p class="layui-text">注意：Sqlite数据库只支持直接备份。</p>
+		            	<button class="layui-btn" lay-submit type="submit" name="submit" value="bfsqlite" >備份</button>
+		            	<p class="layui-text">注意：Sqlite數據庫只支持直接備份。</p>
 		            {/if}
 			  	   	</form>
 			  	</div>

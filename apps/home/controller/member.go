@@ -2,16 +2,23 @@ package controller
 
 import (
 	"crypto/md5"
+	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
-	"pbootcms-go/apps/common/parser"
+	"os"
+	"path/filepath"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
+	"gbootcms/apps/common/mail"
+	"gbootcms/apps/common/parser"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // doubleMD5 雙重 MD5 加密，與 PbootCMS 用戶數據兼容
@@ -20,10 +27,107 @@ func doubleMD5(s string) string {
 	return fmt.Sprintf("%x", md5.Sum([]byte(first)))
 }
 
+// ─── 會員登錄鎖定（對齊後台 checkLoginBlack/setLoginBlack 邏輯，用 JSON 存儲） ───
+
+func memberBlackFile() string {
+	return filepath.Join("runtime", "data", "member_login_black.json")
+}
+
+// checkMemberLoginBlack 檢查會員登錄是否被鎖定，返回剩餘秒數（0=未鎖定）
+func checkMemberLoginBlack(c *gin.Context) int {
+	lockCount, _ := strconv.Atoi(model.GetConfigValue("login_error_count", "5"))
+	lockTime, _ := strconv.Atoi(model.GetConfigValue("login_error_wait", "300"))
+
+	data, err := os.ReadFile(memberBlackFile())
+	if err != nil {
+		return 0
+	}
+
+	var blackList map[string]map[string]int64
+	if err := json.Unmarshal(data, &blackList); err != nil {
+		return 0
+	}
+
+	userIP := c.ClientIP()
+	if userIP == "::1" {
+		userIP = "127.0.0.1"
+	}
+
+	entry, ok := blackList[userIP]
+	if !ok {
+		return 0
+	}
+
+	if entry["count"] >= int64(lockCount) {
+		elapsed := time.Now().Unix() - entry["time"]
+		remain := lockTime - int(elapsed)
+		if remain > 0 {
+			return remain
+		}
+	}
+	return 0
+}
+
+// setMemberLoginBlack 累計會員登錄失敗次數
+func setMemberLoginBlack(c *gin.Context) {
+	lockCount, _ := strconv.Atoi(model.GetConfigValue("login_error_count", "5"))
+	lockTime, _ := strconv.Atoi(model.GetConfigValue("login_error_wait", "300"))
+
+	os.MkdirAll(filepath.Dir(memberBlackFile()), 0755)
+
+	blackList := make(map[string]map[string]int64)
+	if data, err := os.ReadFile(memberBlackFile()); err == nil {
+		json.Unmarshal(data, &blackList)
+	}
+
+	userIP := c.ClientIP()
+	if userIP == "::1" {
+		userIP = "127.0.0.1"
+	}
+
+	now := time.Now().Unix()
+	if entry, ok := blackList[userIP]; ok {
+		if entry["count"] < int64(lockCount) && now-entry["time"] < int64(lockTime) {
+			entry["count"]++
+			entry["time"] = now
+			blackList[userIP] = entry
+		} else {
+			blackList[userIP] = map[string]int64{"time": now, "count": 1}
+		}
+	} else {
+		blackList[userIP] = map[string]int64{"time": now, "count": 1}
+	}
+
+	data, _ := json.Marshal(blackList)
+	os.WriteFile(memberBlackFile(), data, 0644)
+}
+
+// clearMemberLoginBlack 清除會員登錄鎖定記錄
+func clearMemberLoginBlack(c *gin.Context) {
+	userIP := c.ClientIP()
+	if userIP == "::1" {
+		userIP = "127.0.0.1"
+	}
+
+	blackList := make(map[string]map[string]int64)
+	if data, err := os.ReadFile(memberBlackFile()); err == nil {
+		json.Unmarshal(data, &blackList)
+	}
+
+	delete(blackList, userIP)
+
+	if len(blackList) == 0 {
+		os.Remove(memberBlackFile())
+	} else {
+		data, _ := json.Marshal(blackList)
+		os.WriteFile(memberBlackFile(), data, 0644)
+	}
+}
+
 // generateUcode 生成會員編碼（基於最後一條記錄自增）
-func generateUcode() string {
+func generateUcode(c *gin.Context) string {
 	var lastMember model.Member
-	model.DB.Order("id DESC").First(&lastMember)
+	model.DB.WithContext(c.Request.Context()).Order("id DESC").First(&lastMember)
 	if lastMember.ID == 0 {
 		return "10001"
 	}
@@ -32,6 +136,113 @@ func generateUcode() string {
 		return "10001"
 	}
 	return fmt.Sprintf("%d", n+1)
+}
+
+// Retrieve 會員找回密碼（對齊 PHP MemberController::retrieve()）
+func (fc *FrontController) Retrieve(c *gin.Context) {
+	if c.Request.Method == "POST" {
+		// 郵箱驗證碼檢查（對齊 PHP: $checkcode != session('checkcode')，此處 checkcode 為郵箱驗證碼）
+		checkcode := strings.ToLower(c.PostForm("checkcode"))
+		if checkcode == "" {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "驗證碼不能為空", "tourl": ""})
+			return
+		}
+		sessionCode, _ := common.GetSession(c, "email_checkcode").(string)
+		if sessionCode == "" || checkcode != strings.ToLower(sessionCode) {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "驗證碼錯誤", "tourl": ""})
+			return
+		}
+
+		username := c.PostForm("username")
+		email := c.PostForm("email")
+		password := c.PostForm("password")
+
+		if username == "" {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "用戶帳號不能為空", "tourl": ""})
+			return
+		}
+
+		// 查詢會員（對齊 PHP: $this->model->checkUsername(['username'=>$username])）
+		var member model.Member
+		if err := model.DB.WithContext(c.Request.Context()).Where("username = ?", username).First(&member).Error; err != nil {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "該用戶不存在", "tourl": ""})
+			return
+		}
+
+		// 檢查郵箱是否匹配（對齊 PHP: !empty($userInfo['useremail']) && $userInfo['useremail'] != $email）
+		if member.Useremail != "" && member.Useremail != email {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "與註冊郵箱不匹配，請聯繫管理員", "tourl": ""})
+			return
+		}
+
+		// 更新密碼及郵箱（對齊 PHP: updatePassword 更新 useremail + password，雙重 MD5）
+		updates := map[string]interface{}{
+			"password":  doubleMD5(password),
+			"useremail": email,
+		}
+		model.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates)
+
+		// 清除驗證碼
+		common.SetSession(c, "email_checkcode", "")
+
+		c.JSON(http.StatusOK, gin.H{"code": 1, "data": "密碼設置成功", "tourl": langPath(c, "/login")})
+		return
+	}
+
+	// GET：渲染找回密碼頁面
+	fc.renderMemberPage(c, "member/retrieve.html")
+}
+
+// SendMemberEmail 發送郵箱驗證碼（對齊 PHP MemberController::sendEmail()，找回密碼用）
+func (fc *FrontController) SendMemberEmail(c *gin.Context) {
+	email := c.PostForm("to")
+	retrieve := c.PostForm("retrieve")
+
+	// retrieve 存在時為找回密碼驗證，不進行驗證碼模式判斷（對齊 PHP）
+	if retrieve == "" {
+		if model.GetConfigValue("register_check_code", "0") != "2" {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "發送失敗，後台配置非郵箱驗證碼模式", "tourl": ""})
+			return
+		}
+	}
+
+	// 防頻繁發送（10秒間隔，對齊 PHP: time() - session('lastsend') < 10）
+	lastSend, _ := common.GetSession(c, "lastsend").(int64)
+	if time.Now().Unix()-lastSend < 10 {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "您提交太頻繁了，請稍後再試", "tourl": ""})
+		return
+	}
+
+	// 郵箱參數檢查（對齊 PHP: post('to')）
+	if email == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "發送失敗，缺少發送對象參數to", "tourl": ""})
+		return
+	}
+
+	// 郵箱格式驗證（對齊 PHP: preg_match('/^[\w]+@[\w]+\.[a-zA-Z]+$/', $to)）
+	matched, _ := regexp.MatchString(`^[\w]+@[\w]+\.[a-zA-Z]+$`, email)
+	if !matched {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "郵箱格式不正確，請輸入正確的郵箱帳號", "tourl": ""})
+		return
+	}
+
+	// 記錄最後提交時間
+	common.SetSession(c, "lastsend", time.Now().Unix())
+
+	// 生成 4 位隨機驗證碼（對齊 PHP: create_code(4)）
+	code := fmt.Sprintf("%04d", rand.Intn(10000))
+	common.SetSession(c, "email_checkcode", code)
+
+	// 發送郵件（對齊 PHP: $mail_subject / $mail_body）
+	subject := "【" + model.GetConfigValue("cmsname", "Gbootcms") + "】您有新的驗證碼信息，請注意查收！"
+	body := "您的驗證碼為：" + code + "<br>來自網站 " + c.Request.Host + " （" + time.Now().Format("2006-01-02 15:04:05") + "）"
+
+	if err := mail.SendMail(email, subject, body); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "發送失敗，" + err.Error(), "tourl": ""})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 1, "data": "發送成功", "tourl": ""})
 }
 
 // renderMemberPage 渲染會員頁面（與前台頁面使用相同的 parser 流程）
@@ -44,6 +255,7 @@ func (fc *FrontController) renderMemberPage(c *gin.Context, tpl string) {
 		return
 	}
 	content = p.Render(content)
+	content = postRender(content, c.Request.Context())
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
 }
@@ -52,7 +264,7 @@ func (fc *FrontController) renderMemberPage(c *gin.Context, tpl string) {
 func (fc *FrontController) Login(c *gin.Context) {
 	// 已登錄則跳轉用戶中心
 	if common.GetSessionInt(c, "pboot_uid") > 0 {
-		c.Redirect(http.StatusFound, "/ucenter")
+		c.Redirect(http.StatusFound, langPath(c, "/ucenter"))
 		return
 	}
 
@@ -65,6 +277,12 @@ func (fc *FrontController) Login(c *gin.Context) {
 
 		// 驗證碼檢查（VerifyCaptcha 會自動發送錯誤 JSON）
 		if !common.VerifyCaptcha(c, "login_check_code", "1") {
+			return
+		}
+
+		// 登錄鎖定檢查（讀取 login_error_count/login_error_wait 配置）
+		if remain := checkMemberLoginBlack(c); remain > 0 {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": fmt.Sprintf("您登錄失敗次數太多已被鎖定，請%d秒後再試！", remain)})
 			return
 		}
 
@@ -82,7 +300,7 @@ func (fc *FrontController) Login(c *gin.Context) {
 
 		// 三合一查詢：用戶名 / 郵箱 / 手機
 		var member model.Member
-		if err := model.DB.Where(
+		if err := model.DB.WithContext(c.Request.Context()).Where(
 			"username = ? OR useremail = ? OR usermobile = ?",
 			username, username, username,
 		).First(&member).Error; err != nil {
@@ -92,6 +310,7 @@ func (fc *FrontController) Login(c *gin.Context) {
 
 		// 驗證密碼（雙重 MD5）
 		if member.Password != doubleMD5(password) {
+			setMemberLoginBlack(c) // 累計失敗次數
 			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "帳號密碼錯誤"})
 			return
 		}
@@ -101,6 +320,9 @@ func (fc *FrontController) Login(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您的帳號待審核，請聯繫管理員"})
 			return
 		}
+
+		// 登錄成功，清除鎖定記錄
+		clearMemberLoginBlack(c)
 
 		// 寫入 Session（保持與 PbootCMS 前台兼容的鍵名）
 		common.SetSession(c, "pboot_uid", int(member.ID))
@@ -113,24 +335,30 @@ func (fc *FrontController) Login(c *gin.Context) {
 		// 查詢會員等級名稱
 		var group model.MemberGroup
 		if gidInt, _ := strconv.Atoi(member.GID); gidInt > 0 {
-			model.DB.Where("id = ?", gidInt).First(&group)
+			model.DB.WithContext(c.Request.Context()).Where("id = ?", gidInt).First(&group)
 		}
 		// gcode 轉為 int 存入 session（checkPageLevel 用 GetSessionInt 讀取）
 		gcodeInt, _ := strconv.Atoi(group.Gcode)
 		common.SetSession(c, "pboot_gcode", gcodeInt)
 		common.SetSession(c, "pboot_gname", group.Gname)
 
-		// 更新登錄統計
-		model.DB.Model(&member).Updates(map[string]interface{}{
-			"login_count":     member.LoginCount + 1,
+		// 更新登錄統計 + 登錄積分（對齊 PHP MemberModel::login 的 score += 邏輯）
+		updates := map[string]interface{}{
+			"login_count":     gorm.Expr("login_count + 1"),
 			"last_login_ip":   c.ClientIP(),
 			"last_login_time": time.Now().Format("2006-01-02 15:04:05"),
-		})
+		}
+		// 登錄積分：讀取 login_score 配置，大於 0 時累加
+		loginScore, _ := strconv.Atoi(model.GetConfigValue("login_score", "0"))
+		if loginScore > 0 {
+			updates["score"] = gorm.Expr("score + ?", loginScore)
+		}
+		model.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates)
 
 		// 返回跳轉地址（驗證為相對路徑，防止開放重定向）
 	tourl := c.DefaultPostForm("backurl", c.Query("backurl"))
 	if tourl == "" || !isSafeRedirectURL(tourl) {
-		tourl = "/ucenter"
+		tourl = langPath(c, "/ucenter")
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "登錄成功", "tourl": tourl})
 	return
@@ -143,7 +371,7 @@ func (fc *FrontController) Login(c *gin.Context) {
 func (fc *FrontController) Register(c *gin.Context) {
 	// 已登錄則跳轉用戶中心
 	if common.GetSessionInt(c, "pboot_uid") > 0 {
-		c.Redirect(http.StatusFound, "/ucenter")
+		c.Redirect(http.StatusFound, langPath(c, "/ucenter"))
 		return
 	}
 
@@ -185,7 +413,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "郵箱格式不正確"})
 				return
 			}
-			if memberExists("useremail = ? OR username = ?", useremail, useremail) {
+			if memberExists(c, "useremail = ? OR username = ?", useremail, useremail) {
 				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您輸入的郵箱已被註冊"})
 				return
 			}
@@ -199,7 +427,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "手機號碼格式不正確"})
 				return
 			}
-			if memberExists("usermobile = ? OR username = ?", usermobile, usermobile) {
+			if memberExists(c, "usermobile = ? OR username = ?", usermobile, usermobile) {
 				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您輸入的手機號碼已被註冊"})
 				return
 			}
@@ -212,7 +440,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "用戶帳號含有不允許的特殊字符"})
 				return
 			}
-			if memberExists("username = ? OR useremail = ? OR usermobile = ?", username, username, username) {
+			if memberExists(c, "username = ? OR useremail = ? OR usermobile = ?", username, username, username) {
 				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您輸入的帳號已被註冊"})
 				return
 			}
@@ -238,16 +466,16 @@ func (fc *FrontController) Register(c *gin.Context) {
 		var group model.MemberGroup
 		registerGcode := model.GetConfigValue("register_gcode", "")
 		if registerGcode != "" {
-			model.DB.Where("gcode = ?", registerGcode).First(&group)
+			model.DB.WithContext(c.Request.Context()).Where("gcode = ?", registerGcode).First(&group)
 		}
 		if group.ID == 0 {
-			model.DB.Where("status = 1").Order("id ASC").First(&group)
+			model.DB.WithContext(c.Request.Context()).Where("status = 1").Order("id ASC").First(&group)
 		}
 		gid := fmt.Sprintf("%d", group.ID)
 
 		// 創建會員
 		newMember := model.Member{
-			Ucode:        generateUcode(),
+			Ucode:        generateUcode(c),
 			Username:     username,
 			Useremail:    useremail,
 			Usermobile:   usermobile,
@@ -261,7 +489,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 			LoginCount:   0,
 		}
 
-		if err := model.DB.Create(&newMember).Error; err != nil {
+		if err := model.DB.WithContext(c.Request.Context()).Create(&newMember).Error; err != nil {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "註冊失敗"})
 			return
 		}
@@ -273,7 +501,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 		if status == 0 {
 			msg = "註冊成功，請等待管理員審核"
 		}
-		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": msg, "tourl": "/login"})
+		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": msg, "tourl": langPath(c, "/login")})
 		return
 	}
 
@@ -290,13 +518,13 @@ func (fc *FrontController) Logout(c *gin.Context) {
 	common.DeleteSession(c, "pboot_gid")
 	common.DeleteSession(c, "pboot_gcode")
 	common.DeleteSession(c, "pboot_gname")
-	c.Redirect(http.StatusFound, "/login")
+	c.Redirect(http.StatusFound, langPath(c, "/login"))
 }
 
 // Ucenter 會員中心
 func (fc *FrontController) Ucenter(c *gin.Context) {
 	if common.GetSessionInt(c, "pboot_uid") == 0 {
-		c.Redirect(http.StatusFound, "/login")
+		c.Redirect(http.StatusFound, langPath(c, "/login"))
 		return
 	}
 	fc.renderMemberPage(c, "member/ucenter.html")
@@ -306,7 +534,7 @@ func (fc *FrontController) Ucenter(c *gin.Context) {
 func (fc *FrontController) Umodify(c *gin.Context) {
 	uid := common.GetSessionInt(c, "pboot_uid")
 	if uid == 0 {
-		c.Redirect(http.StatusFound, "/login")
+		c.Redirect(http.StatusFound, langPath(c, "/login"))
 		return
 	}
 
@@ -319,7 +547,7 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 		}
 
 		var member model.Member
-		model.DB.First(&member, uid)
+		model.DB.WithContext(c.Request.Context()).First(&member, uid)
 		if member.Password != doubleMD5(opassword) {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "當前密碼不正確"})
 			return
@@ -348,13 +576,13 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 			updates["password"] = doubleMD5(password)
 		}
 
-		model.DB.Model(&model.Member{}).Where("id = ?", uid).Updates(updates)
+		model.DB.WithContext(c.Request.Context()).Model(&model.Member{}).Where("id = ?", uid).Updates(updates)
 
 		// 同步 Session 中的暱稱和郵箱
 		common.SetSession(c, "pboot_useremail", c.PostForm("useremail"))
 		common.SetSession(c, "pboot_usermobile", c.PostForm("usermobile"))
 
-		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "修改成功", "tourl": "/umodify"})
+		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "修改成功", "tourl": langPath(c, "/umodify")})
 		return
 	}
 
@@ -370,9 +598,9 @@ func regexpMatch(pattern, s string) bool {
 }
 
 // memberExists 檢查會員是否已存在
-func memberExists(where string, args ...interface{}) bool {
+func memberExists(c *gin.Context, where string, args ...interface{}) bool {
 	var count int64
-	model.DB.Model(&model.Member{}).Where(where, args...).Count(&count)
+	model.DB.WithContext(c.Request.Context()).Model(&model.Member{}).Where(where, args...).Count(&count)
 	return count > 0
 }
 

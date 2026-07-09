@@ -1,11 +1,11 @@
 package route
 
 import (
-	admin "pbootcms-go/apps/admin/controller"
-	content "pbootcms-go/apps/admin/controller/content"
-	member "pbootcms-go/apps/admin/controller/member"
-	system "pbootcms-go/apps/admin/controller/system"
-	"pbootcms-go/apps/common/middleware"
+	admin "gbootcms/apps/admin/controller"
+	content "gbootcms/apps/admin/controller/content"
+	member "gbootcms/apps/admin/controller/member"
+	system "gbootcms/apps/admin/controller/system"
+	"gbootcms/apps/common/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,7 +24,9 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.GET("/index/loginout", ic.LoginOut)
 		adminGroup.GET("/index/ucenter", ic.Ucenter)
 		adminGroup.POST("/index/ucenter", ic.UcenterMod)
-		adminGroup.POST("/index/clearCache", ic.ClearCache)
+		adminGroup.GET("/index/clearcache", ic.ClearCache)
+		adminGroup.GET("/index/clearonlysyscache", ic.ClearOnlySysCache)
+		adminGroup.GET("/index/clearsession", ic.ClearSession)
 		adminGroup.POST("/index/area", ic.Area)
 		adminGroup.GET("/index/checkCode", ic.CheckCode)
 		adminGroup.POST("/index/upload", ic.Upload)
@@ -37,6 +39,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.GET("/content/add/*action", cc.AddCatchAll)
 		adminGroup.POST("/content/add", cc.Add)
 		adminGroup.POST("/content/add/*action", cc.AddCatchAll)
+		adminGroup.POST("/content/mod", cc.Mod)
 		adminGroup.Any("/content/mod/*action", cc.Mod)
 		adminGroup.POST("/content/del", cc.Del)
 		adminGroup.Any("/content/del/*action", cc.DelCatchAll)
@@ -112,8 +115,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.GET("/content/tags/add", tg.Add)
 		adminGroup.POST("/content/tags/add", tg.Add)
 		adminGroup.POST("/content/tags/del", tg.Del)
-		adminGroup.GET("/content/tags/mod/:id", tg.Mod)
-		adminGroup.POST("/content/tags/mod/:id", tg.Mod)
+		adminGroup.Any("/content/tags/mod/*action", tg.Mod)
 
 		lb := &content.LabelController{}
 		adminGroup.GET("/content/label/index", lb.Index)
@@ -127,13 +129,20 @@ func SetupAdminRoutes(r *gin.Engine) {
 		dc := &content.DeleCacheController{}
 		adminGroup.GET("/content/deleCache/index", dc.Index)
 		adminGroup.POST("/content/deleCache/index", dc.Index)
+		// 別名路由：模板 URL 解析會轉全小寫，路由需匹配
+		adminGroup.GET("/delecache/index", dc.Index)
+		adminGroup.POST("/delecache/index", dc.Index)
 
 		fm := &content.FormController{}
 		adminGroup.GET("/content/form/index", fm.Index)
+		adminGroup.GET("/content/form/index/*action", fm.Index)
 		adminGroup.POST("/content/form/add", fm.Add)
-		adminGroup.POST("/content/form/del", fm.Del)
-		adminGroup.POST("/content/form/mod", fm.Mod)
-		adminGroup.POST("/content/form/clear", fm.Clear)
+		adminGroup.POST("/content/form/add/*action", fm.Add)
+		adminGroup.GET("/content/form/del/*action", fm.Del)
+		adminGroup.POST("/content/form/del/*action", fm.Del)
+		adminGroup.GET("/content/form/mod/*action", fm.Mod)
+		adminGroup.POST("/content/form/mod/*action", fm.Mod)
+		adminGroup.GET("/content/form/clear/*action", fm.Clear)
 
 		md := &content.ModelController{}
 		adminGroup.GET("/content/model/index", md.Index)
@@ -188,13 +197,17 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.GET("/system/area/index", ar.Index)
 		adminGroup.GET("/system/area/add", ar.Add)
 		adminGroup.POST("/system/area/add", ar.Add)
-		adminGroup.GET("/system/area/mod/:id", ar.Mod)
-		adminGroup.POST("/system/area/mod/:id", ar.Mod)
-		adminGroup.POST("/system/area/del", ar.Del)
+		adminGroup.GET("/system/area/mod/*action", ar.Mod)
+		adminGroup.POST("/system/area/mod/*action", ar.Mod)
+		adminGroup.GET("/system/area/del/*action", ar.Del)
+		adminGroup.POST("/system/area/del/*action", ar.Del)
 
 		slc := &system.SyslogController{}
 		adminGroup.GET("/system/syslog/index", slc.Index)
+		adminGroup.GET("/system/syslog/index/*action", slc.IndexCatchAll)
 		adminGroup.POST("/system/syslog/clear", slc.Clear)
+		adminGroup.POST("/system/syslog/clearspider", slc.ClearSpider)
+		adminGroup.POST("/system/syslog/clearnotify", slc.ClearNotify)
 
 		tp := &system.TypeController{}
 		adminGroup.GET("/system/type/index", tp.Index)

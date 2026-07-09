@@ -5,13 +5,13 @@
 package model
 
 import (
-	"pbootcms-go/config"
-	"pbootcms-go/core/db"
+	"gbootcms/config"
+	"gbootcms/core/db"
 
 	// Import sub-packages so their AutoMigrate / helpers are accessible.
-	"pbootcms-go/apps/admin/model/content"
-	"pbootcms-go/apps/admin/model/member"
-	"pbootcms-go/apps/admin/model/system"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/apps/admin/model/member"
+	"gbootcms/apps/admin/model/system"
 )
 
 // DB is the shared GORM database instance (re-exported from core/db).

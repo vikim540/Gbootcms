@@ -1,12 +1,14 @@
 package parser
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
 	"net/url"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/admin/model/content"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/acodeplugin"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,6 +27,17 @@ type Context struct {
 	Keyword     string
 	CurrentPage int
 	Filters     map[string]string // ext_ 篩選參數 (ext_type=基礎版 等)
+	Ctx         context.Context   // 請求級 context，用於區域數據隔離
+	CurrentPath string            // 當前頁面路徑（已剝離 acode 前綴），用於語言切換保持當前頁
+}
+
+// safeFieldRe 擴展字段名白名單正則：只允許 ext_ 前綴 + 字母數字下底線
+// 防止 SQL 注入：字段名直接拼接進 SQL 查詢，必須嚴格驗證
+var safeFieldRe = regexp.MustCompile(`^ext_[a-zA-Z0-9_]+$`)
+
+// IsSafeFieldName 驗證字段名是否安全（僅允許 ext_ 前綴的合法欄位名）
+func IsSafeFieldName(name string) bool {
+	return safeFieldRe.MatchString(name)
 }
 
 // addLeadingSlash 為本地路徑添加前導 /
@@ -118,31 +131,13 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			}
 			return "/template/" + theme + "/static"
 		case "sitepath":
-			return "/"
+			return currentHomePath(ctx)
 		case "pagetitle":
-			if ctx.Content != nil {
-				return ctx.Content.Title
-			}
-			if ctx.Sort != nil {
-				return ctx.Sort.Name
-			}
-			return ctx.Site.Title
+			return resolvePageTitle(ctx)
 		case "pagekeywords":
-			if ctx.Content != nil && ctx.Content.Keywords != "" {
-				return ctx.Content.Keywords
-			}
-			if ctx.Sort != nil && ctx.Sort.Keywords != "" {
-				return ctx.Sort.Keywords
-			}
-			return ctx.Site.Keywords
+			return resolvePageKeywords(ctx)
 		case "pagedescription":
-			if ctx.Content != nil && ctx.Content.Description != "" {
-				return ctx.Content.Description
-			}
-			if ctx.Sort != nil && ctx.Sort.Description != "" {
-				return ctx.Sort.Description
-			}
-			return ctx.Site.Description
+			return resolvePageDescription(ctx)
 		// 會員相關標籤
 		case "loginstatus":
 			return model.GetConfigValue("login_status", "1")
@@ -174,6 +169,10 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return model.GetConfigValue("comment_check_code", "1")
 		case "msgcodestatus":
 			return model.GetConfigValue("message_check_code", "1")
+		case "msgturnstilestatus":
+			return model.GetConfigValue("message_turnstile", "0")
+		case "turnstile_sitekey":
+			return model.GetConfigValue("turnstile_sitekey", "")
 		case "httpurl":
 			return "/" // 簡化實現
 		// Company 字段路由: {gboot:companyname} → company.name
@@ -311,7 +310,8 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return ""
 		}
 		// 返回一個簡單的 QR code 圖片（使用在線 API）
-		return fmt.Sprintf("<img src=\"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=%s\" alt=\"QR Code\">", str)
+		// URL 編碼 str 防止 XSS（避免雙引號截斷 src 屬性）
+		return fmt.Sprintf("<img src=\"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=%s\" alt=\"QR Code\">", url.QueryEscape(str))
 	})
 
 	p.Register("sort", func(tagName string, params map[string]string, inner string) string {
@@ -319,7 +319,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return ""
 		}
 		field := params["_field"]
-		return getSortField(ctx.Sort, field)
+		return getSortField(ctx.Ctx, ctx.Sort, field)
 	})
 
 	p.Register("content", func(tagName string, params map[string]string, inner string) string {
@@ -356,23 +356,47 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 				total, _ = v.(int)
 			}
 			if total == 0 {
-				return ""
+			return ""
+		}
+		// 讀取分頁數字條數量配置（對齊 PHP Paging::pageNumBar，預設 5）
+		pageNum := parseIntConfig("pagenum", 5)
+		var sb strings.Builder
+		// 計算顯示範圍（對齊 PHP pageNumBar 邏輯：當前頁前後各顯示一半）
+		halfL := pageNum / 2
+		halfU := (pageNum + 1) / 2
+		start := 1
+		end := totalPages
+		if totalPages > pageNum {
+			if current > halfU {
+				start = current - halfL
 			}
-			var sb strings.Builder
-			for i := 1; i <= totalPages; i++ {
-				link := fmt.Sprintf("?page=%d", i)
-				if baseP, ok := ctx.Page["basePath"]; ok {
-					if bp, ok2 := baseP.(string); ok2 && bp != "" {
-						link = bp + "page=" + strconv.Itoa(i)
-					}
-				}
-				if i == current {
-					sb.WriteString(fmt.Sprintf("<a class=\"page-num page-num-current\" href=\"%s\">%d</a>", link, i))
-				} else {
-					sb.WriteString(fmt.Sprintf("<a class=\"page-num\" href=\"%s\">%d</a>", link, i))
+			if current+halfL <= totalPages {
+				end = current + halfU
+			} else {
+				end = totalPages
+				start = totalPages - pageNum + 1
+			}
+			if start < 1 {
+				start = 1
+			}
+			if end > totalPages {
+				end = totalPages
+			}
+		}
+		for i := start; i <= end; i++ {
+			link := fmt.Sprintf("?page=%d", i)
+			if baseP, ok := ctx.Page["basePath"]; ok {
+				if bp, ok2 := baseP.(string); ok2 && bp != "" {
+					link = bp + "page=" + strconv.Itoa(i)
 				}
 			}
-			return sb.String()
+			if i == current {
+				sb.WriteString(fmt.Sprintf("<a class=\"page-num page-num-current\" href=\"%s\">%d</a>", link, i))
+			} else {
+				sb.WriteString(fmt.Sprintf("<a class=\"page-num\" href=\"%s\">%d</a>", link, i))
+			}
+		}
+		return sb.String()
 		}
 		if val, ok := ctx.Page[field]; ok {
 			return ValToStr(val)
@@ -408,7 +432,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			// 透過 gid 查 ay_member_group 取 gcode（對應 PHP getUser() JOIN）
 			if ctx.Member.GID != "" && ctx.Member.GID != "0" {
 				var group model.MemberGroup
-				model.DB.Where("id = ?", ctx.Member.GID).First(&group)
+				model.DB.WithContext(ctx.Ctx).Where("id = ?", ctx.Member.GID).First(&group)
 				return group.Gcode
 			}
 			return ""
@@ -437,7 +461,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		case "gname":
 			if ctx.Member != nil && ctx.Member.GID != "" {
 				var group model.MemberGroup
-				model.DB.Where("id = ?", ctx.Member.GID).First(&group)
+				model.DB.WithContext(ctx.Ctx).Where("id = ?", ctx.Member.GID).First(&group)
 				return group.Gname
 			}
 			return ""
@@ -459,7 +483,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 	p.Register("label", func(tagName string, params map[string]string, inner string) string {
 		field := params["_field"]
 		var labels []model.Label
-		model.DB.Where("name = ?", field).Find(&labels)
+		model.DB.WithContext(ctx.Ctx).Where("name = ?", field).Find(&labels)
 		if len(labels) > 0 {
 			return labels[0].Value
 		}
@@ -472,7 +496,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		current := scode
 		for current != "" && current != "0" {
 			var s model.ContentSort
-			if err := model.DB.Where("scode = ?", current).First(&s).Error; err != nil {
+			if err := model.DB.WithContext(ctx.Ctx).Where("scode = ?", current).First(&s).Error; err != nil {
 				break
 			}
 			chain = append(chain, s)
@@ -522,24 +546,15 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 	})
 
 	p.Register("pagetitle", func(tagName string, params map[string]string, inner string) string {
-		if ctx.Site != nil {
-			return ctx.Site.Title
-		}
-		return ""
+		return resolvePageTitle(ctx)
 	})
 
 	p.Register("pagekeywords", func(tagName string, params map[string]string, inner string) string {
-		if ctx.Site != nil {
-			return ctx.Site.Keywords
-		}
-		return ""
+		return resolvePageKeywords(ctx)
 	})
 
 	p.Register("pagedescription", func(tagName string, params map[string]string, inner string) string {
-		if ctx.Site != nil {
-			return ctx.Site.Description
-		}
-		return ""
+		return resolvePageDescription(ctx)
 	})
 
 	p.Register("httpurl", func(tagName string, params map[string]string, inner string) string {
@@ -602,6 +617,37 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		return "/home/index/area"
 	})
 
+	// acode — 當前語言區域代碼（用於模板條件判斷）
+	p.Register("acode", func(tagName string, params map[string]string, inner string) string {
+		return acodeplugin.GetAcode(ctx.Ctx)
+	})
+
+	// homename — 當前語言的「首頁」文字
+	p.Register("homename", func(tagName string, params map[string]string, inner string) string {
+		acode := acodeplugin.GetAcode(ctx.Ctx)
+		switch acode {
+		case "sc":
+			return "首页"
+		case "en":
+			return "Home"
+		default:
+			return "首頁"
+		}
+	})
+
+	// morename — 當前語言的「查看更多」文字
+	p.Register("morename", func(tagName string, params map[string]string, inner string) string {
+		acode := acodeplugin.GetAcode(ctx.Ctx)
+		switch acode {
+		case "sc":
+			return "查看更多"
+		case "en":
+			return "View More"
+		default:
+			return "查看更多"
+		}
+	})
+
 	// 會員相關 URL 標籤
 	p.Register("login", func(tagName string, params map[string]string, inner string) string {
 		return "/login"
@@ -652,10 +698,10 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			order = "date"
 		}
 
-		query := model.DB.Where("status = 1")
+		query := model.DB.WithContext(ctx.Ctx).Where("status = 1")
 		if scode != "" {
 			// 遞歸查找當前欄目及其所有子欄目的 scode
-			childScodes := findAllChildScodes(scode)
+			childScodes := findAllChildScodes(ctx.Ctx, scode)
 			query = query.Where("scode IN ?", childScodes)
 		}
 		switch order {
@@ -684,6 +730,9 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		if len(ctx.Filters) > 0 {
 			query = query.Joins("JOIN ay_content_ext ON ay_content.id = ay_content_ext.contentid")
 			for field, value := range ctx.Filters {
+				if !IsSafeFieldName(field) {
+					continue // 跳過不安全的字段名，防止 SQL 注入
+				}
 				query = query.Where("ay_content_ext."+field+" LIKE ?", "%"+value+"%")
 			}
 		}
@@ -698,29 +747,35 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			query.Offset(offset).Limit(num).Find(&contents)
 
 			// 獨立查詢取總記錄數（含 scode 過濾 + ext_ 篩選）
-			countQuery := model.DB.Model(&model.Content{}).
+			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
 				Where("status = 1")
 			if scode != "" {
-				countQuery = countQuery.Where("scode IN (?)", findAllChildScodes(scode))
+				countQuery = countQuery.Where("scode IN (?)", findAllChildScodes(ctx.Ctx, scode))
 			}
 			if len(ctx.Filters) > 0 {
-				countQuery = countQuery.Joins("JOIN ay_content_ext ON ay_content.id = ay_content_ext.contentid")
-				for field, value := range ctx.Filters {
-					countQuery = countQuery.Where("ay_content_ext."+field+" LIKE ?", "%"+value+"%")
+			countQuery = countQuery.Joins("JOIN ay_content_ext ON ay_content.id = ay_content_ext.contentid")
+			for field, value := range ctx.Filters {
+				if !IsSafeFieldName(field) {
+					continue
 				}
+				countQuery = countQuery.Where("ay_content_ext."+field+" LIKE ?", "%"+value+"%")
 			}
+		}
 			countQuery.Count(&total)
 		} else {
 			query.Limit(num).Find(&contents)
 			// 獨立查詢取總記錄數（含 scode 過濾 + ext_ 篩選）
-			countQuery := model.DB.Model(&model.Content{}).
+			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
 				Where("status = 1")
 			if scode != "" {
-				countQuery = countQuery.Where("scode IN (?)", findAllChildScodes(scode))
+				countQuery = countQuery.Where("scode IN (?)", findAllChildScodes(ctx.Ctx, scode))
 			}
 			if len(ctx.Filters) > 0 {
 				countQuery = countQuery.Joins("JOIN ay_content_ext ON ay_content.id = ay_content_ext.contentid")
 				for field, value := range ctx.Filters {
+					if !IsSafeFieldName(field) {
+						continue
+					}
 					countQuery = countQuery.Where("ay_content_ext."+field+" LIKE ?", "%"+value+"%")
 				}
 			}
@@ -744,8 +799,11 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				basePath = "/" + ctx.Sort.URLName + "/?"
 			}
 		}
-		// 保留 ext_ 篩選參數，使分頁鏈接攜帶當前篩選條件
+		// 保留 ext_ 篩選參數，使分頁鏈接攜帶當前篩選條件（驗證字段名安全）
 		for k, v := range ctx.Filters {
+			if !IsSafeFieldName(k) {
+				continue
+			}
 			basePath += k + "=" + urlEncode(v) + "&"
 		}
 
@@ -783,7 +841,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 
 		var sorts []model.ContentSort
-		query := model.DB.Where("status = 1")
+		query := model.DB.WithContext(ctx.Ctx).Where("status = 1")
 		if parent != "" {
 			query = query.Where("pcode = ?", parent)
 		} else {
@@ -797,7 +855,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 
 		var sb strings.Builder
 		for i, s := range sorts {
-			data := sortToMap(&s, i)
+			data := sortToMap(ctx.Ctx, &s, i)
 			row := ReplaceInnerTags(inner, "nav", data)
 			sb.WriteString(row)
 		}
@@ -810,11 +868,11 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			return ""
 		}
 		var sorts []model.ContentSort
-		model.DB.Where("scode IN (?)", strings.Split(scode, ",")).Order("sorting ASC").Find(&sorts)
+		model.DB.WithContext(ctx.Ctx).Where("scode IN (?)", strings.Split(scode, ",")).Order("sorting ASC").Find(&sorts)
 
 		var sb strings.Builder
 		for i, s := range sorts {
-			data := sortToMap(&s, i)
+			data := sortToMap(ctx.Ctx, &s, i)
 			row := ReplaceInnerTags(inner, "sort", data)
 			sb.WriteString(row)
 		}
@@ -828,7 +886,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			return ""
 		}
 		var c model.Content
-		query := model.DB.Where("status = 1")
+		query := model.DB.WithContext(ctx.Ctx).Where("status = 1")
 		if id != "" {
 			query = query.Where("id = ?", id)
 		}
@@ -850,7 +908,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			num = n
 		}
 		var slides []model.Slide
-		query := model.DB.Order("gid ASC, sorting ASC, id ASC")
+		query := model.DB.WithContext(ctx.Ctx).Order("gid ASC, sorting ASC, id ASC")
 		if gid != "" {
 			query = query.Where("gid = ?", gid)
 		}
@@ -896,7 +954,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			num = n
 		}
 		var links []model.Link
-		query := model.DB.Order("sorting ASC")
+		query := model.DB.WithContext(ctx.Ctx).Order("sorting ASC")
 		if gid != "" {
 			query = query.Where("gid = ?", gid)
 		}
@@ -913,9 +971,65 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				"i":   i + 1,
 				"logo": logo,
 				"link": l.Link,
-				"title": l.Title,
+				"title": l.Name,
 			}
 			row := ReplaceInnerTags(inner, "link", data)
+			sb.WriteString(row)
+		}
+		return sb.String()
+	})
+
+	// language — 多語言切換標籤
+	// 用法：{gboot:language}[language:name]{/gboot:language}
+	// 切換時保持當前頁面路徑（如 /sc/article → /tc/article → /en/article）
+	p.Register("language", func(tagName string, params map[string]string, inner string) string {
+		var areas []model.Area
+		model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Order("pcode, acode").Find(&areas)
+		if len(areas) <= 1 {
+			return ""
+		}
+
+		// 當前 acode
+		currentAcode := acodeplugin.GetAcode(ctx.Ctx)
+
+		// 找默認區域
+		defaultAcode := ""
+		for _, a := range areas {
+			if a.IsDefault == "1" {
+				defaultAcode = a.Acode
+				break
+			}
+		}
+		if defaultAcode == "" && len(areas) > 0 {
+			defaultAcode = areas[0].Acode
+		}
+
+		// 當前頁面路徑（已剝離 acode 前綴），確保首頁為 /
+		currentPath := ctx.CurrentPath
+		if currentPath == "" {
+			currentPath = "/"
+		}
+		if !strings.HasPrefix(currentPath, "/") {
+			currentPath = "/" + currentPath
+		}
+
+		var sb strings.Builder
+		for i, a := range areas {
+			// 構建保持當前頁面的語言切換連結
+			// 默認區域: /{currentPath}，非默認: /{acode}{currentPath}
+			link := currentPath
+			if a.Acode != defaultAcode {
+				link = "/" + a.Acode + currentPath
+			}
+			data := map[string]interface{}{
+				"i":      i + 1,
+				"n":      i,
+				"acode":  a.Acode,
+				"name":   a.Name,
+				"link":   link,
+				"active": a.Acode == currentAcode,
+			}
+			row := ReplaceInnerTags(inner, "language", data)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -947,7 +1061,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			num = n
 		}
 		var contents []model.Content
-		model.DB.Where("status = 1 AND keywords != ''").Find(&contents)
+		model.DB.WithContext(ctx.Ctx).Where("status = 1 AND keywords != ''").Find(&contents)
 		tagSet := map[string]bool{}
 		var tagList []string
 		for _, c := range contents {
@@ -975,6 +1089,31 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			sb.WriteString(row)
 		}
 		return sb.String()
+	})
+
+	// hreflang — SEO 多語言替代連結標籤（自引用 + 雙向對稱 + x-default）
+	// 用法：在 <head> 中放置 {gboot:hreflang}
+	// 生成：<link rel="alternate" hreflang="zh-Hant" href="..." />
+	p.Register("hreflang", func(tagName string, params map[string]string, inner string) string {
+		return buildHreflang(ctx)
+	})
+
+	// canonical — SEO 標準連結標籤，指向當前頁面的標準 URL
+	// 用法：在 <head> 中放置 {gboot:canonical}
+	p.Register("canonical", func(tagName string, params map[string]string, inner string) string {
+		return buildCanonical(ctx)
+	})
+
+	// htmllang — 當前語言的 HTML lang 屬性值（zh-Hans / zh-Hant / en）
+	// 用法：<html lang="{gboot:htmllang}">
+	p.Register("htmllang", func(tagName string, params map[string]string, inner string) string {
+		return acodeToHreflang(acodeplugin.GetAcode(ctx.Ctx))
+	})
+
+	// og — Open Graph 社交分享 meta 標籤
+	// 用法：在 <head> 中放置 {gboot:og}
+	p.Register("og", func(tagName string, params map[string]string, inner string) string {
+		return buildOpenGraph(ctx)
 	})
 
 	p.Register("pics", func(tagName string, params map[string]string, inner string) string {
@@ -1027,7 +1166,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			num = n
 		}
 		var messages []model.Message
-		model.DB.Where("status = 1").Order("id DESC").Limit(num).Find(&messages)
+		model.DB.WithContext(ctx.Ctx).Where("status = 1").Order("id DESC").Limit(num).Find(&messages)
 
 		// 批量查會員信息（LEFT JOIN ay_member），匹配 PHP 原版 getMessage()
 		uidSet := map[int]bool{}
@@ -1047,7 +1186,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				uids = append(uids, uid)
 			}
 			var members []model.Member
-			model.DB.Where("id IN ?", uids).Find(&members)
+			model.DB.WithContext(ctx.Ctx).Where("id IN ?", uids).Find(&members)
 			for _, mem := range members {
 				memberMap[int(mem.ID)] = memberInfo{Nickname: mem.Nickname, HeadPic: mem.Headpic}
 			}
@@ -1113,7 +1252,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 		// 查動態表數據
 		var rows []map[string]interface{}
-		model.DB.Raw("SELECT * FROM " + tableName + " ORDER BY id DESC LIMIT " + strconv.Itoa(num)).Scan(&rows)
+		model.DB.WithContext(ctx.Ctx).Raw("SELECT * FROM " + tableName + " ORDER BY id DESC LIMIT " + strconv.Itoa(num)).Scan(&rows)
 		if len(rows) == 0 {
 			return ""
 		}
@@ -1141,12 +1280,12 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			num = n
 		}
 		like := "%" + keyword + "%"
-		query := model.DB.Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
+		query := model.DB.WithContext(ctx.Ctx).Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
 
 		// scode 過濾（可選）
 		scode := params["scode"]
 		if scode != "" {
-			query = query.Where("scode IN ?", findAllChildScodes(scode))
+			query = query.Where("scode IN ?", findAllChildScodes(ctx.Ctx, scode))
 		}
 
 		order := params["order"]
@@ -1175,18 +1314,18 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			offset := (currentPage - 1) * num
 			query.Offset(offset).Limit(num).Find(&contents)
 
-			countQuery := model.DB.Model(&model.Content{}).
+			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
 				Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
 			if scode != "" {
-				countQuery = countQuery.Where("scode IN ?", findAllChildScodes(scode))
+				countQuery = countQuery.Where("scode IN ?", findAllChildScodes(ctx.Ctx, scode))
 			}
 			countQuery.Count(&total)
 		} else {
 			query.Limit(num).Find(&contents)
-			countQuery := model.DB.Model(&model.Content{}).
+			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
 				Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
 			if scode != "" {
-				countQuery = countQuery.Where("scode IN ?", findAllChildScodes(scode))
+				countQuery = countQuery.Where("scode IN ?", findAllChildScodes(ctx.Ctx, scode))
 			}
 			countQuery.Count(&total)
 		}
@@ -1245,7 +1384,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 
 		// 查詢主評論（pid=0, status=1）
 		var comments []model.CommentView
-		model.DB.Table("ay_member_comment a").
+		model.DB.WithContext(ctx.Ctx).Table("ay_member_comment a").
 			Select("a.*, b.username, b.nickname, b.headpic, c.username as pusername, c.nickname as pnickname, c.headpic as pheadpic").
 			Joins("LEFT JOIN ay_member b ON a.uid=b.id").
 			Joins("LEFT JOIN ay_member c ON a.puid=c.id").
@@ -1271,7 +1410,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			// 處理 commentsub 塊
 			if subInner != "" {
 				var subs []model.CommentView
-				model.DB.Table("ay_member_comment a").
+				model.DB.WithContext(ctx.Ctx).Table("ay_member_comment a").
 					Select("a.*, b.username, b.nickname, b.headpic, c.username as pusername, c.nickname as pnickname, c.headpic as pheadpic").
 					Joins("LEFT JOIN ay_member b ON a.uid=b.id").
 					Joins("LEFT JOIN ay_member c ON a.puid=c.id").
@@ -1317,7 +1456,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 
 		var comments []model.CommentView
-		model.DB.Table("ay_member_comment a").
+		model.DB.WithContext(ctx.Ctx).Table("ay_member_comment a").
 			Select("a.*, b.username, b.nickname, b.headpic, c.username as pusername, c.nickname as pnickname, c.headpic as pheadpic, d.title").
 			Joins("LEFT JOIN ay_member b ON a.uid=b.id").
 			Joins("LEFT JOIN ay_member c ON a.puid=c.id").
@@ -1378,7 +1517,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 		// 查 ay_extfield 取選項（表名 ay_extfield，非 GORM 默認推斷）
 		var ef content.ExtField
-		if err := model.DB.Raw("SELECT * FROM ay_extfield WHERE field = ? LIMIT 1", field).Scan(&ef).Error; err != nil {
+		if err := model.DB.WithContext(ctx.Ctx).Raw("SELECT * FROM ay_extfield WHERE field = ? LIMIT 1", field).Scan(&ef).Error; err != nil {
 			return ""
 		}
 		if ef.Value == "" {
@@ -1497,7 +1636,7 @@ func buildIfContext(ctx *Context) map[string]interface{} {
 	return data
 }
 
-func getSortField(s *model.ContentSort, field string) string {
+func getSortField(ctx context.Context, s *model.ContentSort, field string) string {
 	switch field {
 	case "name":
 		return s.Name
@@ -1512,7 +1651,7 @@ func getSortField(s *model.ContentSort, field string) string {
 		for pcode != "" && pcode != "0" {
 			code = pcode
 			var parent model.ContentSort
-			if err := model.DB.Where("scode = ?", pcode).First(&parent).Error; err != nil {
+			if err := model.DB.WithContext(ctx).Where("scode = ?", pcode).First(&parent).Error; err != nil {
 				break
 			}
 			pcode = parent.Pcode
@@ -1520,9 +1659,9 @@ func getSortField(s *model.ContentSort, field string) string {
 		return code
 	case "toplink":
 		// 頂級父欄目的鏈接
-		tcode := getSortField(s, "tcode")
+		tcode := getSortField(ctx, s, "tcode")
 		var topSort model.ContentSort
-		if err := model.DB.Where("scode = ?", tcode).First(&topSort).Error; err == nil {
+		if err := model.DB.WithContext(ctx).Where("scode = ?", tcode).First(&topSort).Error; err == nil {
 			if topSort.Outlink != "" {
 				return topSort.Outlink
 			}
@@ -1536,10 +1675,10 @@ func getSortField(s *model.ContentSort, field string) string {
 		return "/" + tcode + "/"
 	case "toprows":
 		// 頂級父欄目及其所有子欄目的內容總數
-		tcode := getSortField(s, "tcode")
-		allScodes := findAllChildScodes(tcode)
+		tcode := getSortField(ctx, s, "tcode")
+		allScodes := findAllChildScodes(ctx, tcode)
 		var cnt int64
-		model.DB.Model(&model.Content{}).
+		model.DB.WithContext(ctx).Model(&model.Content{}).
 			Where("scode IN ? AND status = 1", allScodes).
 			Count(&cnt)
 		return strconv.FormatInt(cnt, 10)
@@ -1594,16 +1733,53 @@ func getSortField(s *model.ContentSort, field string) string {
 	}
 }
 
-// contentURL 生成內容鏈接：outlink > filename > urlname > /content/id
-func contentURL(c *model.Content) string {
+// contentURL 生成內容鏈接（對齊 PHP parserLink，支援 url_rule_content_path 配置）
+// url_rule_content_path=0（預設）：帶欄目路徑 /sort-path/content-filename.html
+// url_rule_content_path=1：短路徑 /content-filename.html
+func contentURL(ctx context.Context, c *model.Content) string {
 	if c.Outlink != "" {
 		return c.Outlink
 	}
+
+	// 短路徑模式（url_rule_content_path=1）：只使用內容自身的 filename/urlname/id
+	if model.GetConfigValue("url_rule_content_path", "0") == "1" {
+		if c.Filename != "" {
+			return "/" + c.Filename + ".html"
+		}
+		if c.URLName != "" {
+			return "/" + c.URLName + ".html"
+		}
+		return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
+	}
+
+	// 帶欄目路徑模式（url_rule_content_path=0，預設）
+	// 查詢欄目的 filename 或 urlname 作為路徑前綴
+	var sortPath string
+	if c.Scode != "" {
+		var s model.ContentSort
+		if model.DB.WithContext(ctx).Where("scode = ?", c.Scode).First(&s).Error == nil {
+			if s.Filename != "" {
+				sortPath = s.Filename
+			} else if s.URLName != "" {
+				sortPath = s.URLName
+			}
+		}
+	}
+
 	if c.Filename != "" {
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.Filename + ".html"
+		}
 		return "/" + c.Filename + ".html"
 	}
 	if c.URLName != "" {
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.URLName + ".html"
+		}
 		return "/" + c.URLName + ".html"
+	}
+	if sortPath != "" {
+		return "/" + sortPath + "/" + strconv.Itoa(int(c.ID)) + ".html"
 	}
 	return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
 }
@@ -1621,15 +1797,18 @@ func buildFilterURL(ctx *Context, field, value string) string {
 			base = "/sort/" + ctx.Sort.Scode
 		}
 	}
-	// 構建查詢參數
+	// 構建查詢參數（驗證字段名安全，防止 URL 注入）
 	var params []string
 	for k, v := range ctx.Filters {
 		if k == field {
 			continue // 跳過當前欄位（由 value 決定是否重新加入）
 		}
+		if !IsSafeFieldName(k) {
+			continue
+		}
 		params = append(params, k+"="+urlEncode(v))
 	}
-	if value != "" {
+	if value != "" && IsSafeFieldName(field) {
 		params = append(params, field+"="+urlEncode(value))
 	}
 	if len(params) > 0 {
@@ -1660,7 +1839,11 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 	case "description":
 		return c.Description
 	case "content":
-		return c.Content
+		// 內鏈替換 + 敏感詞過濾（對齊 PbootCMS parserCurrentContentLabel + parserReplaceKeyword）
+		raw := c.Content
+		raw = replaceContentTags(raw, ctx.Ctx)
+		raw = replaceKeyword(raw)
+		return raw
 	case "ico":
 		v := c.Ico
 		if v != "" && !strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "http") {
@@ -1698,7 +1881,7 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 	case "id":
 		return strconv.Itoa(int(c.ID))
 	case "link":
-		return contentURL(c)
+		return contentURL(ctx.Ctx, c)
 	case "istop":
 		return strconv.Itoa(c.IsTop)
 	case "isrecommend":
@@ -1710,20 +1893,20 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 	case "precontent":
 		// 上一篇：同欄目下 ID 小於當前的最大記錄
 		var prev model.Content
-		if err := model.DB.Where("scode = ? AND id < ?", c.Scode, c.ID).Order("id desc").First(&prev).Error; err == nil {
-			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(&prev), prev.Title)
+		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ? AND id < ?", c.Scode, c.ID).Order("id desc").First(&prev).Error; err == nil {
+			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(ctx.Ctx, &prev), prev.Title)
 		}
 		return "沒有了"
 	case "nextcontent":
 		// 下一篇：同欄目下 ID 大於當前的最小記錄
 		var next model.Content
-		if err := model.DB.Where("scode = ? AND id > ?", c.Scode, c.ID).Order("id asc").First(&next).Error; err == nil {
-			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(&next), next.Title)
+		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ? AND id > ?", c.Scode, c.ID).Order("id asc").First(&next).Error; err == nil {
+			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(ctx.Ctx, &next), next.Title)
 		}
 		return "沒有了"
 	default:
 		if strings.HasPrefix(field, "ext_") {
-			// 從 ay_content_ext 表讀取擴展字段
+			// 從 ay_content_ext 表讀取擴展字段（對齊 PHP: $data->ext_xxx 動態屬性）
 			ext := content.GetContentExtByContentID(c.ID)
 			if ext != nil {
 				if v, ok := ext[field]; ok {
@@ -1750,6 +1933,15 @@ func parseExtraJSON(extra string) map[string]string {
 		}
 	}
 	return result
+}
+
+// parseIntConfig 從 DB 讀取整數配置（簡化 GetConfigValue+Atoi 組合）
+func parseIntConfig(name string, defaultVal int) int {
+	v, err := strconv.Atoi(model.GetConfigValue(name, ""))
+	if err != nil {
+		return defaultVal
+	}
+	return v
 }
 
 // commentToMap 將 CommentView 轉為模板欄位 map
@@ -1859,7 +2051,7 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 	return m
 }
 
-func sortToMap(s *model.ContentSort, index int) map[string]interface{} {
+func sortToMap(ctx context.Context, s *model.ContentSort, index int) map[string]interface{} {
 	// URL 生成規則（對齊 PbootCMS PHP）：
 	//   1. 優先用欄目自定義 URL 名稱 (s.Filename) —— 後台「URL名稱」欄位
 	//   2. 退而求其次用模型的 urlname (s.URLName) —— 通常等同於 scode
@@ -1883,9 +2075,9 @@ func sortToMap(s *model.ContentSort, index int) map[string]interface{} {
 		pic = "/" + pic
 	}
 	// 計算該欄目及其子欄目的內容數量
-	childScodes := findAllChildScodes(s.Scode)
+	childScodes := findAllChildScodes(ctx, s.Scode)
 	var rowCount int64
-	model.DB.Model(&model.Content{}).
+	model.DB.WithContext(ctx).Model(&model.Content{}).
 		Where("scode IN ? AND status = 1", childScodes).
 		Count(&rowCount)
 	return map[string]interface{}{
@@ -1902,29 +2094,372 @@ func sortToMap(s *model.ContentSort, index int) map[string]interface{} {
 }
 
 // findAllChildScodes 遞歸查找指定 scode 及其所有子欄目的 scode 列表
-func findAllChildScodes(parentScode string) []string {
+func findAllChildScodes(ctx context.Context, parentScode string) []string {
 	result := []string{parentScode}
-	childScodes := getDirectChildScodes(parentScode)
+	childScodes := getDirectChildScodes(ctx, parentScode)
 	for _, child := range childScodes {
 		// 遞歸：查找孫子、曾孫...
-		grandchildren := findAllChildScodes(child)
+		grandchildren := findAllChildScodes(ctx, child)
 		result = append(result, grandchildren...)
 	}
 	return result
 }
 
 // getDirectChildScodes 查找指定 scode 的直接子欄目 scode 列表
-func getDirectChildScodes(parentScode string) []string {
+// 注意：Table() 不帶 Schema，AcodePlugin 不會自動過濾，需手動加 acode 條件
+func getDirectChildScodes(ctx context.Context, parentScode string) []string {
 	var children []struct {
 		Scode string
 	}
-	model.DB.Table("ay_content_sort").
+	q := model.DB.WithContext(ctx).Table("ay_content_sort").
 		Select("scode").
-		Where("pcode = ? AND status = 1", parentScode).
-		Find(&children)
+		Where("pcode = ? AND status = 1", parentScode)
+	// Table() 不帶 Schema，AcodePlugin 無法自動過濾 acode，這裡手動補上
+	// 僅當 context 中設定了 acode 時過濾（與 AcodePlugin 的向後兼容語義一致）
+	if acode := acodeplugin.GetAcode(ctx); acode != "" {
+		q = q.Where("acode = ?", acode)
+	}
+	q.Find(&children)
 	scodes := make([]string, len(children))
 	for i, c := range children {
 		scodes[i] = c.Scode
 	}
 	return scodes
+}
+
+// ─── 標題樣式解析（對齊 PHP index_title/list_title/content_title/about_title/other_title 配置） ───
+
+// currentHomePath 返回當前語言區域的首頁路徑
+// 默認區域返回 /，非默認返回 /{acode}/
+func currentHomePath(ctx *Context) string {
+	acode := acodeplugin.GetAcode(ctx.Ctx)
+	if acode == "" {
+		return "/"
+	}
+	// 查默認區域
+	var areas []model.Area
+	model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Find(&areas)
+	for _, a := range areas {
+		if a.IsDefault == "1" && a.Acode == acode {
+			return "/"
+		}
+	}
+	return "/" + acode + "/"
+}
+
+// acodeToHreflang 將 acode 映射為標準 hreflang 代碼（ISO 639-1 + ISO 3166-1）
+func acodeToHreflang(acode string) string {
+	switch acode {
+	case "sc":
+		return "zh-Hans"
+	case "tc":
+		return "zh-Hant"
+	case "en":
+		return "en"
+	default:
+		return acode
+	}
+}
+
+// buildHreflang 生成 hreflang 標籤組（自引用 + 雙向對稱 + x-default）
+func buildHreflang(ctx *Context) string {
+	var areas []model.Area
+	model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Find(&areas)
+	if len(areas) <= 1 {
+		return ""
+	}
+
+	// 當前頁面路徑（已剝離 acode 前綴）
+	currentPath := ctx.CurrentPath
+	if currentPath == "" {
+		currentPath = "/"
+	}
+	if !strings.HasPrefix(currentPath, "/") {
+		currentPath = "/" + currentPath
+	}
+
+	// 找默認區域
+	defaultAcode := ""
+	for _, a := range areas {
+		if a.IsDefault == "1" {
+			defaultAcode = a.Acode
+			break
+		}
+	}
+	if defaultAcode == "" && len(areas) > 0 {
+		defaultAcode = areas[0].Acode
+	}
+
+	// 站點域名（用於絕對 URL）
+	domain := ""
+	if ctx.Site != nil && ctx.Site.Domain != "" {
+		domain = ctx.Site.Domain
+		// 確保域名帶協議前綴，但不重複
+		if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
+			domain = "https://" + domain
+		}
+	}
+
+	var sb strings.Builder
+	for _, a := range areas {
+		link := currentPath
+		if a.Acode != defaultAcode {
+			link = "/" + a.Acode + currentPath
+		}
+		href := link
+		if domain != "" {
+			href = domain + link
+		}
+		hreflangCode := acodeToHreflang(a.Acode)
+		sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="%s" href="%s" />`, hreflangCode, href))
+		sb.WriteString("\n")
+	}
+
+	// x-default 指向默認語言
+	defaultLink := currentPath
+	defaultHref := defaultLink
+	if domain != "" {
+		defaultHref = domain + defaultLink
+	}
+	sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="x-default" href="%s" />`, defaultHref))
+
+	return sb.String()
+}
+
+// buildCanonical 生成 canonical 標籤，指向當前頁面的標準 URL
+func buildCanonical(ctx *Context) string {
+	acode := acodeplugin.GetAcode(ctx.Ctx)
+
+	currentPath := ctx.CurrentPath
+	if currentPath == "" {
+		currentPath = "/"
+	}
+	if !strings.HasPrefix(currentPath, "/") {
+		currentPath = "/" + currentPath
+	}
+
+	// 站點域名
+	domain := ""
+	if ctx.Site != nil && ctx.Site.Domain != "" {
+		domain = ctx.Site.Domain
+		if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
+			domain = "https://" + domain
+		}
+	}
+
+	link := currentPath
+	if acode != "" {
+		var areas []model.Area
+		model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Find(&areas)
+		isDefault := false
+		for _, a := range areas {
+			if a.Acode == acode && a.IsDefault == "1" {
+				isDefault = true
+				break
+			}
+		}
+		if !isDefault {
+			link = "/" + acode + currentPath
+		}
+	}
+
+	href := link
+	if domain != "" {
+		href = domain + link
+	}
+	return fmt.Sprintf(`<link rel="canonical" href="%s" />`, href)
+}
+
+// acodeToLocale 將 acode 轉換為 Open Graph locale 格式（zh_CN / zh_HK / en_US）
+func acodeToLocale(acode string) string {
+	switch acode {
+	case "sc":
+		return "zh_CN"
+	case "tc":
+		return "zh_HK"
+	case "en":
+		return "en_US"
+	default:
+		return acode
+	}
+}
+
+// buildOpenGraph 生成 Open Graph meta 標籤（社交分享用）
+func buildOpenGraph(ctx *Context) string {
+	acode := acodeplugin.GetAcode(ctx.Ctx)
+
+	// 站點域名
+	domain := ""
+	siteName := ""
+	if ctx.Site != nil {
+		siteName = ctx.Site.Title
+		if ctx.Site.Domain != "" {
+			domain = ctx.Site.Domain
+			if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
+				domain = "https://" + domain
+			}
+		}
+	}
+
+	// 當前頁面 URL（與 canonical 相同）
+	currentPath := ctx.CurrentPath
+	if currentPath == "" {
+		currentPath = "/"
+	}
+	if !strings.HasPrefix(currentPath, "/") {
+		currentPath = "/" + currentPath
+	}
+
+	link := currentPath
+	if acode != "" {
+		var areas []model.Area
+		model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Find(&areas)
+		isDefault := false
+		for _, a := range areas {
+			if a.Acode == acode && a.IsDefault == "1" {
+				isDefault = true
+				break
+			}
+		}
+		if !isDefault {
+			link = "/" + acode + currentPath
+		}
+	}
+
+	canonicalURL := link
+	if domain != "" {
+		canonicalURL = domain + link
+	}
+
+	// 頁面標題和描述
+	title := resolvePageTitle(ctx)
+	description := resolvePageDescription(ctx)
+
+	// 頁面類型
+	ogType := "website"
+	if ctx.Content != nil {
+		ogType = "article"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`<meta property="og:title" content="%s" />`, html.EscapeString(title)))
+	sb.WriteString(fmt.Sprintf(`<meta property="og:description" content="%s" />`, html.EscapeString(description)))
+	sb.WriteString(fmt.Sprintf(`<meta property="og:url" content="%s" />`, canonicalURL))
+	sb.WriteString(fmt.Sprintf(`<meta property="og:type" content="%s" />`, ogType))
+	if siteName != "" {
+		sb.WriteString(fmt.Sprintf(`<meta property="og:site_name" content="%s" />`, html.EscapeString(siteName)))
+	}
+	sb.WriteString(fmt.Sprintf(`<meta property="og:locale" content="%s" />`, acodeToLocale(acode)))
+
+	// og:locale:alternate — 其他語言
+	var areas []model.Area
+	model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Find(&areas)
+	for _, a := range areas {
+		if a.Acode != acode {
+			sb.WriteString(fmt.Sprintf(`<meta property="og:locale:alternate" content="%s" />`, acodeToLocale(a.Acode)))
+		}
+	}
+
+	return sb.String()
+}
+
+// resolvePageTitle 根據頁面類型讀取對應的 *_title 配置，解析巢狀標籤後返回最終標題
+func resolvePageTitle(ctx *Context) string {
+	var tmpl string
+	if ctx.Content != nil && ctx.Sort != nil {
+		// 內容頁（有欄目和內容）
+		tmpl = model.GetConfigValue("content_title", "")
+	} else if ctx.Sort != nil {
+		// 列表/欄目頁
+		tmpl = model.GetConfigValue("list_title", "")
+	} else if ctx.Content != nil {
+		// 單頁（有內容但無欄目）
+		tmpl = model.GetConfigValue("about_title", "")
+	} else {
+		// 首頁
+		tmpl = model.GetConfigValue("index_title", "")
+	}
+
+	if tmpl == "" {
+		// 配置為空時使用預設值（對齊 PHP 各方法的預設格式）
+		if ctx.Content != nil && ctx.Sort != nil {
+			tmpl = "{content:title}-{sort:name}-{gboot:sitetitle}-{gboot:sitesubtitle}"
+		} else if ctx.Sort != nil {
+			tmpl = "{sort:name}-{gboot:sitetitle}-{gboot:sitesubtitle}"
+		} else if ctx.Content != nil {
+			tmpl = "{content:title}-{gboot:sitetitle}-{gboot:sitesubtitle}"
+		} else {
+			tmpl = "{gboot:sitetitle}-{gboot:sitesubtitle}"
+		}
+	}
+
+	return resolveTitleTags(tmpl, ctx)
+}
+
+// resolvePageKeywords 根據頁面類型返回關鍵詞
+func resolvePageKeywords(ctx *Context) string {
+	if ctx.Content != nil && ctx.Content.Keywords != "" {
+		return ctx.Content.Keywords
+	}
+	if ctx.Sort != nil && ctx.Sort.Keywords != "" {
+		return ctx.Sort.Keywords
+	}
+	if ctx.Site != nil {
+		return ctx.Site.Keywords
+	}
+	return ""
+}
+
+// resolvePageDescription 根據頁面類型返回描述
+func resolvePageDescription(ctx *Context) string {
+	if ctx.Content != nil && ctx.Content.Description != "" {
+		return ctx.Content.Description
+	}
+	if ctx.Sort != nil && ctx.Sort.Description != "" {
+		return ctx.Sort.Description
+	}
+	if ctx.Site != nil {
+		return ctx.Site.Description
+	}
+	return ""
+}
+
+// resolveTitleTags 解析標題模板中的巢狀標籤
+// 支援：{gboot:sitetitle} {gboot:sitesubtitle} {content:title} {sort:name} {sort:title} 等
+func resolveTitleTags(tmpl string, ctx *Context) string {
+	result := tmpl
+
+	// 站點標籤
+	if ctx.Site != nil {
+		result = strings.ReplaceAll(result, "{gboot:sitetitle}", ctx.Site.Title)
+		result = strings.ReplaceAll(result, "{gboot:sitesubtitle}", ctx.Site.Subtitle)
+		result = strings.ReplaceAll(result, "{gboot:sitekeywords}", ctx.Site.Keywords)
+		result = strings.ReplaceAll(result, "{gboot:sitedescription}", ctx.Site.Description)
+		result = strings.ReplaceAll(result, "{pboot:sitetitle}", ctx.Site.Title)
+		result = strings.ReplaceAll(result, "{pboot:sitesubtitle}", ctx.Site.Subtitle)
+		result = strings.ReplaceAll(result, "{pboot:sitekeywords}", ctx.Site.Keywords)
+		result = strings.ReplaceAll(result, "{pboot:sitedescription}", ctx.Site.Description)
+	}
+
+	// 內容標籤
+	if ctx.Content != nil {
+		result = strings.ReplaceAll(result, "{content:title}", ctx.Content.Title)
+		result = strings.ReplaceAll(result, "{content:keywords}", ctx.Content.Keywords)
+		result = strings.ReplaceAll(result, "{content:description}", ctx.Content.Description)
+	}
+
+	// 欄目標籤
+	if ctx.Sort != nil {
+		sortName := ctx.Sort.Name
+		sortTitle := ctx.Sort.Title
+		if sortTitle == "" {
+			sortTitle = sortName
+		}
+		result = strings.ReplaceAll(result, "{sort:name}", sortName)
+		result = strings.ReplaceAll(result, "{sort:title}", sortTitle)
+		result = strings.ReplaceAll(result, "{sort:keywords}", ctx.Sort.Keywords)
+		result = strings.ReplaceAll(result, "{sort:description}", ctx.Sort.Description)
+	}
+
+	return result
 }

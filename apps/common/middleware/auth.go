@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"net/http"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/common"
 
 	"github.com/gin-gonic/gin"
 )

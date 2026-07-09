@@ -1,10 +1,10 @@
-﻿package content
+package content
 
 import (
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model"
-	svc "pbootcms-go/apps/admin/service/content"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	svc "gbootcms/apps/admin/service/content"
+	"gbootcms/apps/common"
 	"strconv"
 	"time"
 
@@ -30,7 +30,7 @@ func (csc *ContentSortController) sortTemplateData(sorts []model.ContentSort) gi
 
 // Index - Sort list
 func (csc *ContentSortController) Index(c *gin.Context) {
-	sorts, _ := csc.svc.ListSorts()
+	sorts, _ := csc.svc.ListSorts(c.Request.Context())
 	data := csc.sortTemplateData(sorts)
 	data["sorts"] = helper.BuildSortTreeData(sorts)
 	data["list"] = true
@@ -42,7 +42,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		multiplename := c.PostForm("multiplename")
 		if multiplename != "" {
-			if err := csc.svc.BatchAddSorts(multiplename, c.PostForm("pcode")); err != nil {
+			if err := csc.svc.BatchAddSorts(c.Request.Context(), multiplename, c.PostForm("pcode")); err != nil {
 				csc.JSONFail(c, err.Error())
 				return
 			}
@@ -85,7 +85,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 			Title:       c.PostForm("title"),
 			Status:      helper.ParseInt(c.DefaultPostForm("status", "1")),
 		}
-		if err := csc.svc.CreateSort(&sort); err != nil {
+		if err := csc.svc.CreateSort(c.Request.Context(), &sort); err != nil {
 			csc.JSONFail(c, err.Error())
 			return
 		}
@@ -93,7 +93,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 		return
 	}
 
-	sorts, _ := csc.svc.ListSorts()
+	sorts, _ := csc.svc.ListSorts(c.Request.Context())
 	data := csc.sortTemplateData(sorts)
 	data["sorts"] = helper.BuildSortTreeData(sorts)
 	data["list"] = true
@@ -128,13 +128,13 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 	if field != "" {
 		// Try scode-based lookup first, then id-based
 		if scode != "" {
-			if err := csc.svc.UpdateSortByScodeField(scode, field, value); err != nil {
+			if err := csc.svc.UpdateSortByScodeField(c.Request.Context(), scode, field, value); err != nil {
 				csc.JSONFail(c, err.Error())
 				return
 			}
 		} else {
 			id, _ := strconv.Atoi(idStr)
-			if err := csc.svc.UpdateSortSingleField(id, field, value); err != nil {
+			if err := csc.svc.UpdateSortSingleField(c.Request.Context(), id, field, value); err != nil {
 				csc.JSONFail(c, err.Error())
 				return
 			}
@@ -191,10 +191,10 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 		// Try scode-based update, then id-based
 		var err error
 		if scode != "" {
-			err = csc.svc.UpdateSortByScode(scode, updates)
+			err = csc.svc.UpdateSortByScode(c.Request.Context(), scode, updates)
 		} else {
 			id, _ := strconv.Atoi(idStr)
-			err = csc.svc.UpdateSort(id, updates)
+			err = csc.svc.UpdateSort(c.Request.Context(), id, updates)
 		}
 		if err != nil {
 			csc.JSONFail(c, err.Error())
@@ -209,9 +209,9 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 		}
 		if stype == 1 && contentScode != "" {
 			var existing model.Content
-			result := model.DB.Where("scode = ?", contentScode).First(&existing)
+			result := model.DB.WithContext(c.Request.Context()).Where("scode = ?", contentScode).First(&existing)
 			if result.Error != nil && c.PostForm("outlink") == "" {
-				model.DB.Create(&model.Content{
+				model.DB.WithContext(c.Request.Context()).Create(&model.Content{
 					Scode:  contentScode,
 					Title:  c.PostForm("name"),
 					Status: 1,
@@ -234,17 +234,17 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 	var sort *model.ContentSort
 	var err error
 	if scode != "" {
-		sort, err = csc.svc.GetSortByScode(scode)
+		sort, err = csc.svc.GetSortByScode(c.Request.Context(), scode)
 	} else {
 		id, _ := strconv.Atoi(idStr)
-		sort, err = csc.svc.GetSort(id)
+		sort, err = csc.svc.GetSort(c.Request.Context(), id)
 	}
 	if err != nil {
 		csc.JSONFail(c, err.Error())
 		return
 	}
 
-	sorts, _ := csc.svc.ListSorts()
+	sorts, _ := csc.svc.ListSorts(c.Request.Context())
 	data := csc.sortTemplateData(sorts)
 	data["sort"] = sort
 	data["sorts"] = helper.BuildSortTreeData(sorts)
@@ -259,7 +259,7 @@ func (csc *ContentSortController) Del(c *gin.Context) {
 	scodeStr := c.Query("scode")
 	// 優先檢查 ?scode=，對應 get_btn_del($value->scode,'scode')
 	if scodeStr != "" {
-		if err := csc.svc.DeleteSortByScode(scodeStr); err != nil {
+		if err := csc.svc.DeleteSortByScode(c.Request.Context(), scodeStr); err != nil {
 			csc.JSONFail(c, err.Error())
 			return
 		}
@@ -273,12 +273,12 @@ func (csc *ContentSortController) Del(c *gin.Context) {
 			ids = c.PostFormArray("list")
 		}
 		for _, scode := range ids {
-			csc.svc.DeleteSortByScode(scode)
+			csc.svc.DeleteSortByScode(c.Request.Context(), scode)
 		}
 		csc.JSONOKMsg(c, common.NoticeDelete)
 		return
 	}
-	if err := csc.svc.DeleteSort(idStr); err != nil {
+	if err := csc.svc.DeleteSort(c.Request.Context(), idStr); err != nil {
 		csc.JSONFail(c, err.Error())
 		return
 	}

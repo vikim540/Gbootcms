@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/admin/model/content"
-	"pbootcms-go/apps/admin/model/member"
-	"pbootcms-go/apps/admin/model/system"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/apps/admin/model/member"
+	"gbootcms/apps/admin/model/system"
 
 	"gorm.io/gorm"
 )
@@ -76,11 +76,11 @@ func seedAdminUser(now time.Time) {
 
 func seedSite() {
 	model.DB.Create(&content.Site{
-		Name:        "PbootCMS",
-		Title:       "PbootCMS",
+		Name:        "Gbootcms",
+		Title:       "Gbootcms",
 		Subtitle:    "",
-		Keywords:    "PbootCMS",
-		Description: "PbootCMS",
+		Keywords:    "Gbootcms",
+		Description: "Gbootcms",
 		Logo:        "",
 		ICP:         "",
 		Copyright:   "",
@@ -92,7 +92,7 @@ func seedSite() {
 
 func seedCompany() {
 	model.DB.Create(&content.Company{
-		Name:     "PbootCMS",
+		Name:     "Gbootcms",
 		Address:  "",
 		Phone:    "",
 		Fax:      "",
@@ -236,6 +236,27 @@ func seedConfigs() {
 		{Name: "comment_verify", Value: "1"},
 		{Name: "comment_anonymous", Value: "0"},
 		{Name: "home_upload_ext", Value: "jpg,jpeg,png,gif,xls,xlsx,doc,docx,ppt,pptx,rar,zip,pdf,txt"},
+		// 搜索引擎推送配置
+		{Name: "baidu_zz_token", Value: ""},
+		{Name: "baidu_ks_token", Value: ""},
+		{Name: "bing_indexnow_key", Value: ""},
+		// 標題樣式配置
+		{Name: "index_title", Value: ""},
+		{Name: "list_title", Value: ""},
+		{Name: "content_title", Value: ""},
+		{Name: "about_title", Value: ""},
+		{Name: "other_title", Value: ""},
+		// URL 規則配置
+		{Name: "url_rule_content_path", Value: "0"},
+		{Name: "url_index_404", Value: "0"},
+		// 圖片水印配置
+		{Name: "watermark_open", Value: "0"},
+		{Name: "watermark_text", Value: ""},
+		{Name: "watermark_text_size", Value: "16"},
+		{Name: "watermark_text_color", Value: "100,100,100"},
+		{Name: "watermark_text_font", Value: ""},
+		{Name: "watermark_pic", Value: ""},
+		{Name: "watermark_position", Value: "4"},
 	}
 	for _, c := range configs {
 		model.DB.Create(&c)

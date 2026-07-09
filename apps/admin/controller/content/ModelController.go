@@ -1,9 +1,9 @@
-﻿package content
+package content
 
 import (
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model/content"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/apps/common"
 	"regexp"
 	"strconv"
 
@@ -16,10 +16,27 @@ type ModelController struct {
 
 // Index — 模型列表
 func (md *ModelController) Index(c *gin.Context) {
-	models := content.GetAllModels()
+	page, pageSize, offset := md.Paginate(c)
+
+	allModels := content.GetAllModels()
+	total := int64(len(allModels))
+	// 記憶體內分頁（保留 GetAllModels 的 COALESCE 處理邏輯）
+	models := allModels
+	if offset >= len(models) {
+		models = models[:0]
+	} else {
+		end := offset + pageSize
+		if end > len(models) {
+			end = len(models)
+		}
+		models = models[offset:end]
+	}
+	baseURL := "/admin/content/model/index"
 	common.Render(c, "content/model.html", gin.H{
-		"list":   true,
-		"models": models,
+		"list":     true,
+		"models":   models,
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
 	})
 }
 
@@ -28,6 +45,7 @@ func (md *ModelController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		name := c.PostForm("name")
 		if name == "" {
+			md.LogAction(c, "新增內容模型失敗")
 			md.JSONFail(c, "模型名稱不能為空")
 			return
 		}
@@ -41,6 +59,7 @@ func (md *ModelController) Add(c *gin.Context) {
 		// 驗證 urlname 格式
 		if urlname != "" {
 			if matched, _ := regexp.MatchString(`^[a-zA-Z0-9\-]+$`, urlname); !matched {
+				md.LogAction(c, "新增內容模型失敗")
 				md.JSONFail(c, "URL名稱僅允許英文、數字和短橫線")
 				return
 			}
@@ -50,9 +69,11 @@ func (md *ModelController) Add(c *gin.Context) {
 		mcode := content.GetNextMcode()
 
 		if err := content.AddModel(mcode, name, urlname, listtpl, contenttpl, "admin", typ, status); err != nil {
+			md.LogAction(c, "新增內容模型失敗")
 			md.JSONFail(c, "新增失敗: "+err.Error())
 			return
 		}
+		md.LogAction(c, "新增內容模型成功")
 		md.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
@@ -88,6 +109,7 @@ func (md *ModelController) Mod(c *gin.Context) {
 	if field != "" && value != "" {
 		if field == "status" {
 			content.UpdateModelSingleField(id, field, value, "admin")
+			md.LogAction(c, "修改內容模型成功")
 			md.JSONOKMsg(c, common.NoticeModify)
 			return
 		}
@@ -127,6 +149,7 @@ func (md *ModelController) Mod(c *gin.Context) {
 			md.JSONFail(c, "修改失敗: "+err.Error())
 			return
 		}
+		md.LogAction(c, "修改內容模型成功")
 		md.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
@@ -151,12 +174,15 @@ func (md *ModelController) Del(c *gin.Context) {
 	}
 	id, _ := strconv.Atoi(idStr)
 	if id <= 0 {
+		md.LogAction(c, "刪除內容模型失敗")
 		md.JSONFail(c, "缺少模型 ID")
 		return
 	}
 	if err := content.DeleteModel(id); err != nil {
+		md.LogAction(c, "刪除內容模型失敗")
 		md.JSONFail(c, err.Error())
 		return
 	}
+	md.LogAction(c, "刪除內容模型成功")
 	md.JSONOKMsg(c, common.NoticeDelete)
 }

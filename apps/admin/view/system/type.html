@@ -5,8 +5,8 @@
 	
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">类型列表</li>
-	    <li lay-id="t2">类型新增</li>
+	    <li class="layui-this" lay-id="t1">類型列表</li>
+	    <li lay-id="t2">類型新增</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	   <div class="layui-tab-item layui-show">
@@ -15,13 +15,13 @@
 		  	   			<div class="layui-input-inline">
 		  	   			   {$pathinfo}
 					       <select name="field" lay-verify="required">
-	                            <option value="tcode" {if(get('field')=='tcode')}selected="selected" {/if} >类型编码</option>
-                                <option value="name" {if(get('field')=='name')}selected="selected" {/if}>类型名称</option>
-                                <option value="item" {if(get('field')=='item')}selected="selected" {/if}>类型项</option>
+	                            <option value="tcode" {if(get('field')=='tcode')}selected="selected" {/if} >類型編碼</option>
+                                <option value="name" {if(get('field')=='name')}selected="selected" {/if}>類型名稱</option>
+                                <option value="item" {if(get('field')=='item')}selected="selected" {/if}>類型項</option>
 	                       </select>
 					    </div>
 	                     <div class="layui-input-inline">
-	                     	<input type="text" name="keyword"  value="{$get.keyword}"  placeholder="请输入搜索关键字" class="layui-input">
+	                     	<input type="text" name="keyword"  value="{$get.keyword}"  placeholder="請輸入搜索關鍵字" class="layui-input">
 	                     </div>
 	                     <div class="layui-input-inline">
 	                     	<button class="layui-btn" lay-submit>搜索</button>
@@ -32,10 +32,10 @@
 				<table class="layui-table">
 					<thead>
 	                    <tr>
-	                        <th>类型编码</th>
-	                        <th>类型名称</th>
-	                        <th>类型项</th>
-	                        <th>类型值</th>
+	                        <th>類型編碼</th>
+	                        <th>類型名稱</th>
+	                        <th>類型項</th>
+	                        <th>類型值</th>
 	                        <th>排序</th>
 	                        <th>操作</th>
 	                    </tr>
@@ -75,10 +75,10 @@
 				 <form action="{url./admin/Type/add}" method="post" class="layui-form">
 				 	<input type="hidden" name="formcheck" value="{$formcheck}" > 
 				 	<div class="layui-form-item">
-	                     <label class="layui-form-label">类型编码</label>
+	                     <label class="layui-form-label">類型編碼</label>
 	                     <div class="layui-input-block">
 	                     	<select name="tcode">
-		                        <option value="0">新建（自动编码）</option>
+		                        <option value="0">新建（自動編碼）</option>
 		                        {foreach $type_select(key,value)}
 		                            <option value="[value->tcode]" title="[value->name]">[value->tcode] [value->name]</option>
 		                        {/foreach}
@@ -87,30 +87,30 @@
 	                </div>
 					
 					<div class="layui-form-item">
-	                     <label class="layui-form-label">类型名称</label>
+	                     <label class="layui-form-label">類型名稱</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="name" required  lay-verify="required" placeholder="请输入类型名称" class="layui-input">
+	                     	<input type="text" name="name" required  lay-verify="required" placeholder="請輸入類型名稱" class="layui-input">
 	                     </div>
 	                </div>
 	                
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">类型项名称</label>
+	                     <label class="layui-form-label">類型項名稱</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="item" required  lay-verify="required"  placeholder="请输入类型项名称" class="layui-input">
+	                     	<input type="text" name="item" required  lay-verify="required"  placeholder="請輸入類型項名稱" class="layui-input">
 	                     </div>
 	                </div>
 	                
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">类型项值</label>
+	                     <label class="layui-form-label">類型項值</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="value" required  lay-verify="required"  placeholder="请输入类型项值" class="layui-input">
+	                     	<input type="text" name="value" required  lay-verify="required"  placeholder="請輸入類型項值" class="layui-input">
 	                     </div>
 	                </div>
 	                
 					<div class="layui-form-item">
 	                     <label class="layui-form-label">排序</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="sorting" required  lay-verify="required" value="255"  placeholder="请输入排序值" class="layui-input">
+	                     	<input type="text" name="sorting" required  lay-verify="required" value="255"  placeholder="請輸入排序值" class="layui-input">
 	                     </div>
 	                </div>
 	                
@@ -132,37 +132,37 @@
 	
 	<div class="layui-tab layui-tab-brief" lay-filter="docDemoTabBrief">
 		<ul class="layui-tab-title">
-		  <li class="layui-this">用户修改</li>
+		  <li class="layui-this">用戶修改</li>
 		</ul>
 		<div class="layui-tab-content">
 		   <div class="layui-tab-item layui-show">
 		   		 <form action="{url./admin/Type/mod/id/'.[$get.id].'}{$backurl}" method="post" class="layui-form">
 					<input type="hidden" name="formcheck" value="{$formcheck}" > 
 					<div class="layui-form-item">
-	                     <label class="layui-form-label">类型名称</label>
+	                     <label class="layui-form-label">類型名稱</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="name" required  lay-verify="required" value="{$type->name}" placeholder="请输入类型名称" class="layui-input">
+	                     	<input type="text" name="name" required  lay-verify="required" value="{$type->name}" placeholder="請輸入類型名稱" class="layui-input">
 	                     </div>
 	                </div>
 	                
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">类型项名称</label>
+	                     <label class="layui-form-label">類型項名稱</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="item" required  lay-verify="required" value="{$type->item}"  placeholder="请输入类型项名称" class="layui-input">
+	                     	<input type="text" name="item" required  lay-verify="required" value="{$type->item}"  placeholder="請輸入類型項名稱" class="layui-input">
 	                     </div>
 	                </div>
 	                
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">类型项值</label>
+	                     <label class="layui-form-label">類型項值</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="value" required  lay-verify="required" value="{$type->value}"  placeholder="请输入类型项值" class="layui-input">
+	                     	<input type="text" name="value" required  lay-verify="required" value="{$type->value}"  placeholder="請輸入類型項值" class="layui-input">
 	                     </div>
 	                </div>
 	                
 					<div class="layui-form-item">
 	                     <label class="layui-form-label">排序</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="sorting" required  lay-verify="required" value="{$type->sorting}"  placeholder="请输入排序值" class="layui-input">
+	                     	<input type="text" name="sorting" required  lay-verify="required" value="{$type->sorting}"  placeholder="請輸入排序值" class="layui-input">
 	                     </div>
 	                </div>
 	                

@@ -1,39 +1,41 @@
 package content
 
 import (
-	"pbootcms-go/core/db"
+	"gbootcms/core/db"
 	"time"
 )
 
-// Form 表單模型
+// Form 表單模型（對齊 PHP ay_form 表結構）
 type Form struct {
 	ID         uint      `gorm:"primaryKey" json:"id"`
 	Fcode      string    `gorm:"column:fcode" json:"fcode"`
 	FormName   string    `gorm:"column:form_name" json:"form_name"`
-	Table      string    `gorm:"column:table_name" json:"table_name"`
-	Status     int       `gorm:"column:status" json:"status"`
-	CreateTime time.Time `gorm:"column:createtime" json:"createtime"`
-	UpdateTime time.Time `gorm:"column:updatetime" json:"updatetime"`
+	TableName  string    `gorm:"column:table_name" json:"table_name"`
+	CreateUser string    `gorm:"column:create_user" json:"create_user"`
+	UpdateUser string    `gorm:"column:update_user" json:"update_user"`
+	CreateTime time.Time `gorm:"column:create_time" json:"create_time"`
+	UpdateTime time.Time `gorm:"column:update_time" json:"update_time"`
 }
 
-// FormField 表單字段模型
+// FormField 表單字段模型（對齊 PHP ay_form_field 表結構）
 type FormField struct {
-	ID         uint      `gorm:"primaryKey" json:"id"`
-	Fcode      string    `gorm:"column:fcode" json:"fcode"`
-	Name       string    `gorm:"column:name" json:"name"`
-	Field      string    `gorm:"column:field" json:"field"`
-	Type       string    `gorm:"column:type" json:"type"`
-	Required   int       `gorm:"column:required" json:"required"`
-	Sorting    int       `gorm:"column:sorting" json:"sorting"`
-	Status     int       `gorm:"column:status" json:"status"`
-	CreateTime time.Time `gorm:"column:createtime" json:"createtime"`
-	UpdateTime time.Time `gorm:"column:updatetime" json:"updatetime"`
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Fcode       string    `gorm:"column:fcode" json:"fcode"`
+	Name        string    `gorm:"column:name" json:"name"`
+	Length      int       `gorm:"column:length" json:"length"`
+	Required    int       `gorm:"column:required" json:"required"`
+	Description string    `gorm:"column:description" json:"description"`
+	Sorting     int       `gorm:"column:sorting" json:"sorting"`
+	CreateUser  string    `gorm:"column:create_user" json:"create_user"`
+	UpdateUser  string    `gorm:"column:update_user" json:"update_user"`
+	CreateTime  time.Time `gorm:"column:create_time" json:"create_time"`
+	UpdateTime  time.Time `gorm:"column:update_time" json:"update_time"`
 }
 
 // GetFormFieldByCode 按 fcode 查詢表單字段定義（按 sorting 排序）
 func GetFormFieldByCode(fcode string) []FormField {
 	var list []FormField
-	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(fcode,'') AS fcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(required,0) AS required, COALESCE(sorting,255) AS sorting, COALESCE(status,1) AS status, COALESCE(createtime,'') AS createtime, COALESCE(updatetime,'') AS updatetime FROM ay_form_field WHERE fcode = ? ORDER BY sorting ASC, id ASC", fcode).Scan(&list)
+	db.DB.Raw("SELECT * FROM ay_form_field WHERE fcode = ? ORDER BY sorting ASC, id ASC", fcode).Scan(&list)
 	return list
 }
 

@@ -1,8 +1,9 @@
-﻿package content
+package content
 
 import (
-	"pbootcms-go/apps/admin/model/content"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/apps/common"
+	"log"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -13,23 +14,39 @@ type LabelController struct {
 }
 
 func (lb *LabelController) Index(c *gin.Context) {
-	// === POST 批量更新标签值 ===
+	// === POST 批量更新標籤值 ===
 	if c.Request.Method == "POST" {
 		postForm := make(map[string]string)
-		if err := c.Request.ParseForm(); err == nil {
-			for k, v := range c.Request.PostForm {
+		// 支援 multipart/form-data（AJAX FormData 提交）和 application/x-www-form-urlencoded
+		// 先嘗試 ParseMultipartForm，再呼叫 ParseForm 處理 urlencoded
+		// ParseMultipartForm 對非 multipart 請求會返回 ErrNotMultipart 但不消費 body
+		c.Request.ParseMultipartForm(32 << 20)
+		c.Request.ParseForm()
+
+		// 從 PostForm 收集（urlencoded 值或已從 multipart 複製的值）
+		for k, v := range c.Request.PostForm {
+			if len(v) > 0 {
+				postForm[k] = v[0]
+			}
+		}
+		// 補充 MultipartForm 值（multipart/form-data 的情況下 PostForm 可能未完整填充）
+		if c.Request.MultipartForm != nil {
+			for k, v := range c.Request.MultipartForm.Value {
 				if len(v) > 0 {
 					postForm[k] = v[0]
 				}
 			}
 		}
+
+		log.Printf("[LabelController.Index] POST fields count: %d", len(postForm))
+
 		updated := content.BatchUpdateLabelValues(postForm, "admin")
 		lb.JSONOKMsg(c, common.NoticeLabelSaved(updated))
 		return
 	}
 
 	labels := content.GetAllLabels()
-	common.Render(c, "content/label.html", gin.H{"labels": labels})
+	common.Render(c, "content/label.html", gin.H{"list": true, "labels": labels})
 }
 
 func (lb *LabelController) Add(c *gin.Context) {

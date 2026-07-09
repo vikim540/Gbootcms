@@ -17,62 +17,62 @@ color:#ffffff;
 
 </style>
 <div class="layui-body">
-	
+
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">更新缓存</li>
+	    <li class="layui-this" lay-id="t1">更新快取</li>
 	  </ul>
-	  
+
 	  <div class="layui-tab-content">
   	     <div class="layui-tab-item layui-form  layui-show">
-  	     
+
   	     	 <div class="layui-form-item">
-                  <label class="layui-form-label">更新首页和栏目</label>
-                  <button type="button" class="layui-btn deletecache" data-type="1">立即更新首页和栏目</button>
+                  <label class="layui-form-label">更新首頁和欄目</label>
+                  <button type="button" class="layui-btn deletecache" data-type="1">立即更新首頁和欄目</button>
              </div>
-           
+
      		 <div class="layui-form-item">
-                  <label class="layui-form-label">更新栏目分页</label>
+                  <label class="layui-form-label">更新欄目分頁</label>
                   <div class="layui-input-inline">
 	                  <select name="scode">
-	                      <option value="0" >全部栏目</option>
+	                      <option value="0" >全部欄目</option>
 	                      {$sort_select}
 	                  </select>
                   </div>
-                  <button type="button" class="layui-btn deletecache" data-type="2">立即更新栏目页</button>
+                  <button type="button" class="layui-btn deletecache" data-type="2">立即更新欄目頁</button>
              </div>
-             
+
              <div class="layui-form-item">
-                  <label class="layui-form-label">更新内容页</label> &nbsp;&nbsp;起始ID
+                  <label class="layui-form-label">更新內容頁</label> &nbsp;&nbsp;起始ID
 				  <input type="text" id="idzuixiao" value="1" placeholder="最小ID"  class="layui-input input" style="width:15%; display:inline;">
-				  &nbsp;&nbsp;结束ID
+				  &nbsp;&nbsp;結束ID
 				  <input type="text" id="idzuida" value="10" placeholder="最大ID"  class="layui-input input" style="width:15%; display:inline;">
-                  <button type="button" class="layui-btn deletecache" data-type="3">立即更新内容页</button>
+                  <button type="button" class="layui-btn deletecache" data-type="3">立即更新內容頁</button>
              </div>
 			 <div class="layui-form-item">
-                  <label class="layui-form-label">更新系统缓存</label>
-				  <a href="{url./admin/Index/clearOnlySysCache}" class="ajaxlink huancuna">清理系统缓存</a> 
+                  <label class="layui-form-label">更新系統快取</label>
+				  <a href="{url./admin/Index/clearOnlySysCache}" class="ajaxlink huancuna">清理系統快取</a>
 
              </div>
 			 <div class="layui-form-item">
-                  <label class="layui-form-label">更新所有缓存</label>
-				  <a href="{url./admin/Index/clearCache}" class="ajaxlink huancuna">清理所有缓存</a> 
+                  <label class="layui-form-label">更新所有快取</label>
+				  <a href="{url./admin/Index/clearCache}" class="ajaxlink huancuna">清理所有快取</a>
 
              </div>
 			 <div class="layui-form-item" style="padding-left:20px; line-height:24px;">
-                  功能说明：
-				  <br />1、《更新首页和栏目》：随便使用。
-				  <br />2、《更新栏目分页》：每天发布量<200篇。7天一次。每天发布量<500篇。3天只需使用一次。每天发布量>1000篇。1天只需使用一次。
-				  <br />3、《更新内容页》：根据需要去更新，无全局更新永远不使用。
-				  <br />4、《更新系统缓存》：随便使用。
-				  <br />5、《更新所有缓存》：如果数据量小，随便使用。如果数据量大，无全局更新永远不要使用。
-				  <br />6、一定要做好301，保证链接的唯一性。
+                  功能說明：
+				  <br />1、《更新首頁和欄目》：隨便使用。
+				  <br />2、《更新欄目分頁》：每天發布量<200篇。7天一次。每天發布量<500篇。3天只需使用一次。每天發布量>1000篇。1天只需使用一次。
+				  <br />3、《更新內容頁》：根據需要去更新，無全局更新永遠不使用。
+				  <br />4、《更新系統快取》：隨便使用。
+				  <br />5、《更新所有快取》：如果數據量小，隨便使用。如果數據量大，無全局更新永遠不要使用。
+				  <br />6、一定要做好301，保證連結的唯一性。
              </div>
 
   	     </div>
 	   </div>
 	</div>
-	
+
 </div>
 
  <script>
@@ -81,18 +81,18 @@ color:#ffffff;
 	 var scode=$(this).parents(".layui-form-item").find("select").val();
 	 var idzuixiao=$("#idzuixiao").val();
 	 var idzuida=$("#idzuida").val();
-	 
+
 	 var lyindex;
 	 layui.use('layer', function(){
 		var layer = layui.layer;
 		lyindex = layer.open({
 			type: 1,
-			title:'温馨提示',
+			title:'溫馨提示',
 			closeBtn:0,
-			content: '<div style="padding:20px 10px;"><img src="{APP_THEME_DIR}/layui/css/modules/layer/default/loading-0.gif">正在更新...<div>' 
+			content: '<div style="padding:20px 10px;"><img src="{APP_THEME_DIR}/layui/css/modules/layer/default/loading-0.gif">正在更新...<div>'
 		});
 	 });
-	
+
 	var url= "?p=/DeleCache/index";
 	$.ajax({
    	  type: 'GET',
@@ -112,24 +112,24 @@ color:#ffffff;
    			layer.close(lyindex);
    			layer.open({
 	  			  type: 0,
-	  			  title:'错误提示：',
+	  			  title:'錯誤提示：',
 	  			  closeBtn:0,
-	  			  btn: ['确认'],
+	  			  btn: ['確認'],
 	  			  content: response.data,
 	  			  yes: function(index, layero){
-	  				  layer.close(index); 
+	  				  layer.close(index);
 	  			  }
 	  		 });
    		  }
         },
         error:function(xhr,status,error){
      	  layer.close(lyindex);
-       	  layer.msg("执行更新发生错误!", {icon: 5});
+       	  layer.msg("執行更新發生錯誤!", {icon: 5});
         }
    	});
-	
+
  });
- 
+
  </script>
 
 {include file='common/foot.html'}

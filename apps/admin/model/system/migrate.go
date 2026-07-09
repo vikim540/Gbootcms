@@ -1,7 +1,7 @@
 package system
 
 import (
-	"pbootcms-go/core/db"
+	"gbootcms/core/db"
 )
 
 func AutoMigrate() {

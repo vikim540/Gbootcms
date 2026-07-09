@@ -3,6 +3,7 @@ package content
 // Company 公司信息模型
 type Company struct {
 	ID       uint   `gorm:"primaryKey" json:"id"`
+	Acode    string `gorm:"column:acode" json:"acode"`
 	Name     string `gorm:"column:name" json:"name"`
 	Address  string `gorm:"column:address" json:"address"`
 	Postcode string `gorm:"column:postcode" json:"postcode"`

@@ -170,6 +170,7 @@ func (p *TagParser) initRegexes() {
 		"tags":          `(?s)\{gboot:tags(?:\s+([^}]+))?\}(.*?)\{\/gboot:tags\}`,
 		"slide":         `(?s)\{gboot:slide(?:\s+([^}]+))?\}(.*?)\{\/gboot:slide\}`,
 		"link":          `(?s)\{gboot:link(?:\s+([^}]+))?\}(.*?)\{\/gboot:link\}`,
+		"language":      `(?s)\{gboot:language(?:\s+([^}]+))?\}(.*?)\{\/gboot:language\}`,
 		"message":       `(?s)\{gboot:message(?:\s+([^}]+))?\}(.*?)\{\/gboot:message\}`,
 		"formlist":      `(?s)\{gboot:formlist(?:\s+([^}]+))?\}(.*?)\{\/gboot:formlist\}`,
 		"search":        `(?s)\{gboot:search(?:\s+([^}]+))?\}(.*?)\{\/gboot:search\}`,
@@ -356,7 +357,7 @@ func (p *TagParser) processPairTags(content string) string {
 		{"tags", "tags"}, {"slide", "slide"}, {"link", "link"}, {"message", "message"},
 		{"formlist", "formlist"}, {"search", "search"}, {"comment", "comment"},
 		{"commentsub", "commentsub"}, {"mycomment", "mycomment"}, {"loop", "loop"},
-		{"select", "select"},
+		{"select", "select"}, {"language", "language"},
 	}
 
 	for _, pt := range pairs {
@@ -433,23 +434,40 @@ func (p *TagParser) processIfTags(content string) string {
 				afterCondStart++
 			}
 
-			// 找到 {/gboot:Xif}
+			// 找到 {/gboot:Xif} — 使用深度感知搜索，正確匹配巢狀同前綴標籤
 			afterCond := content[afterCondStart:]
-			closeIdx := strings.Index(afterCond, closeTag)
+			closeIdx := findMatchingCloseTag(afterCond, openTag, closeTag)
 			if closeIdx == -1 {
 				break
 			}
 			fullContent := afterCond[:closeIdx]
 			remainder := afterCond[closeIdx+len(closeTag):]
 
-			// 分割 true/false 分支，支援帶前綴的 else（{2else} / {1else} 等）
+			// 分割 true/false 分支，支援兩種 else 格式：
+			// {gboot:Nelse}（模板推薦寫法）和 {Nelse}（向後兼容）
+			// 使用深度感知搜索，避免錯誤匹配到巢狀 if 內部的 else 標籤
 			trueBranch := fullContent
 			falseBranch := ""
-			elseTag := fmt.Sprintf("{%selse}", prefix)
+			var elseTag string
 			if prefix == "" {
 				elseTag = "{else}"
+			} else {
+				elseTag = fmt.Sprintf("{gboot:%selse}", prefix)
 			}
-			elseIdx := strings.Index(fullContent, elseTag)
+			elseIdx := findMatchingElseTag(fullContent, openTag, closeTag, elseTag)
+			if elseIdx == -1 {
+				// 回退到無前綴格式
+				fallbackElse := fmt.Sprintf("{%selse}", prefix)
+				if prefix == "" {
+					fallbackElse = "{else}"
+				}
+				if fallbackElse != elseTag {
+					elseIdx = findMatchingElseTag(fullContent, openTag, closeTag, fallbackElse)
+					if elseIdx != -1 {
+						elseTag = fallbackElse
+					}
+				}
+			}
 			if elseIdx != -1 {
 				trueBranch = fullContent[:elseIdx]
 				falseBranch = fullContent[elseIdx+len(elseTag):]
@@ -464,6 +482,89 @@ func (p *TagParser) processIfTags(content string) string {
 	}
 
 	return content
+}
+
+// findMatchingCloseTag 使用深度感知搜索找到匹配的閉合標籤
+// 解決巢狀同前綴標籤問題：{gboot:2if(A)}...{gboot:2if(B)}...{/gboot:2if}{/gboot:2if}
+// strings.Index 會錯誤匹配到內層閉合標籤，此函數計算開/閉合標籤深度來找到正確的外層閉合標籤
+func findMatchingCloseTag(content, openTag, closeTag string) int {
+	searchPos := 0
+	depth := 1 // 已經在一個開啟標籤內
+	for {
+		remainContent := content[searchPos:]
+		nextOpen := strings.Index(remainContent, openTag)
+		nextClose := strings.Index(remainContent, closeTag)
+
+		if nextClose == -1 {
+			return -1 // 找不到任何閉合標籤
+		}
+
+		if nextOpen != -1 && nextOpen < nextClose {
+			// 遇到內層開啟標籤，深度+1
+			depth++
+			searchPos += nextOpen + len(openTag)
+		} else {
+			// 遇到閉合標籤
+			depth--
+			if depth == 0 {
+				// 這是匹配的外層閉合標籤
+				return searchPos + nextClose
+			}
+			searchPos += nextClose + len(closeTag)
+		}
+	}
+}
+
+// findMatchingElseTag 使用深度感知搜索找到與當前 if 同層級的 else 標籤
+// 只返回 depth==1 的 else 標籤，跳過巢狀 if 內部的 else 標籤
+// 例如：{gboot:2if(A)}text1{gboot:2else}{gboot:2if(B)}text2{gboot:2else}text3{/gboot:2if}{/gboot:2if}
+// 只匹配第一個 {gboot:2else}（外層），跳過第二個（內層）
+func findMatchingElseTag(content, openTag, closeTag, elseTag string) int {
+	searchPos := 0
+	depth := 1 // 已經在一個開啟標籤內
+	for {
+		remainContent := content[searchPos:]
+		nextOpen := strings.Index(remainContent, openTag)
+		nextClose := strings.Index(remainContent, closeTag)
+		nextElse := strings.Index(remainContent, elseTag)
+
+		// 找出三者中最早出現的位置
+		minPos := -1
+		var matchType byte // 'o'=open, 'c'=close, 'e'=else
+		if nextOpen != -1 {
+			minPos = nextOpen
+			matchType = 'o'
+		}
+		if nextClose != -1 && (minPos == -1 || nextClose < minPos) {
+			minPos = nextClose
+			matchType = 'c'
+		}
+		if nextElse != -1 && (minPos == -1 || nextElse < minPos) {
+			minPos = nextElse
+			matchType = 'e'
+		}
+
+		if minPos == -1 {
+			return -1 // 找不到任何標籤
+		}
+
+		switch matchType {
+		case 'o': // 開啟標籤
+			depth++
+			searchPos += minPos + len(openTag)
+		case 'c': // 閉合標籤
+			depth--
+			if depth == 0 {
+				return -1 // 到達閉合標籤但未找到同層 else
+			}
+			searchPos += minPos + len(closeTag)
+		case 'e': // else 標籤
+			if depth == 1 {
+				return searchPos + minPos // 同層級的 else 標籤
+			}
+			searchPos += minPos + len(elseTag)
+		}
+	}
 }
 
 func providerCall(pr DataProvider, name string, params map[string]string, inner string) string {
@@ -487,6 +588,10 @@ func ReplaceInnerTags(content string, prefix string, data map[string]interface{}
 		}
 		if val, ok := data[field]; ok {
 			return AdjustValue(ValToStr(val), params)
+		}
+		// ext_ 自定義欄位未找到時返回空字串，避免原始標籤洩漏到頁面
+		if strings.HasPrefix(field, "ext_") {
+			return ""
 		}
 		return match
 	})
@@ -623,7 +728,7 @@ func (p *TagParser) preResolveSingleInPairParams(content string) string {
 	pairNames := []string{
 		"list", "nav", "sort_loop", "search", "message", "tags",
 		"slide", "link", "pics", "checkbox", "formlist", "comment",
-		"commentsub", "mycomment", "loop", "select",
+		"commentsub", "mycomment", "loop", "select", "language",
 	}
 	for _, name := range pairNames {
 		// 支援參數中包含 {sort:tcode} 等單標籤（即允許 {...} 嵌套）
@@ -756,7 +861,7 @@ func (p *TagParser) preResolveGbootSingleDeep(content string) string {
 		"pics": true, "checkbox": true, "tags": true, "slide": true,
 		"link": true, "message": true, "formlist": true, "search": true,
 		"comment": true, "commentsub": true, "mycomment": true,
-		"loop": true, "select": true,
+		"loop": true, "select": true, "language": true,
 	}
 	reInnermost := regexp.MustCompile(`\{gboot:(\w+)(?:\s+([^{}]+))?\}`)
 	for iter := 0; iter < 10; iter++ {
@@ -773,6 +878,11 @@ func (p *TagParser) preResolveGbootSingleDeep(content string) string {
 			}
 			// Skip 'if' — handled by processIfTags with depth-aware parsing
 			if name == "if" || name == "1if" || name == "2if" || name == "3if" {
+				return match
+			}
+			// Skip 'else' tags — handled by processIfTags for true/false branch splitting
+			// 否則 gboot 通用 provider 的 default: return "" 會將 {gboot:2else} 吞掉
+			if name == "else" || name == "1else" || name == "2else" || name == "3else" {
 				return match
 			}
 			// Skip pair tags — they are handled by processPairTags

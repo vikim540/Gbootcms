@@ -1,27 +1,36 @@
-﻿package content
+package content
 
 import (
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
-// TagsController - Tags Management Controller
-// Corresponds to PHP: apps/admin/controller/TagsController.php
+// TagsController - 文章內鏈管理控制器
+// 對應 PHP: apps/admin/controller/TagsController.php
 type TagsController struct {
 	common.BaseController
 }
 
-// Index - Tags list
+// tagsSearchFields 搜索白名單，防止 SQL 注入
+var tagsSearchFields = map[string]bool{
+	"name": true,
+	"link": true,
+}
+
+// Index - 內鏈列表
 func (tg *TagsController) Index(c *gin.Context) {
+	page, pageSize, offset := tg.Paginate(c)
+
 	idStr := c.Query("id")
 	if idStr != "" {
 		id, _ := strconv.Atoi(idStr)
 		var tag model.Tags
-		if err := model.DB.First(&tag, id).Error; err == nil {
-			common.Render(c, "content/tags.html", gin.H{"more": true, "tags": tag})
+		if err := model.DB.WithContext(c.Request.Context()).First(&tag, id).Error; err == nil {
+			common.Render(c, "content/tags.html", gin.H{"more": true, "tags": tag, "C": "tags"})
 			return
 		}
 	}
@@ -30,70 +39,98 @@ func (tg *TagsController) Index(c *gin.Context) {
 	keyword := c.Query("keyword")
 
 	var tags []model.Tags
-	query := model.DB.Model(&model.Tags{})
-	if field != "" && keyword != "" {
+	query := model.DB.WithContext(c.Request.Context()).Model(&model.Tags{})
+	if field != "" && keyword != "" && tagsSearchFields[field] {
 		query = query.Where(field+" LIKE ?", "%"+keyword+"%")
 	}
-	query.Order("sorting ASC, id ASC").Find(&tags)
+	var total int64
+	query.Count(&total)
+	query.Order("sorting ASC, id ASC").Offset(offset).Limit(pageSize).Find(&tags)
 
-	common.Render(c, "content/tags.html", gin.H{"list": true, "tags": tags})
+	baseURL := "/admin/content/tags/index"
+	if field != "" && keyword != "" && tagsSearchFields[field] {
+		baseURL += "?field=" + field + "&keyword=" + keyword
+	}
+	common.Render(c, "content/tags.html", gin.H{
+		"list":     true,
+		"tags":     tags,
+		"C":        "tags",
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
+	})
 }
 
-// Add - Add new tag
+// Add - 新增內鏈
 func (tg *TagsController) Add(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		name := c.PostForm("name")
 		link := c.PostForm("link")
 
 		if name == "" {
-			tg.JSONFail(c, "Name cannot be empty")
+			tg.LogAction(c, "新增文章內鏈失敗")
+			tg.JSONFail(c, "名稱不能為空")
 			return
 		}
 
 		if link == "" {
-			tg.JSONFail(c, "Link cannot be empty")
+			tg.LogAction(c, "新增文章內鏈失敗")
+			tg.JSONFail(c, "連結不能為空")
 			return
 		}
 
-		model.DB.Create(&model.Tags{
+		model.DB.WithContext(c.Request.Context()).Create(&model.Tags{
 			Name: name,
 			Link: link,
 		})
+		tg.LogAction(c, "新增文章內鏈成功")
 		tg.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
-	common.Render(c, "content/tags.html", gin.H{"action": "add"})
+	common.Render(c, "content/tags.html", gin.H{"action": "add", "C": "tags"})
 }
 
-// Del - Delete tag
+// Del - 刪除內鏈
 func (tg *TagsController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	if idStr == "" {
-		tg.JSONFail(c, "Invalid parameter")
+		tg.LogAction(c, "刪除文章內鏈失敗")
+		tg.JSONFail(c, "參數錯誤")
 		return
 	}
-	model.DB.Delete(&model.Tags{}, idStr)
+	model.DB.WithContext(c.Request.Context()).Delete(&model.Tags{}, idStr)
+	tg.LogAction(c, "刪除文章內鏈成功")
 	tg.JSONOKMsg(c, common.NoticeDelete)
 }
 
-// Mod - Modify tag
+// Mod - 修改內鏈
 func (tg *TagsController) Mod(c *gin.Context) {
-	idStr := c.Param("id")
+	// 解析 wildcard action 參數：/id/123 或 /123
+	params := helper.ParseWildcardAction(c.Param("action"))
+	idStr := params["id"]
 	if idStr == "" {
 		idStr = c.Query("id")
 	}
 	if idStr == "" {
-		tg.JSONFail(c, "Invalid parameter")
+		idStr = c.Param("id")
+	}
+	if idStr == "" {
+		tg.JSONFail(c, "參數錯誤")
 		return
 	}
 	id, _ := strconv.Atoi(idStr)
 
-	field := c.Query("field")
-	value := c.Query("value")
-	if field != "" {
-		model.DB.Model(&model.Tags{}).Where("id = ?", id).Update(field, value)
-		tg.JSONOKMsg(c, common.NoticeModify)
-		return
+	// 單欄位切換：只從 wildcard action 路徑參數讀取
+	// 不從 c.Query 讀取，避免搜索參數 field=link 被誤認為單欄位更新請求
+	field := params["field"]
+	value := params["value"]
+	if field != "" && value != "" {
+		// 白名單驗證：Tags 只有 sorting 欄位允許單欄位更新
+		if field == "sorting" {
+			model.DB.WithContext(c.Request.Context()).Model(&model.Tags{}).Where("id = ?", id).Update(field, value)
+			tg.LogAction(c, "修改文章內鏈成功")
+			tg.JSONOKMsg(c, common.NoticeModify)
+			return
+		}
 	}
 
 	if c.Request.Method == "POST" {
@@ -101,27 +138,25 @@ func (tg *TagsController) Mod(c *gin.Context) {
 		link := c.PostForm("link")
 
 		if name == "" {
-			tg.JSONFail(c, "Name cannot be empty")
+			tg.JSONFail(c, "名稱不能為空")
 			return
 		}
 
-		if link == "" {
-			tg.JSONFail(c, "Link cannot be empty")
-			return
-		}
-
-		model.DB.Model(&model.Tags{}).Where("id = ?", id).Updates(map[string]interface{}{
+		// 允許 link 為空（不是所有內鏈都需要連結）
+		updates := map[string]interface{}{
 			"name": name,
 			"link": link,
-		})
+		}
+		model.DB.WithContext(c.Request.Context()).Model(&model.Tags{}).Where("id = ?", id).Updates(updates)
+		tg.LogAction(c, "修改文章內鏈成功")
 		tg.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
 	var tag model.Tags
-	if err := model.DB.First(&tag, id).Error; err != nil {
-		tg.JSONFail(c, "Content does not exist")
+	if err := model.DB.WithContext(c.Request.Context()).First(&tag, id).Error; err != nil {
+		tg.JSONFail(c, "內容不存在")
 		return
 	}
-	common.Render(c, "content/tags.html", gin.H{"mod": true, "tags": tag})
+	common.Render(c, "content/tags.html", gin.H{"mod": true, "tags": tag, "C": "tags"})
 }

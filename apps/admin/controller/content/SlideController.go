@@ -1,9 +1,9 @@
-﻿package content
+package content
 
 import (
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 	"strconv"
 	"time"
 
@@ -17,10 +17,10 @@ type SlideController struct {
 }
 
 // getGids returns available slide group IDs for the template dropdown.
-func (sl *SlideController) getGids() []int {
+func (sl *SlideController) getGids(c *gin.Context) []int {
 	// Query distinct gids from existing slides
 	var gids []int
-	model.DB.Model(&model.Slide{}).Distinct("gid").Pluck("gid", &gids)
+	model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Distinct("gid").Pluck("gid", &gids)
 	// Always include gid=1 as default
 	found := false
 	for _, g := range gids {
@@ -37,13 +37,21 @@ func (sl *SlideController) getGids() []int {
 
 // Index - Slide list (shows list + add form via tabs)
 func (sl *SlideController) Index(c *gin.Context) {
-	var slides []model.Slide
-	model.DB.Order("gid ASC, sorting ASC, id ASC").Find(&slides)
+	page, pageSize, offset := sl.Paginate(c)
 
+	var slides []model.Slide
+	query := model.DB.WithContext(c.Request.Context()).Model(&model.Slide{})
+	var total int64
+	query.Count(&total)
+	query.Order("gid ASC, sorting ASC, id ASC").Offset(offset).Limit(pageSize).Find(&slides)
+
+	baseURL := "/admin/content/slide/index"
 	data := gin.H{
-		"slides": slides,
-		"list":   true,
-		"gids":   sl.getGids(),
+		"slides":   slides,
+		"list":     true,
+		"gids":     sl.getGids(c),
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
 	}
 	common.Render(c, "content/slide.html", data)
 }
@@ -56,11 +64,11 @@ func (sl *SlideController) Add(c *gin.Context) {
 		if gid == 0 {
 			// Auto-increment gid: find max gid and add 1
 			var maxGID int
-			model.DB.Model(&model.Slide{}).Select("COALESCE(MAX(gid),0)").Scan(&maxGID)
+			model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Select("COALESCE(MAX(gid),0)").Scan(&maxGID)
 			gid = maxGID + 1
 		}
 		now := time.Now().Format("2006-01-02 15:04:05")
-		model.DB.Create(&model.Slide{
+		model.DB.WithContext(c.Request.Context()).Create(&model.Slide{
 			GID:        gid,
 			Pic:        c.PostForm("pic"),
 			PicMobile:  c.PostForm("pic_mobile"),
@@ -73,6 +81,7 @@ func (sl *SlideController) Add(c *gin.Context) {
 			CreateTime: now,
 			UpdateTime: now,
 		})
+		sl.LogAction(c, "新增輪播圖成功")
 		sl.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
@@ -98,6 +107,7 @@ func (sl *SlideController) Mod(c *gin.Context) {
 	// Handle status toggle: /mod/id/123/field/status/value/0
 	if field, ok := params["field"]; ok && field == "status" {
 		// Slides don't have a status field in current model; ignore gracefully
+		sl.LogAction(c, "修改輪播圖成功")
 		sl.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
@@ -112,7 +122,7 @@ func (sl *SlideController) Mod(c *gin.Context) {
 		gid, _ := strconv.Atoi(c.DefaultPostForm("gid", "1"))
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		now := time.Now().Format("2006-01-02 15:04:05")
-		model.DB.Model(&model.Slide{}).Where("id = ?", id).Updates(map[string]interface{}{
+		model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"gid":         gid,
 			"pic":         c.PostForm("pic"),
 			"pic_mobile":  c.PostForm("pic_mobile"),
@@ -123,18 +133,19 @@ func (sl *SlideController) Mod(c *gin.Context) {
 			"update_user": "admin",
 			"update_time": now,
 		})
+		sl.LogAction(c, "修改輪播圖成功")
 		sl.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
 	// GET: show edit form
 	var slide model.Slide
-	model.DB.First(&slide, id)
+	model.DB.WithContext(c.Request.Context()).First(&slide, id)
 
 	data := gin.H{
 		"slide":  slide,
 		"mod":    true,
-		"gids":   sl.getGids(),
+		"gids":   sl.getGids(c),
 		"get_id": idStr,
 	}
 	common.Render(c, "content/slide.html", data)
@@ -151,8 +162,9 @@ func (sl *SlideController) Del(c *gin.Context) {
 	if idStr != "" {
 		id, _ := strconv.Atoi(idStr)
 		if id > 0 {
-			model.DB.Delete(&model.Slide{}, id)
+			model.DB.WithContext(c.Request.Context()).Delete(&model.Slide{}, id)
 		}
 	}
+	sl.LogAction(c, "刪除輪播圖成功")
 	sl.JSONOKMsg(c, common.NoticeDelete)
 }

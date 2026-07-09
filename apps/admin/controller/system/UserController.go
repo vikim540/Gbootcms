@@ -1,10 +1,11 @@
-﻿package system
+package system
 
 import (
 	"crypto/md5"
 	"fmt"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -18,11 +19,21 @@ type UserController struct {
 
 // Index - User list
 func (uc *UserController) Index(c *gin.Context) {
+	page, pageSize, offset := uc.Paginate(c)
+	var total int64
+	model.DB.Model(&model.AdminUser{}).Count(&total)
 	var users []model.AdminUser
-	model.DB.Order("id ASC").Find(&users)
+	model.DB.Order("id ASC").Offset(offset).Limit(pageSize).Find(&users)
 	var roles []model.Role
 	model.DB.Where("status = 1").Find(&roles)
-	common.Render(c, "system/user.html", gin.H{"users": users, "roles": roles})
+	baseURL := "/admin/system/user/index"
+	common.Render(c, "system/user.html", gin.H{
+		"list":     true,
+		"users":    users,
+		"roles":    roles,
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
+	})
 }
 
 // Add - Add new user
@@ -37,6 +48,7 @@ func (uc *UserController) Add(c *gin.Context) {
 			Rcodes:   c.PostForm("rcodes"),
 			Status:   1,
 		})
+		uc.LogAction(c, "新增用戶成功")
 		uc.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
@@ -63,6 +75,7 @@ func (uc *UserController) Mod(c *gin.Context) {
 			updates["password"] = fmt.Sprintf("%x", md5.Sum([]byte(password)))
 		}
 		model.DB.Model(&model.AdminUser{}).Where("id = ?", id).Updates(updates)
+		uc.LogAction(c, "修改用戶成功")
 		uc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
@@ -78,5 +91,6 @@ func (uc *UserController) Mod(c *gin.Context) {
 func (uc *UserController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.AdminUser{}, idStr)
+	uc.LogAction(c, "刪除用戶成功")
 	uc.JSONOKMsg(c, common.NoticeDelete)
 }

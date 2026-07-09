@@ -1,7 +1,8 @@
 package content
 
 import (
-	"pbootcms-go/core/db"
+	"gbootcms/core/db"
+	"strings"
 )
 
 // EnsureContentExtTable 確保 ay_content_ext 基礎表存在（冪等操作）。
@@ -12,6 +13,15 @@ func EnsureContentExtTable() {
 		contentid INTEGER NOT NULL
 	)`)
 	db.DB.Exec(`CREATE INDEX IF NOT EXISTS idx_content_ext_contentid ON ay_content_ext(contentid)`)
+}
+
+// EnsureExtFieldScodeColumn 確保 ay_extfield 表有 scode 列（用於存儲適用欄目，多選逗號分隔）
+func EnsureExtFieldScodeColumn() {
+	var count int64
+	db.DB.Raw("SELECT COUNT(*) FROM pragma_table_info('ay_extfield') WHERE name='scode'").Scan(&count)
+	if count == 0 {
+		db.DB.Exec("ALTER TABLE ay_extfield ADD COLUMN scode TEXT DEFAULT ''")
+	}
 }
 
 // ColumnExistsInContentExt 檢查 ay_content_ext 表中是否已有指定列
@@ -58,16 +68,74 @@ type ExtField struct {
 	Field       string `gorm:"column:field" json:"field"`
 	Type        string `gorm:"column:type" json:"type"`
 	Description string `gorm:"column:description;default:''" json:"description"`
-	Value       string `gorm:"column:value;default:''" json:"value"`
+	Value       string `gorm:"column:value;default:''" json:"value"`   // 選項值（單選/多選/下拉的選項列表）
+	Scode       string `gorm:"column:scode;default:''" json:"scode"`   // 適用欄目，逗號分隔（空=全展示）
 	Required    int    `gorm:"column:required" json:"required"`
 	Sorting     int    `gorm:"column:sorting" json:"sorting"`
 	Status      int    `gorm:"column:status" json:"status"`
 }
 
+// extFieldSelectColumns 標準查詢欄位列表（含 scode）
+const extFieldSelectColumns = "COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(scode,'') AS scode, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status"
+
+// NormalizeOptions 將選項文字中的換行符替換為逗號，並清理多餘的逗號和空白。
+// 支援使用者以回車或逗號分隔選項，統一存儲為逗號分隔格式。
+func NormalizeOptions(options string) string {
+	options = strings.ReplaceAll(options, "\r\n", ",")
+	options = strings.ReplaceAll(options, "\r", ",")
+	options = strings.ReplaceAll(options, "\n", ",")
+	parts := strings.Split(options, ",")
+	var clean []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			clean = append(clean, p)
+		}
+	}
+	return strings.Join(clean, ",")
+}
+
+// ScodeMatches 檢查欄位適用的 scode 列表中是否包含指定欄目。
+// fieldScode 為空字串表示全展示（匹配所有欄目）。
+// fieldScode 支援逗號分隔的多選格式，如 "3,4"。
+func ScodeMatches(fieldScode, targetScode string) bool {
+	if fieldScode == "" {
+		return true
+	}
+	for _, s := range strings.Split(fieldScode, ",") {
+		if strings.TrimSpace(s) == targetScode {
+			return true
+		}
+	}
+	return false
+}
+
+// MigrateScodeFromValue 將舊的 || 格式數據遷移到 scode 列。
+// 對每條記錄：如果 value 含 "||"，將前綴移到 scode 列，value 保留純 options。
+// 冪等操作：已遷移的記錄（scode 已有值或 value 無 ||）不受影響。
+func MigrateScodeFromValue() {
+	var rows []struct {
+		ID    int    `gorm:"column:id"`
+		Value string `gorm:"column:value"`
+		Scode string `gorm:"column:scode"`
+	}
+	db.DB.Raw("SELECT id, value, COALESCE(scode,'') AS scode FROM ay_extfield").Scan(&rows)
+	for _, r := range rows {
+		if r.Scode != "" {
+			continue // 已有 scode 值，跳過
+		}
+		if idx := strings.Index(r.Value, "||"); idx >= 0 {
+			scode := r.Value[:idx]
+			cleanValue := r.Value[idx+2:]
+			db.DB.Exec("UPDATE ay_extfield SET scode=?, value=? WHERE id=?", scode, cleanValue, r.ID)
+		}
+	}
+}
+
 func GetAllExtFields() []ExtField {
+	EnsureExtFieldScodeColumn()
 	var list []ExtField
-	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield ORDER BY sorting ASC, id ASC").Scan(&list)
-	// 向後兼容：舊記錄的 field 列可能為空，此時 name 即為 DB 列名
+	db.DB.Raw("SELECT "+extFieldSelectColumns+" FROM ay_extfield ORDER BY sorting ASC, id ASC").Scan(&list)
 	for i := range list {
 		if list[i].Field == "" && list[i].Name != "" {
 			list[i].Field = list[i].Name
@@ -77,9 +145,9 @@ func GetAllExtFields() []ExtField {
 }
 
 func GetExtFieldById(id int) ExtField {
+	EnsureExtFieldScodeColumn()
 	var ef ExtField
-	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield WHERE id = ?", id).Scan(&ef)
-	// 向後兼容
+	db.DB.Raw("SELECT "+extFieldSelectColumns+" FROM ay_extfield WHERE id = ?", id).Scan(&ef)
 	if ef.Field == "" && ef.Name != "" {
 		ef.Field = ef.Name
 	}
@@ -87,9 +155,9 @@ func GetExtFieldById(id int) ExtField {
 }
 
 func GetExtFieldsByModelCode(mcode string) []ExtField {
+	EnsureExtFieldScodeColumn()
 	var list []ExtField
-	db.DB.Raw("SELECT COALESCE(id,0) AS id, COALESCE(mcode,'') AS mcode, COALESCE(name,'') AS name, COALESCE(field,'') AS field, COALESCE(type,'') AS type, COALESCE(description,'') AS description, COALESCE(value,'') AS value, COALESCE(required,0) AS required, COALESCE(sorting,0) AS sorting, COALESCE(status,1) AS status FROM ay_extfield WHERE mcode = ? AND COALESCE(status,1) = 1 ORDER BY sorting ASC, id ASC", mcode).Scan(&list)
-	// 向後兼容
+	db.DB.Raw("SELECT "+extFieldSelectColumns+" FROM ay_extfield WHERE mcode = ? AND COALESCE(status,1) = 1 ORDER BY sorting ASC, id ASC", mcode).Scan(&list)
 	for i := range list {
 		if list[i].Field == "" && list[i].Name != "" {
 			list[i].Field = list[i].Name
@@ -98,12 +166,36 @@ func GetExtFieldsByModelCode(mcode string) []ExtField {
 	return list
 }
 
-func AddExtField(mcode, name, field, typ, value string, required, sorting int) error {
-	return db.DB.Exec("INSERT INTO ay_extfield (mcode, name, field, type, value, description, required, sorting, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)", mcode, name, field, typ, value, name, required, sorting).Error
+// GetExtFieldsByModelCodeAndScode 按模型代碼和欄目代碼查詢擴展字段。
+// 返回：scode 為空（全展示）的 + scode 列表中包含指定欄目的（支援多選逗號分隔）。
+func GetExtFieldsByModelCodeAndScode(mcode, scode string) []ExtField {
+	all := GetExtFieldsByModelCode(mcode)
+	var result []ExtField
+	for _, ef := range all {
+		if ScodeMatches(ef.Scode, scode) {
+			result = append(result, ef)
+		}
+	}
+	if result == nil {
+		result = []ExtField{}
+	}
+	return result
 }
 
-func UpdateExtField(id int, mcode, name, field, typ, value string, required, sorting int) error {
-	return db.DB.Exec("UPDATE ay_extfield SET mcode=?, name=?, field=?, type=?, value=?, description=?, required=?, sorting=? WHERE id=?", mcode, name, field, typ, value, name, required, sorting, id).Error
+// CheckFieldUnique 檢查同一模型下 field 名稱是否唯一
+// excludeID 用於修改時排除自身（新增時傳 0）
+func CheckFieldUnique(mcode, field string, excludeID int) bool {
+	var count int64
+	db.DB.Table("ay_extfield").Where("mcode = ? AND field = ? AND id != ?", mcode, field, excludeID).Count(&count)
+	return count > 0
+}
+
+func AddExtField(mcode, name, field, typ, value, scode string, required, sorting int) error {
+	return db.DB.Exec("INSERT INTO ay_extfield (mcode, name, field, type, value, scode, description, required, sorting, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", mcode, name, field, typ, value, scode, name, required, sorting).Error
+}
+
+func UpdateExtField(id int, mcode, name, field, typ, value, scode string, required, sorting int) error {
+	return db.DB.Exec("UPDATE ay_extfield SET mcode=?, name=?, field=?, type=?, value=?, scode=?, description=?, required=?, sorting=? WHERE id=?", mcode, name, field, typ, value, scode, name, required, sorting, id).Error
 }
 
 func UpdateExtFieldSingleField(id int, field, value string) error {

@@ -1,9 +1,9 @@
 package member
 
 import (
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -47,6 +47,13 @@ func (mc *MemberCommentController) Index(c *gin.Context) {
 	field := c.Query("field")
 	keyword := c.Query("keyword")
 
+	// 分頁處理
+	page, pageSize, offset := mc.Paginate(c)
+	baseURL := "/admin/member/comment/index"
+	if field != "" && keyword != "" && allowedSearchFields[field] {
+		baseURL += "?field=" + field + "&keyword=" + keyword
+	}
+
 	query := model.DB.Table("ay_member_comment a").
 		Select("a.*, b.title, c.username, c.nickname, c.headpic").
 		Joins("LEFT JOIN ay_content b ON a.contentid=b.id").
@@ -58,8 +65,18 @@ func (mc *MemberCommentController) Index(c *gin.Context) {
 		query = query.Where(field+" LIKE ?", "%"+keyword+"%")
 	}
 
+	// 統計總記錄數（獨立查詢，避免與含 Select 的查詢重用 Statement 造成污染）
+	var total int64
+	countQuery := model.DB.Table("ay_member_comment a").
+		Joins("LEFT JOIN ay_content b ON a.contentid=b.id").
+		Joins("LEFT JOIN ay_member c ON a.uid=c.id")
+	if field != "" && keyword != "" && allowedSearchFields[field] {
+		countQuery = countQuery.Where(field+" LIKE ?", "%"+keyword+"%")
+	}
+	countQuery.Count(&total)
+
 	var comments []model.CommentView
-	query.Find(&comments)
+	query.Offset(offset).Limit(pageSize).Find(&comments)
 	// 格式化時間
 	for i := range comments {
 		if !comments[i].CreateTime.IsZero() {
@@ -70,6 +87,8 @@ func (mc *MemberCommentController) Index(c *gin.Context) {
 		"list":     true,
 		"comments": comments,
 		"C":        "member/comment",
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
 	})
 }
 

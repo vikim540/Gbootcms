@@ -1,11 +1,13 @@
-﻿package system
+package system
 
 import (
 	"fmt"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
-	"pbootcms-go/apps/common/mail"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
+	"gbootcms/apps/common/mail"
 	"regexp"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -57,9 +59,10 @@ func (cf *ConfigController) Index(c *gin.Context) {
 
 	if c.Request.Method == "POST" {
 		names := []string{
+			"cmsname",
 			"close_site", "close_site_note", "open_wap", "wap_domain",
-			"tpl_html_cache", "tpl_html_cache_time", "gzip", "session_in_sitepath",
-			"lgautosw", "spiderlog", "to_https", "to_main_domain", "main_domain",
+			"tpl_html_cache", "tpl_html_cache_time", "gzip",
+			"spiderlog", "to_https", "to_main_domain", "main_domain",
 			"pagenum", "content_tags_replace_num", "content_keyword_replace",
 			"sn", "sn_user", "message_status", "message_check_code",
 			"message_verify", "message_rqlogin", "form_status", "form_check_code",
@@ -77,11 +80,13 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			"smtp_password", "smtp_username_test", "message_send_mail",
 			"form_send_mail", "comment_send_mail", "message_send_to",
 			"webhook_url", "webhook_message", "webhook_form", "webhook_comment",
-			"baidu_zz_token", "baidu_ks_token",
+			"baidu_zz_token", "baidu_ks_token", "bing_indexnow_key",
 			"api_open", "api_auth", "api_appid", "api_secret",
 			"watermark_open", "watermark_text", "watermark_text_font",
 			"watermark_text_size", "watermark_text_color", "watermark_pic",
 			"watermark_position",
+			"turnstile_sitekey", "turnstile_secret",
+			"message_turnstile", "form_turnstile",
 		}
 		for _, name := range names {
 			if name == "submit" {
@@ -92,6 +97,20 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			if !exists {
 				continue
 			}
+			// IP 及敏感詞配置歸一化：換行和中文逗號轉英文逗號（對齊 PHP ConfigController.php:207-215）
+			if name == "ip_deny" || name == "ip_allow" || name == "content_keyword_replace" {
+				val = strings.ReplaceAll(val, "\r\n", ",")
+				val = strings.ReplaceAll(val, "\n", ",")
+				val = strings.ReplaceAll(val, "，", ",")
+			}
+			// 危險擴展名過濾（對齊 PHP ConfigController.php:199-204）
+			if name == "home_upload_ext" {
+				dangerExt := regexp.MustCompile(`(?i)(php|jsp|asp|exe|sh|cmd|vb|vbs|phtml)`)
+				if dangerExt.MatchString(val) {
+					cf.JSONFail(c, "上傳副檔名包含危險類型（php/jsp/asp/exe 等），已拒絕")
+					return
+				}
+			}
 			var config model.Config
 			result := model.DB.Where("name = ?", name).First(&config)
 			if result.Error != nil {
@@ -101,6 +120,8 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			}
 		}
 		cf.JSONOKMsg(c, common.NoticeSave)
+		// 記錄操作日誌（對齊 PHP $this->log('修改參數配置成功！')）
+		cf.LogAction(c, "修改參數配置")
 		return
 	}
 
@@ -110,5 +131,10 @@ func (cf *ConfigController) Index(c *gin.Context) {
 	for _, cfg := range configs {
 		configMap[cfg.Name] = cfg.Value
 	}
-	common.Render(c, "system/config.html", gin.H{"configs": configMap})
+	// 會員等級數據（對齊 PHP: model('admin.member.MemberGroup')->getSelect()）
+	groups := helper.BuildGroupsData()
+	common.Render(c, "system/config.html", gin.H{
+		"configs": configMap,
+		"groups":  groups,
+	})
 }

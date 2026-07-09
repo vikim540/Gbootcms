@@ -1,12 +1,12 @@
 @echo off
 chcp 65001 >nul
-title PbootCMS-Go Build & Restart
+title Gbootcms Build & Restart
 
 set APP_DIR=%~dp0
-set BIN_PATH=%APP_DIR%bin\pbootcms-go.exe
+set BIN_PATH=%APP_DIR%bin\gbootcms.exe
 
 echo ========================================
-echo  PbootCMS-Go Builder + Restarter
+echo  Gbootcms Builder + Restarter
 echo ========================================
 echo.
 
@@ -26,10 +26,10 @@ echo.
 
 :: ---- Step 2: Stop old process ----
 echo [Step 2/3] Checking for running process...
-tasklist /FI "IMAGENAME eq pbootcms-go.exe" 2>nul | find /I "pbootcms-go.exe" >nul
+tasklist /FI "IMAGENAME eq gbootcms.exe" 2>nul | find /I "gbootcms.exe" >nul
 if %ERRORLEVEL% equ 0 (
     echo [INFO] Found running process. Stopping...
-    taskkill /F /IM pbootcms-go.exe >nul 2>&1
+    taskkill /F /IM gbootcms.exe >nul 2>&1
     if %ERRORLEVEL% equ 0 (
         echo [OK] Old process stopped.
     ) else (
@@ -45,7 +45,7 @@ timeout /t 2 /nobreak >nul
 
 :: ---- Step 3: Start new process ----
 echo [Step 3/3] Starting new process...
-start "PbootCMS-Go" "%BIN_PATH%"
+start "Gbootcms" "%BIN_PATH%"
 if %ERRORLEVEL% equ 0 (
     echo [OK] Service started.
     echo.

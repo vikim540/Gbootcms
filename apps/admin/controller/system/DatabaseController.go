@@ -1,13 +1,13 @@
-﻿package system
+package system
 
 import (
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
-	"pbootcms-go/config"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
+	"gbootcms/config"
 	"regexp"
 	"strings"
 	"time"
@@ -190,7 +190,7 @@ func (db *DatabaseController) backupSQLiteAction(c *gin.Context) {
 
 func (db *DatabaseController) header() string {
 	var sb strings.Builder
-	sb.WriteString("-- PbootCMS-Go 数据库备份文件\n")
+	sb.WriteString("-- Gbootcms 資料庫備份檔案\n")
 	sb.WriteString("-- 版本: 1.8.1\n")
 	sb.WriteString(fmt.Sprintf("-- 生成时间: %s\n", time.Now().Format("2006-01-02 15:04:05")))
 	sb.WriteString("-- -------------------------------------------\n\n")

@@ -3,43 +3,179 @@
 <div class="layui-body">
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">系统日志</li>
+	    <li class="layui-this" lay-id="t1">系統日誌</li>
+	    <li lay-id="t2">蜘蛛日誌</li>
+	    <li lay-id="t3">通知日誌</li>
 	  </ul>
 	  <div class="layui-tab-content">
-	  	   <div class="layui-tab-item layui-show">
-		  	   	<table class="layui-table">
-	            	<thead>
-	                    <tr>
-	                        <th>序号</th>
-	                        <th>事件内容</th>
-	                        <th>用户IP</th>
-	                        <th>操作系统</th>
-	                        <th>浏览器</th>
-	                        <th>用户名</th>
-	                        <th>时间</th>
-	                    </tr>
-	                </thead>
-	                <tbody>
-	                    {foreach $syslogs(key,value,num)}
-	                    <tr>
-	                        <td>[num]</td>
-	                        <td>[value->event]</td>
-	                        <td>{fun=long2ip($value->user_ip)}</td>
-	                        <td>[value->user_os]</td>
-	                        <td>[value->user_bs]</td>
-	                        <td>[value->create_user]</td>
-	                        <td>[value->create_time]</td>
-	                    </tr>
-	                    {/foreach}
-	                </tbody>
-	            </table>
-	            {if(session('ucode')==10001 && [$syslogs])}
-	            	<a href="{url./admin/Syslog/clear}" class="layui-btn layui-btn-sm"  onclick='return confirm("您确定要清空么？")'>清空日志</a>
-	            {/if}
-	            <div class="page">{$pagebar}</div>
-	  	   </div>
+	  	<!-- 系統日誌 -->
+	  	<div class="layui-tab-item layui-show">
+	  	   	<table class="layui-table">
+            	<thead>
+                    <tr>
+                        <th>序號</th>
+                        <th>事件內容</th>
+                        <th>用戶IP</th>
+                        <th>操作系統</th>
+                        <th>瀏覽器</th>
+                        <th>用戶名</th>
+                        <th>請求路徑</th>
+                        <th>時間</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach $syslogs(key,value,num)}
+                    <tr>
+                        <td>{{ forloop.Counter|add:SysPageStart }}</td>
+                        <td style="word-break:break-all;">[value->content]</td>
+                        <td>[value->ip]</td>
+                        <td>[value->user_os]</td>
+                        <td>[value->user_bs]</td>
+                        <td>[value->username]</td>
+                        <td style="word-break:break-all;">[value->url]</td>
+                        <td>[value->create_time]</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+            <div class="layui-inline" style="float:right">
+	     		<select lay-filter="tourl" class="page-select" >
+					<option value="" selected="">每頁顯示數量</option>
+					<option value="{url./admin/Syslog/index/pagesize/10}" {if(get('pagesize')==10)}selected{/if}>10條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/20}" {if(get('pagesize')==20)}selected{/if}>20條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/30}" {if(get('pagesize')==30)}selected{/if}>30條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/50}" {if(get('pagesize')==50)}selected{/if}>50條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/100}" {if(get('pagesize')==100)}selected{/if}>100條/頁</option>
+				</select>
+			</div>
+            <div class="page">{$sysPagebar}</div>
+            {if(session('ucode')==10001 && [$syslogs])}
+            	<button id="btnClearSys" class="layui-btn layui-btn-sm">清空系統日誌</button>
+            {/if}
+	  	</div>
+
+	  	<!-- 蜘蛛日誌 -->
+	  	<div class="layui-tab-item">
+	  	   	<table class="layui-table">
+            	<thead>
+                    <tr>
+                        <th>序號</th>
+                        <th>蜘蛛</th>
+                        <th>爬行路徑</th>
+                        <th>IP</th>
+                        <th>時間</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach $spiderLogs(key,value,num)}
+                    <tr>
+                        <td>{{ forloop.Counter|add:SpiderPageStart }}</td>
+                        <td><span class="layui-badge layui-bg-green">[value->username]</span></td>
+                        <td style="word-break:break-all;">[value->url]</td>
+                        <td>[value->ip]</td>
+                        <td>[value->create_time]</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+            <div class="layui-inline" style="float:right">
+	     		<select lay-filter="tourl" class="page-select" >
+					<option value="" selected="">每頁顯示數量</option>
+					<option value="{url./admin/Syslog/index/pagesize/10}#tab=t2" {if(get('pagesize')==10)}selected{/if}>10條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/20}#tab=t2" {if(get('pagesize')==20)}selected{/if}>20條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/30}#tab=t2" {if(get('pagesize')==30)}selected{/if}>30條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/50}#tab=t2" {if(get('pagesize')==50)}selected{/if}>50條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/100}#tab=t2" {if(get('pagesize')==100)}selected{/if}>100條/頁</option>
+				</select>
+			</div>
+            <div class="page">{$spiderPagebar}</div>
+            {if(session('ucode')==10001 && [$spiderLogs])}
+            	<button id="btnClearSpider" class="layui-btn layui-btn-sm">清空蜘蛛日誌</button>
+            {/if}
+	  	</div>
+
+	  	<!-- 通知日誌 -->
+	  	<div class="layui-tab-item">
+	  	   	<table class="layui-table">
+            	<thead>
+                    <tr>
+                        <th>序號</th>
+                        <th>類型</th>
+                        <th>狀態</th>
+                        <th>訊息內容</th>
+                        <th>時間</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach $notifyLogs(key,value,num)}
+                    <tr>
+                        <td>{{ forloop.Counter|add:NotifyPageStart }}</td>
+                        <td>
+                        	{if($value->level=='mail_success'||$value->level=='mail_error')}
+                        		<span class="layui-badge layui-bg-blue">郵件</span>
+                        	{else}
+                        		<span class="layui-badge layui-bg-orange">Webhook</span>
+                        	{/if}
+                        </td>
+                        <td>
+                        	{if($value->level=='mail_success'||$value->level=='webhook_success')}
+                        		<span class="layui-badge layui-bg-green">成功</span>
+                        	{else}
+                        		<span class="layui-badge">失敗</span>
+                        	{/if}
+                        </td>
+                        <td style="word-break:break-all;">[value->event]</td>
+                        <td>[value->create_time]</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+            <div class="layui-inline" style="float:right">
+	     		<select lay-filter="tourl" class="page-select" >
+					<option value="" selected="">每頁顯示數量</option>
+					<option value="{url./admin/Syslog/index/pagesize/10}#tab=t3" {if(get('pagesize')==10)}selected{/if}>10條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/20}#tab=t3" {if(get('pagesize')==20)}selected{/if}>20條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/30}#tab=t3" {if(get('pagesize')==30)}selected{/if}>30條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/50}#tab=t3" {if(get('pagesize')==50)}selected{/if}>50條/頁</option>
+					<option value="{url./admin/Syslog/index/pagesize/100}#tab=t3" {if(get('pagesize')==100)}selected{/if}>100條/頁</option>
+				</select>
+			</div>
+            <div class="page">{$notifyPagebar}</div>
+            {if(session('ucode')==10001 && [$notifyLogs])}
+            	<button id="btnClearNotify" class="layui-btn layui-btn-sm">清空通知日誌</button>
+            {/if}
+	  	</div>
 	  </div>
-	</div>	
+	</div>
 </div>
 
 {include file='common/foot.html'}
+
+<script>
+layui.use(['layer'], function(){
+	var $ = layui.$;
+	// 公共清空日誌函數（消除重複代碼，三個按鈕統一調用）
+	function clearLog(url, confirmMsg) {
+		layer.confirm(confirmMsg, function(index){
+			$.post(url, {formcheck: $('input[name=formcheck]').val() || ''}, function(res){
+				if(res.code == 1){
+					layer.msg(res.msg, {icon:1, time:1500}, function(){
+						location.reload();
+					});
+				} else {
+					layer.msg(res.msg || '清理失敗', {icon:2});
+				}
+			}, 'json');
+		});
+	}
+	$('#btnClearSys').on('click', function(){
+		clearLog('/admin/system/syslog/clear', '您確定要清空系統日誌嗎？');
+	});
+	$('#btnClearSpider').on('click', function(){
+		clearLog('/admin/system/syslog/clearspider', '您確定要清空蜘蛛日誌嗎？');
+	});
+	$('#btnClearNotify').on('click', function(){
+		clearLog('/admin/system/syslog/clearnotify', '您確定要清空通知日誌嗎？');
+	});
+});
+</script>

@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"pbootcms-go/apps/admin/model"
-	contentModel "pbootcms-go/apps/admin/model/content"
-	memberModel "pbootcms-go/apps/admin/model/member"
-	"pbootcms-go/core/basic"
+	"gbootcms/apps/admin/model"
+	contentModel "gbootcms/apps/admin/model/content"
+	memberModel "gbootcms/apps/admin/model/member"
+	"gbootcms/core/basic"
 
 	"github.com/flosch/pongo2/v6"
 )
@@ -244,6 +244,11 @@ func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[stri
 		} else {
 			m["UpdateTime"] = ""
 		}
+		if !c.CreateTime.IsZero() {
+			m["CreateTime"] = c.CreateTime.Format("2006-01-02 15:04:05")
+		} else {
+			m["CreateTime"] = ""
+		}
 		result[i] = m
 	}
 	return result
@@ -251,51 +256,114 @@ func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[stri
 
 // BuildPagebarHTML generates pagination HTML for content lists.
 func BuildPagebarHTML(total int64, page, pageSize int, baseURL string) *pongo2.Value {
+	return buildPagebarImpl(total, page, pageSize, baseURL, "page")
+}
+
+// BuildPagebarHTMLEx 同 BuildPagebarHTML 但支援自訂分頁參數名
+func BuildPagebarHTMLEx(total int64, page, pageSize int, baseURL, pageParam string) *pongo2.Value {
+	return buildPagebarImpl(total, page, pageSize, baseURL, pageParam)
+}
+
+func buildPagebarImpl(total int64, page, pageSize int, baseURL, pageParam string) *pongo2.Value {
 	if total <= 0 || pageSize <= 0 {
-		return pongo2.AsSafeValue("")
+		return pongo2.AsSafeValue("<div class=\"page\"><span class=\"page-none\" style=\"color:#999\">未查詢到任何數據!</span></div>")
 	}
 	totalPages := int(total) / pageSize
 	if int(total)%pageSize > 0 {
 		totalPages++
 	}
-	if totalPages <= 1 {
-		return pongo2.AsSafeValue("")
-	}
 	if page < 1 {
 		page = 1
+	}
+
+	// buildPath 對齊 PbootCMS Paging::buildPath：帶分頁參數的 URL
+	buildPath := func(p int) string {
+		if p <= 0 {
+			return baseURL
+		}
+		// 判斷 baseURL 是否已有查詢參數
+		if strings.Contains(baseURL, "?") {
+			return fmt.Sprintf("%s&%s=%d", baseURL, pageParam, p)
+		}
+		return fmt.Sprintf("%s?%s=%d", baseURL, pageParam, p)
 	}
 
 	var sb strings.Builder
 	sb.WriteString(`<div class="page">`)
 
-	// First + Previous
-	if page > 1 {
-		sb.WriteString(fmt.Sprintf(`<a href="%s&page=1">首页</a>`, baseURL))
-		sb.WriteString(fmt.Sprintf(`<a href="%s&page=%d">上一页</a>`, baseURL, page-1))
+	// 無數據
+	if totalPages == 0 {
+		sb.WriteString(`<span class="page-none" style="color:#999">未查詢到任何數據!</span>`)
+		sb.WriteString(`</div>`)
+		return pongo2.AsSafeValue(sb.String())
 	}
 
-	// Page numbers
-	start := page - 3
-	if start < 1 {
-		start = 1
+	// page-status：共X条 当前X/X页（對齊 PbootCMS pageStatus）
+	sb.WriteString(fmt.Sprintf(`<span class="page-status">共%d條 當前%d/%d頁</span>`, total, page, totalPages))
+
+	// page-index：首頁（對齊 PbootCMS pageIndex）
+	sb.WriteString(fmt.Sprintf(`<span class="page-index"><a href="%s">首頁</a></span>`, buildPath(1)))
+
+	// page-pre：前一頁（對齊 PbootCMS pagePre，當前頁為 1 時連結為 baseURL）
+	prePage := baseURL
+	if page > 1 {
+		prePage = buildPath(page - 1)
 	}
-	end := page + 3
-	if end > totalPages {
-		end = totalPages
+	sb.WriteString(fmt.Sprintf(`<span class="page-pre"><a href="%s">前一頁</a></span>`, prePage))
+
+	// page-numbar：數字分頁（對齊 PbootCMS pageNumBar，後台固定顯示 5 個數字）
+	sb.WriteString(`<span class="page-numbar">`)
+	numTotal := 5
+	halfl := numTotal / 2
+	halfu := (numTotal + 1) / 2
+
+	if page > halfu {
+		sb.WriteString(`<span class="page-num">···</span>`)
 	}
-	for i := start; i <= end; i++ {
-		if i == page {
-			sb.WriteString(fmt.Sprintf(`<span class="current">%d</span>`, i))
-		} else {
-			sb.WriteString(fmt.Sprintf(`<a href="%s&page=%d">%d</a>`, baseURL, i, i))
+
+	if page <= halfl || totalPages < numTotal {
+		for i := 1; i <= numTotal; i++ {
+			if i > totalPages {
+				break
+			}
+			if page == i {
+				sb.WriteString(fmt.Sprintf(`<a href="%s" class="page-num page-num-current">%d</a>`, buildPath(i), i))
+			} else {
+				sb.WriteString(fmt.Sprintf(`<a href="%s" class="page-num">%d</a>`, buildPath(i), i))
+			}
+		}
+	} else if page+halfl >= totalPages {
+		for i := totalPages - numTotal + 1; i <= totalPages; i++ {
+			if page == i {
+				sb.WriteString(fmt.Sprintf(`<a href="%s" class="page-num page-num-current">%d</a>`, buildPath(i), i))
+			} else {
+				sb.WriteString(fmt.Sprintf(`<a href="%s" class="page-num">%d</a>`, buildPath(i), i))
+			}
+		}
+	} else {
+		for i := page - halfl; i <= page+halfl; i++ {
+			if page == i {
+				sb.WriteString(fmt.Sprintf(`<a href="%s" class="page-num page-num-current">%d</a>`, buildPath(i), i))
+			} else {
+				sb.WriteString(fmt.Sprintf(`<a href="%s" class="page-num">%d</a>`, buildPath(i), i))
+			}
 		}
 	}
 
-	// Next + Last
-	if page < totalPages {
-		sb.WriteString(fmt.Sprintf(`<a href="%s&page=%d">下一页</a>`, baseURL, page+1))
-		sb.WriteString(fmt.Sprintf(`<a href="%s&page=%d">末页</a>`, baseURL, totalPages))
+	if totalPages > numTotal && page < totalPages-halfl {
+		sb.WriteString(`<span class="page-num">···</span>`)
 	}
+	sb.WriteString(`</span>`)
+
+	// page-next：後一頁（對齊 PbootCMS pageNext，當前頁為最後一頁時連結為 baseURL）
+	nextPage := baseURL
+	if page < totalPages {
+		nextPage = buildPath(page + 1)
+	}
+	sb.WriteString(fmt.Sprintf(`<span class="page-next"><a href="%s">後一頁</a></span>`, nextPage))
+
+	// page-last：尾頁（對齊 PbootCMS pageLast）
+	sb.WriteString(fmt.Sprintf(`<span class="page-last"><a href="%s">尾頁</a></span>`, buildPath(totalPages)))
 
 	sb.WriteString(`</div>`)
 	return pongo2.AsSafeValue(sb.String())
@@ -304,6 +372,12 @@ func BuildPagebarHTML(total int64, page, pageSize int, baseURL string) *pongo2.V
 // GetExtFieldsByMcode returns extended fields for a given model code.
 func GetExtFieldsByMcode(mcode string) []contentModel.ExtField {
 	return contentModel.GetExtFieldsByModelCode(mcode)
+}
+
+// GetExtFieldsByMcodeAndScode returns extended fields for a given model code and scode.
+// Returns fields where scode is empty (全展示) OR scode matches the given scode.
+func GetExtFieldsByMcodeAndScode(mcode, scode string) []contentModel.ExtField {
+	return contentModel.GetExtFieldsByModelCodeAndScode(mcode, scode)
 }
 
 // GetModelNameByMcode returns the model name for a given mcode.

@@ -1,9 +1,10 @@
 package content
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
-	"pbootcms-go/core/db"
+	"gbootcms/core/db"
 	"regexp"
 	"time"
 )
@@ -36,11 +37,11 @@ func CheckUrlname(filename string) bool {
 
 // CheckFilename 檢查 URL 名稱是否已被其他欄目使用
 // extraWhere 為額外的 WHERE 條件（例如 "scode<>'123'" 排除自己）
-func CheckFilename(filename string, extraWhere ...string) bool {
+func CheckFilename(ctx context.Context, filename string, extraWhere ...string) bool {
 	if filename == "" {
 		return false
 	}
-	q := db.DB.Table("ay_content_sort").Where("filename = ?", filename)
+	q := db.DB.WithContext(ctx).Table("ay_content_sort").Where("filename = ?", filename)
 	for _, w := range extraWhere {
 		if w != "" {
 			q = q.Where(w)
@@ -56,12 +57,12 @@ func CheckFilename(filename string, extraWhere ...string) bool {
 //   while ($this->model->checkFilename($filename)) {
 //       $filename = $filename . '_' . mt_rand(1, 20);
 //   }
-func GenerateUniqueFilename(filename string, extraWhere ...string) string {
+func GenerateUniqueFilename(ctx context.Context, filename string, extraWhere ...string) string {
 	if filename == "" {
 		return ""
 	}
 	for i := 0; i < 100; i++ { // 最多嘗試 100 次，防止死循環
-		if !CheckFilename(filename, extraWhere...) {
+		if !CheckFilename(ctx, filename, extraWhere...) {
 			return filename
 		}
 		filename = fmt.Sprintf("%s_%d", filename, 1+rand.Intn(20))
@@ -102,4 +103,14 @@ type ContentSort struct {
 	Def2       string    `gorm:"column:def2;default:''" json:"def2"`
 	Def3       string    `gorm:"column:def3;default:''" json:"def3"`
 	URLName    string    `gorm:"column:urlname" json:"urlname"`
+}
+
+// TableName 指定表名（對齊 PbootCMS ay_content_sort）
+func (ContentSort) TableName() string { return "ay_content_sort" }
+
+// GetAllContentSorts 取得所有啟用的欄目（供下拉框使用）
+func GetAllContentSorts(ctx context.Context) []ContentSort {
+	var sorts []ContentSort
+	db.DB.WithContext(ctx).Where("status = 1").Order("pcode ASC, sorting ASC").Find(&sorts)
+	return sorts
 }

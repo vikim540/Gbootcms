@@ -1,11 +1,13 @@
-﻿package content
+package content
 
 import (
+	"context"
 	"fmt"
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model"
-	svc "pbootcms-go/apps/admin/service/content"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	svc "gbootcms/apps/admin/service/content"
+	"gbootcms/apps/common"
+	"gbootcms/apps/common/push"
 	"strconv"
 	"strings"
 	"time"
@@ -20,36 +22,35 @@ type ContentController struct {
 }
 
 // contentTemplateData returns common template data for content views.
-func (cc *ContentController) contentTemplateData(mcode string, sorts []model.ContentSort, contentMap map[string]interface{}) gin.H {
+func (cc *ContentController) contentTemplateData(ctx context.Context, mcode, scode string, sorts []model.ContentSort, contentMap map[string]interface{}) gin.H {
 	return gin.H{
-		"mcode":          mcode,
-		"model_name":     helper.GetModelNameByMcode(mcode),
-		"sorts":          sorts,
-		"sort_select":    helper.BuildSearchSelectHTML(sorts, mcode),
-		"search_select":  helper.BuildSearchSelectHTML(sorts, mcode),
-		"subsort_select": helper.BuildSearchSelectHTML(sorts, mcode),
-		"extfield":       cc.svc.BuildExtFieldTemplateData(mcode, contentMap),
-		"groups":         helper.BuildGroupsData(),
+		"mcode":             mcode,
+		"model_name":        helper.GetModelNameByMcode(mcode),
+		"sorts":             sorts,
+		"sort_select":       helper.BuildSearchSelectHTML(sorts, mcode),
+		"search_select":     helper.BuildSearchSelectHTML(sorts, mcode),
+		"subsort_select":    helper.BuildSearchSelectHTML(sorts, mcode),
+		"extfield":          cc.svc.BuildExtFieldTemplateData(ctx, mcode, scode, contentMap),
+		"groups":            helper.BuildGroupsData(),
+		"baidu_zz_token":    model.GetConfigValue("baidu_zz_token", ""),
+		"baidu_ks_token":    model.GetConfigValue("baidu_ks_token", ""),
+		"bing_indexnow_key": model.GetConfigValue("bing_indexnow_key", ""),
 	}
 }
 
 // Index - Content list
 func (cc *ContentController) Index(c *gin.Context) {
-	mcode := c.Query("mcode")
-	scode := c.Query("scode")
-	keyword := c.Query("keyword")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize := 15
-	if ps := c.Query("pagesize"); ps != "" {
-		if v, err := strconv.Atoi(ps); err == nil && v > 0 {
-			pageSize = v
-		}
-	}
+	// 用 c.Request.URL.Query() 而非 c.Query()，因為 IndexCatchAll 修改了 RawQuery
+	q := c.Request.URL.Query()
+	mcode := q.Get("mcode")
+	scode := q.Get("scode")
+	keyword := q.Get("keyword")
+	page, pageSize, _ := cc.Paginate(c)
 
-	contents, total, _ := cc.svc.ListContents(mcode, scode, keyword, page, pageSize)
-	sorts, _ := cc.svc.GetAllSorts()
+	contents, total, _ := cc.svc.ListContents(c.Request.Context(), mcode, scode, keyword, page, pageSize)
+	sorts, _ := cc.svc.GetAllSorts(c.Request.Context())
 
-	data := cc.contentTemplateData(mcode, sorts, nil)
+	data := cc.contentTemplateData(c.Request.Context(), mcode, scode, sorts, nil)
 	data["contents"] = helper.AddSortName(contents, sorts)
 	data["list"] = true
 	data["scode"] = scode
@@ -129,25 +130,29 @@ func (cc *ContentController) Add(c *gin.Context) {
 			Gid:         c.PostForm("gid"),
 			GType:       c.PostForm("gtype"),
 			Gnote:       c.PostForm("gnote"),
+			CreateUser:  cc.GetAdminUsername(c),
+			UpdateUser:  cc.GetAdminUsername(c),
 		}
 
 		// 收集擴展字段數據
 		extFields := helper.GetExtFieldsByMcode(mcode)
-		extData := cc.svc.CollectExtFieldData(extFields,
+		extData := cc.svc.CollectExtFieldData(c.Request.Context(), extFields,
 			func(key string) string { return c.PostForm(key) },
 			func(key string) []string { return c.PostFormArray(key) },
 		)
 
-		if err := cc.svc.CreateContent(&doc, extData); err != nil {
+		if err := cc.svc.CreateContent(c.Request.Context(), &doc, extData); err != nil {
+			cc.LogAction(c, "新增文章失敗")
 			cc.JSONFail(c, err.Error())
 			return
 		}
+		cc.LogAction(c, "新增文章成功")
 		cc.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
 
-	sorts, _ := cc.svc.GetAllSorts()
-	data := cc.contentTemplateData(mcode, sorts, nil)
+	sorts, _ := cc.svc.GetAllSorts(c.Request.Context())
+	data := cc.contentTemplateData(c.Request.Context(), mcode, "", sorts, nil)
 	data["list"] = true
 	common.Render(c, "content/content.html", data)
 }
@@ -175,7 +180,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 
 	// 確保 mcode 可用：從內容的欄目反推（MOD GET/POST 通用）
 	if mcode == "" && id > 0 {
-		mcode = cc.resolveMcodeByContentID(id)
+		mcode = cc.resolveMcodeByContentID(c.Request.Context(), id)
 	}
 
 	// Handle single field update via URL path or query params
@@ -191,6 +196,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 	submit := c.PostForm("submit")
 
 	if cc.IsBatchSort(c) {
+		cc.LogAction(c, "修改內容排序成功")
 		cc.BatchSort(c, &model.Content{}, "sorting", 255)
 		return
 	}
@@ -198,7 +204,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 	if submit == "field" {
 		field := c.PostForm("field")
 		value := c.PostForm("value")
-		if err := cc.svc.UpdateSingleField(id, field, value); err != nil {
+		if err := cc.svc.UpdateSingleField(c.Request.Context(), id, field, value); err != nil {
 			cc.JSONFail(c, err.Error())
 			return
 		}
@@ -208,7 +214,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 
 	// Handle single field update via query params (already parsed from wildcard)
 	if field != "" {
-		if err := cc.svc.UpdateSingleField(id, field, value); err != nil {
+		if err := cc.svc.UpdateSingleField(c.Request.Context(), id, field, value); err != nil {
 			cc.JSONFail(c, err.Error())
 			return
 		}
@@ -217,25 +223,69 @@ func (cc *ContentController) Mod(c *gin.Context) {
 	}
 
 	if submit == "copy" {
-		if err := cc.svc.CopyContent(id, c.PostForm("scode")); err != nil {
-			cc.JSONFail(c, err.Error())
+		// 批量複製（對齊 PHP: post('list') 接收陣列）
+		list := c.PostFormArray("list[]")
+		if len(list) == 0 {
+			list = c.PostFormArray("list")
+		}
+		scode := c.PostForm("scode")
+		if len(list) == 0 {
+			cc.JSONFail(c, "請選擇要複製的內容")
 			return
 		}
+		if scode == "" {
+			cc.JSONFail(c, "請選擇目標欄目")
+			return
+		}
+		var failCount int
+		for _, idStr := range list {
+			idInt, err := strconv.Atoi(idStr)
+			if err != nil {
+				failCount++
+				continue
+			}
+			if err := cc.svc.CopyContent(c.Request.Context(), idInt, scode); err != nil {
+				failCount++
+			}
+		}
+		cc.LogAction(c, fmt.Sprintf("複製內容成功（共%d條，失敗%d條）", len(list), failCount))
 		cc.JSONOKMsg(c, common.NoticeCopy)
 		return
 	}
 
 	if submit == "move" {
-		if err := cc.svc.MoveContent(id, c.PostForm("scode")); err != nil {
-			cc.JSONFail(c, err.Error())
+		// 批量移動（對齊 PHP: post('list') 接收陣列）
+		list := c.PostFormArray("list[]")
+		if len(list) == 0 {
+			list = c.PostFormArray("list")
+		}
+		scode := c.PostForm("scode")
+		if len(list) == 0 {
+			cc.JSONFail(c, "請選擇要移動的內容")
 			return
 		}
+		if scode == "" {
+			cc.JSONFail(c, "請選擇目標欄目")
+			return
+		}
+		var failCount int
+		for _, idStr := range list {
+			idInt, err := strconv.Atoi(idStr)
+			if err != nil {
+				failCount++
+				continue
+			}
+			if err := cc.svc.MoveContent(c.Request.Context(), idInt, scode); err != nil {
+				failCount++
+			}
+		}
+		cc.LogAction(c, fmt.Sprintf("移動內容成功（共%d條，失敗%d條）", len(list), failCount))
 		cc.JSONOKMsg(c, common.NoticeMove)
 		return
 	}
 
-	if submit == "baiduzz" || submit == "baiduks" {
-		cc.JSONOKMsg(c, common.NoticeSubmit)
+	if submit == "baiduzz" || submit == "baiduks" || submit == "bingpush" || submit == "googlepush" {
+		cc.handlePush(c, submit)
 		return
 	}
 
@@ -270,6 +320,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			"tags":        strings.ReplaceAll(c.PostForm("tags"), "，", ","),
 			"titlecolor":  c.PostForm("titlecolor"),
 			"gnote":       c.PostForm("gnote"),
+			"update_user": cc.GetAdminUsername(c),
 		}
 
 		if v, err := strconv.Atoi(c.DefaultPostForm("visits", "0")); err == nil {
@@ -312,21 +363,22 @@ func (cc *ContentController) Mod(c *gin.Context) {
 
 		// 收集擴展字段數據
 		extFields := helper.GetExtFieldsByMcode(mcode)
-		extData := cc.svc.CollectExtFieldData(extFields,
+		extData := cc.svc.CollectExtFieldData(c.Request.Context(), extFields,
 			func(key string) string { return c.PostForm(key) },
 			func(key string) []string { return c.PostFormArray(key) },
 		)
 
-		if err := cc.svc.UpdateContent(id, updates, extData); err != nil {
+		if err := cc.svc.UpdateContent(c.Request.Context(), id, updates, extData); err != nil {
 			cc.JSONFail(c, err.Error())
 			return
 		}
+		cc.LogAction(c, "修改文章成功")
 		cc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
 	// GET: 加載內容及擴展數據用於表單回填
-	contentMap, err := cc.svc.GetContentWithExt(id)
+	contentMap, err := cc.svc.GetContentWithExt(c.Request.Context(), id)
 	if err != nil {
 		cc.JSONFail(c, err.Error())
 		return
@@ -334,10 +386,10 @@ func (cc *ContentController) Mod(c *gin.Context) {
 
 	// Get mcode from content's sort if not in query (已由上方 resolveMcodeByContentID 處理)
 
-	sorts, _ := cc.svc.GetAllSorts()
-	data := cc.contentTemplateData(mcode, sorts, contentMap)
-	data["content"] = contentMap
+	sorts, _ := cc.svc.GetAllSorts(c.Request.Context())
 	scodeVal, _ := contentMap["Scode"].(string)
+	data := cc.contentTemplateData(c.Request.Context(), mcode, scodeVal, sorts, contentMap)
+	data["content"] = contentMap
 	data["sort_select"] = helper.BuildSortSelectWithSelected(sorts, mcode, scodeVal)
 	// 預處理 pics/picstitle 供模板多圖循環（替代殘留的 {php} explode/foreach）
 	if picsStr, ok := contentMap["Pics"].(string); ok && picsStr != "" {
@@ -371,21 +423,26 @@ func (cc *ContentController) Del(c *gin.Context) {
 			ids = c.PostFormArray("list")
 		}
 		if len(ids) > 0 {
-			if err := cc.svc.DeleteContent(ids); err != nil {
+			if err := cc.svc.DeleteContent(c.Request.Context(), ids); err != nil {
+				cc.LogAction(c, "刪除文章失敗")
 				cc.JSONFail(c, err.Error())
 				return
 			}
+			cc.LogAction(c, "刪除文章成功")
 			cc.JSONOKMsg(c, common.NoticeDelete)
 			return
 		}
+		cc.LogAction(c, "刪除文章失敗")
 		cc.JSONFail(c, "未選擇任何項目")
 		return
 	}
 	ids := strings.Split(idStr, ",")
-	if err := cc.svc.DeleteContent(ids); err != nil {
+	if err := cc.svc.DeleteContent(c.Request.Context(), ids); err != nil {
+		cc.LogAction(c, "刪除文章失敗")
 		cc.JSONFail(c, err.Error())
 		return
 	}
+	cc.LogAction(c, "刪除文章成功")
 	cc.JSONOKMsg(c, common.NoticeDelete)
 }
 
@@ -407,13 +464,13 @@ func (cc *ContentController) IndexCatchAll(c *gin.Context) {
 }
 
 // resolveMcodeByContentID 從內容的欄目反推 mcode，確保 MOD GET/POST 都能獲取擴展字段定義
-func (cc *ContentController) resolveMcodeByContentID(id int) string {
+func (cc *ContentController) resolveMcodeByContentID(ctx context.Context, id int) string {
 	var doc model.Content
-	if model.DB.Select("scode").Where("id = ?", id).First(&doc).Error != nil {
+	if model.DB.WithContext(ctx).Select("scode").Where("id = ?", id).First(&doc).Error != nil {
 		return ""
 	}
 	var sort model.ContentSort
-	if model.DB.Select("mcode").Where("scode = ?", doc.Scode).First(&sort).Error != nil {
+	if model.DB.WithContext(ctx).Select("mcode").Where("scode = ?", doc.Scode).First(&sort).Error != nil {
 		return ""
 	}
 	return sort.Mcode
@@ -429,4 +486,166 @@ func (cc *ContentController) AddCatchAll(c *gin.Context) {
 func (cc *ContentController) DelCatchAll(c *gin.Context) {
 	cc.applyPathAction(c)
 	cc.Del(c)
+}
+
+// handlePush 處理百度/Bing/Google 推送（對齊 PHP ContentController::mod 的 baiduzz/baiduks 分支）
+func (cc *ContentController) handlePush(c *gin.Context, pushType string) {
+	// 取得選中的內容 ID 列表
+	ids := c.PostFormArray("list[]")
+	if len(ids) == 0 {
+		ids = c.PostFormArray("list")
+	}
+	if len(ids) == 0 {
+		cc.JSONFail(c, "請選擇要推送的內容")
+		return
+	}
+
+	// 查詢內容
+	var contents []model.Content
+	model.DB.WithContext(c.Request.Context()).Where("id IN ?", ids).Find(&contents)
+	if len(contents) == 0 {
+		cc.JSONFail(c, "未找到可推送的內容")
+		return
+	}
+
+	// 排除外鏈內容（對齊 PHP: 鏈接類型不允許推送）
+	var validContents []model.Content
+	for _, ct := range contents {
+		if ct.Outlink == "" {
+			validContents = append(validContents, ct)
+		}
+	}
+	if len(validContents) == 0 {
+		cc.JSONFail(c, "所選內容均為外鏈類型，無法推送")
+		return
+	}
+
+	// 取得站點域名
+	domain := push.GetSiteDomain(c.Request.Host)
+
+	// 構建推送 URL 列表
+	var urls []string
+	for _, ct := range validContents {
+		urlPath := buildContentPath(c.Request.Context(), &ct)
+		urls = append(urls, push.BuildFullURL(domain, urlPath))
+	}
+
+	switch pushType {
+	case "baiduzz":
+		token := model.GetConfigValue("baidu_zz_token", "")
+		if token == "" {
+			cc.JSONFail(c, "請先到系統配置中填寫百度普通收錄推送 token")
+			return
+		}
+		api := fmt.Sprintf("http://data.zz.baidu.com/urls?site=%s&token=%s", domain, token)
+		result, err := push.PushBaidu(api, urls)
+		if err != nil {
+			cc.JSONFail(c, "百度普通收錄推送失敗: "+err.Error())
+			return
+		}
+		if result.Success {
+			cc.JSONOKMsg(c, "百度普通收錄"+result.Message)
+		} else {
+			cc.JSONFail(c, result.Message)
+		}
+
+	case "baiduks":
+		token := model.GetConfigValue("baidu_ks_token", "")
+		if token == "" {
+			cc.JSONFail(c, "請先到系統配置中填寫百度快速收錄推送 token")
+			return
+		}
+		api := fmt.Sprintf("http://data.zz.baidu.com/urls?site=%s&token=%s&type=daily", domain, token)
+		result, err := push.PushBaidu(api, urls)
+		if err != nil {
+			cc.JSONFail(c, "百度快速收錄推送失敗: "+err.Error())
+			return
+		}
+		if result.Success {
+			cc.JSONOKMsg(c, "百度快速收錄"+result.Message)
+		} else {
+			cc.JSONFail(c, result.Message)
+		}
+
+	case "bingpush":
+		key := model.GetConfigValue("bing_indexnow_key", "")
+		if key == "" {
+			cc.JSONFail(c, "請先到系統配置中填寫 Bing IndexNow 密鑰")
+			return
+		}
+		result, err := push.PushBing(domain, key, urls)
+		if err != nil {
+			cc.JSONFail(c, "Bing 推送失敗: "+err.Error())
+			return
+		}
+		if result.Success {
+			cc.JSONOKMsg(c, result.Message)
+		} else {
+			cc.JSONFail(c, result.Message)
+		}
+
+	case "googlepush":
+		sitemapURL := push.BuildFullURL(domain, "/sitemap.xml")
+		result, err := push.PushGoogle(sitemapURL)
+		if err != nil {
+			cc.JSONFail(c, "Google 推送失敗: "+err.Error())
+			return
+		}
+		if result.Success {
+			cc.JSONOKMsg(c, result.Message)
+		} else {
+			cc.JSONFail(c, result.Message)
+		}
+
+	default:
+		cc.JSONFail(c, "未知的推送類型")
+	}
+}
+
+// buildContentPath 構建內容的相對 URL 路徑（與前台 contentURL 邏輯一致）
+func buildContentPath(ctx context.Context, c *model.Content) string {
+	if c.Outlink != "" {
+		return c.Outlink
+	}
+
+	// 短路徑模式
+	if model.GetConfigValue("url_rule_content_path", "0") == "1" {
+		if c.Filename != "" {
+			return "/" + c.Filename + ".html"
+		}
+		if c.URLName != "" {
+			return "/" + c.URLName + ".html"
+		}
+		return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
+	}
+
+	// 帶欄目路徑模式
+	var sortPath string
+	if c.Scode != "" {
+		var s model.ContentSort
+		if model.DB.WithContext(ctx).Where("scode = ?", c.Scode).First(&s).Error == nil {
+			if s.Filename != "" {
+				sortPath = s.Filename
+			} else if s.URLName != "" {
+				sortPath = s.URLName
+			}
+		}
+	}
+
+	if c.Filename != "" {
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.Filename + ".html"
+		}
+		return "/" + c.Filename + ".html"
+	}
+	if c.URLName != "" {
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.URLName + ".html"
+		}
+		return "/" + c.URLName + ".html"
+	}
+	if sortPath != "" {
+		return "/" + sortPath + "/" + strconv.Itoa(int(c.ID)) + ".html"
+	}
+	return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
 }

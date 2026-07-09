@@ -34,14 +34,15 @@ const (
 
 // ─── 系統操作 ───
 const (
-	NoticeClean        = "清理成功"
-	NoticeCleanAll     = "全部清理成功"
-	NoticeCacheCleaned = "緩存清理成功"
-	NoticeSwitch       = "切換成功"
-	NoticePassword     = "密碼修改成功"
-	NoticeOptimize     = "優化成功"
-	NoticeRepair       = "修復成功"
-	NoticeBackup       = "備份成功"
+	NoticeClean            = "清理成功"
+	NoticeCleanAll         = "全部清理成功"
+	NoticeCacheCleaned     = "緩存清理成功"
+	NoticeSystemCacheCleaned = "系統緩存清理成功"
+	NoticeSwitch           = "切換成功"
+	NoticePassword         = "密碼修改成功"
+	NoticeOptimize         = "優化成功"
+	NoticeRepair           = "修復成功"
+	NoticeBackup           = "備份成功"
 )
 
 // ─── 驗證碼 ───
@@ -118,4 +119,9 @@ func NoticeSortNoChange(unchanged int) string {
 // NoticeLabelSaved 標籤已保存
 func NoticeLabelSaved(updated int) string {
 	return "標籤已保存 (" + strconv.Itoa(updated) + " 個)"
+}
+
+// NoticeSessionCleaned 會話已清理（帶數量）
+func NoticeSessionCleaned(count int) string {
+	return "已清理 " + strconv.Itoa(count) + " 個會話"
 }

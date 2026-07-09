@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
-	"pbootcms-go/apps/admin/model"
+	"gbootcms/apps/admin/model"
 	"strings"
 	"time"
 )
+
+// httpClient 復用 TCP 連接/TLS 會話的 HTTP 客戶端（帶 10s 超時）
+var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 // Payload 通用 Webhook 推送的 JSON 結構（自訂格式）
 type Payload struct {
@@ -50,6 +54,14 @@ func SendWithURL(formName, ip, os, browser string, fields []map[string]string, d
 	}
 
 	go func() {
+		// 防止 goroutine 內 panic 導致整個進程崩潰
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("[Webhook] goroutine panic recovered", "panic", r)
+				model.LogNotify("webhook", "error", fmt.Sprintf("內部異常: %v", r))
+			}
+		}()
+
 		var jsonData []byte
 		var err error
 
@@ -72,21 +84,23 @@ func SendWithURL(formName, ip, os, browser string, fields []map[string]string, d
 
 		if err != nil {
 			fmt.Printf("[Webhook] JSON 序列化失敗: %v\n", err)
+			model.LogNotify("webhook", "error", "JSON 序列化失敗："+err.Error())
 			return
 		}
 
 		req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(jsonData))
 		if err != nil {
 			fmt.Printf("[Webhook] 建立請求失敗: %v\n", err)
+			model.LogNotify("webhook", "error", "建立請求失敗："+err.Error())
 			return
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", "GbootCMS-Webhook/1.0")
 
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			fmt.Printf("[Webhook] 推送失敗: %v\n", err)
+			model.LogNotify("webhook", "error", "推送失敗："+err.Error())
 			return
 		}
 		defer resp.Body.Close()
@@ -97,9 +111,15 @@ func SendWithURL(formName, ip, os, browser string, fields []map[string]string, d
 			var rr robotResponse
 			if json.Unmarshal(body, &rr) == nil && rr.ErrCode != 0 {
 				fmt.Printf("[Webhook] 機器人返回錯誤: errcode=%d, errmsg=%s\n", rr.ErrCode, rr.ErrMsg)
+				model.LogNotify("webhook", "error", fmt.Sprintf("機器人返回錯誤: errcode=%d, errmsg=%s", rr.ErrCode, rr.ErrMsg))
+			} else {
+				model.LogNotify("webhook", "success", "Webhook 推送成功："+formName)
 			}
 		} else if resp.StatusCode >= 400 {
 			fmt.Printf("[Webhook] 推送返回異常狀態碼: %d\n", resp.StatusCode)
+			model.LogNotify("webhook", "error", fmt.Sprintf("推送返回異常狀態碼: %d", resp.StatusCode))
+		} else {
+			model.LogNotify("webhook", "success", "Webhook 推送成功："+formName)
 		}
 	}()
 }

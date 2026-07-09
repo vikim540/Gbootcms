@@ -1,12 +1,13 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
-	"pbootcms-go/apps/common/mail"
-	"pbootcms-go/apps/common/webhook"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
+	"gbootcms/apps/common/mail"
+	"gbootcms/apps/common/webhook"
 	"strconv"
 	"time"
 
@@ -41,9 +42,9 @@ func (cc *CommentController) Add(c *gin.Context) {
 	if uid == 0 && model.GetConfigValue("comment_anonymous", "0") == "0" {
 		// 帶 backurl 讓登入後返回來源頁面
 		referer := c.Request.Referer()
-		loginURL := "/login"
+		loginURL := langPath(c, "/login")
 		if referer != "" {
-			loginURL = "/login?backurl=" + url.QueryEscape(referer)
+			loginURL = langPath(c, "/login") + "?backurl=" + url.QueryEscape(referer)
 		}
 		c.JSON(http.StatusOK, gin.H{
 			"code":  0,
@@ -84,6 +85,8 @@ func (cc *CommentController) Add(c *gin.Context) {
 	if username == "" {
 		username = "guest"
 	}
+	commentUA := c.Request.UserAgent()
+	commentOS, commentBS := common.ParseUserAgent(commentUA, c.GetHeader("Sec-CH-UA-Platform-Version"))
 	mc := model.MemberComment{
 		Pid:        uint(pid),
 		Contentid:  uint(atoiSafe(contentid)),
@@ -94,13 +97,13 @@ func (cc *CommentController) Add(c *gin.Context) {
 		Oppose:     0,
 		Status:     status,
 		UserIP:     c.ClientIP(),
-		UserOS:     parseUserOS(c.Request.UserAgent()),
-		UserBS:     parseUserBrowser(c.Request.UserAgent()),
+		UserOS:     commentOS,
+		UserBS:     commentBS,
 		CreateTime: nowTime,
 		UpdateUser: username,
 		UpdateTime: nowTime,
 	}
-	if err := model.DB.Create(&mc).Error; err != nil {
+	if err := model.DB.WithContext(c.Request.Context()).Create(&mc).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "評論失敗，請稍後再試"})
 		return
 	}
@@ -108,21 +111,34 @@ func (cc *CommentController) Add(c *gin.Context) {
 	// 記錄提交時間（防刷）
 	common.SetSession(c, "lastsub", now)
 
-	// 評論郵件通知 + Webhook 推送
+	// 評論郵件通知（comment_send_mail=1 時啟用，與 webhook 獨立判斷）
+	commentIP := c.ClientIP()
 	mailFields := []map[string]string{
 		{"label": "評論內容", "value": comment},
-		{"label": "來源IP", "value": c.ClientIP()},
-		{"label": "作業系統", "value": parseUserOS(c.Request.UserAgent())},
-		{"label": "瀏覽器", "value": parseUserBrowser(c.Request.UserAgent())},
+		{"label": "來源IP", "value": commentIP},
+		{"label": "作業系統", "value": commentOS},
+		{"label": "瀏覽器", "value": commentBS},
 	}
 	if model.GetConfigValue("comment_send_mail", "0") == "1" {
-		mail.SendNotifyMail("新評論通知", mailFields)
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("[Mail] 評論通知 goroutine panic: %v\n", r)
+				}
+			}()
+			if err := mail.SendNotifyMail("新評論通知", mailFields); err != nil {
+				model.LogNotify("mail", "error", "評論通知："+err.Error())
+			} else {
+				model.LogNotify("mail", "success", "評論通知郵件已發送")
+			}
+		}()
 	}
-	// webhook fields 只保留業務欄位（IP/OS/瀏覽器已在卡片 header）
+
+	// Webhook 推送（獨立判斷，webhook_comment 開關在 SendIf 內檢查）
 	webhookFields := []map[string]string{
 		{"label": "評論內容", "value": comment},
 	}
-	webhook.SendIf("comment", "新評論", c.ClientIP(), parseUserOS(c.Request.UserAgent()), parseUserBrowser(c.Request.UserAgent()), webhookFields)
+	webhook.SendIf("comment", "新評論", commentIP, commentOS, commentBS, webhookFields)
 
 	if status == 1 {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "data": "評論成功"})
@@ -136,7 +152,8 @@ func (cc *CommentController) My(c *gin.Context) {
 	uid := common.GetSessionInt(c, "pboot_uid")
 	if uid == 0 {
 		currentURL := c.Request.URL.String()
-		c.Redirect(http.StatusFound, "/login?backurl="+url.QueryEscape(currentURL))
+		backurl := langPath(c, currentURL)
+		c.Redirect(http.StatusFound, langPath(c, "/login")+"?backurl="+url.QueryEscape(backurl))
 		return
 	}
 	cc.renderMemberPage(c, "member/mycomment.html")
@@ -157,7 +174,7 @@ func (cc *CommentController) Del(c *gin.Context) {
 	}
 
 	// 安全刪除：只能刪除自己的評論
-	result := model.DB.Where("id = ? AND uid = ?", idStr, uid).Delete(&model.MemberComment{})
+	result := model.DB.WithContext(c.Request.Context()).Where("id = ? AND uid = ?", idStr, uid).Delete(&model.MemberComment{})
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "刪除失敗，評論不存在或無權限"})
 		return

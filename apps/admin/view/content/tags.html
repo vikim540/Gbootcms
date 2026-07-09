@@ -4,17 +4,17 @@
 	{if([$list])}
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">文章内链列表</li>
-	    <li lay-id="t2">文章内链新增</li>
+	    <li class="layui-this" lay-id="t1">文章內鏈列表</li>
+	    <li lay-id="t2">文章內鏈新增</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	<div class="layui-tab-item layui-show">
 	  		<table class="layui-table">
 	  			<thead>
                     <tr>
-                    	<th>序号</th>
-                        <th>名称</th>
-                        <th>链接</th>
+                    	<th>序號</th>
+                        <th>名稱</th>
+                        <th>鏈接</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -39,16 +39,16 @@
 	  		 	<input type="hidden" name="formcheck" value="{$formcheck}" > 
 
                  <div class="layui-form-item">
-                     <label class="layui-form-label">名称</label>
+                     <label class="layui-form-label">名稱</label>
                      <div class="layui-input-block">
-                     	<input type="text" name="name" required  lay-verify="required" placeholder="请输入名称"  class="layui-input">
+                     	<input type="text" name="name" required  lay-verify="required" placeholder="請輸入名稱"  class="layui-input">
                      </div>
                 </div>
                 
                 <div class="layui-form-item">
-                     <label class="layui-form-label">链接</label>
+                     <label class="layui-form-label">鏈接</label>
                      <div class="layui-input-block">
-                     	<input type="text" name="link" required  lay-verify="required" placeholder="请输入链接"  class="layui-input">
+                     	<input type="text" name="link" required  lay-verify="required" placeholder="請輸入鏈接"  class="layui-input">
                      </div>
                 </div>
 
@@ -67,7 +67,7 @@
 	{if([$mod])}
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this">文章内链修改</li>
+	    <li class="layui-this">文章內鏈修改</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	<div class="layui-tab-item layui-show">
@@ -75,16 +75,16 @@
 	  		 	<input type="hidden" name="formcheck" value="{$formcheck}" > 
 
                 <div class="layui-form-item">
-                     <label class="layui-form-label">名称</label>
+                     <label class="layui-form-label">名稱</label>
                      <div class="layui-input-block">
-                     	<input type="text" name="name" required  lay-verify="required" value="{$tags->name}" placeholder="请输入名称"  class="layui-input">
+                     	<input type="text" name="name" required  lay-verify="required" value="{$tags->name}" placeholder="請輸入名稱"  class="layui-input">
                      </div>
                 </div>
                 
                 <div class="layui-form-item">
-                     <label class="layui-form-label">链接</label>
+                     <label class="layui-form-label">鏈接</label>
                      <div class="layui-input-block">
-                     	<input type="text" name="link" required  lay-verify="required" value="{$tags->link}" placeholder="请输入链接"  class="layui-input">
+                     	<input type="text" name="link" required  lay-verify="required" value="{$tags->link}" placeholder="請輸入鏈接"  class="layui-input">
                      </div>
                 </div>
                 

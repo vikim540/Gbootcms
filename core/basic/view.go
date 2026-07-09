@@ -36,8 +36,9 @@ var (
 	reDollarSession   = regexp.MustCompile(`\{\$session\.([\w]+)\}`)
 	reDollarGet       = regexp.MustCompile(`\{\$get\.([\w]+)\}`)
 	reDollarVar       = regexp.MustCompile(`\{\$([\w]+)\}`)
-	reBracketArrow    = regexp.MustCompile(`\[([\w]+)->([\w]+)\]`)
-	reBracketVar      = regexp.MustCompile(`\[\$([\w]+)\]`)
+	reBracketArrow       = regexp.MustCompile(`\[([\w]+)->([\w]+)\]`)
+	reBracketDollarArrow = regexp.MustCompile(`\[\$([\w]+)->([\w]+)\]`)
+	reBracketVar         = regexp.MustCompile(`\[\$([\w]+)\]`)
 )
 
 func InitViewEngine(dir string, adminDir string) {
@@ -105,6 +106,14 @@ func GetAdminView(tplPath string) (*pongo2.Template, error) {
 	}
 	templateCache[tplPath] = t
 	return t, nil
+}
+
+// ClearTemplateCache 清除所有已編譯的模板內存快取
+// 用於後台「清理緩存」功能，清除後下次請求會重新讀取並編譯模板
+func ClearTemplateCache() {
+	viewMu.Lock()
+	defer viewMu.Unlock()
+	templateCache = make(map[string]*pongo2.Template)
 }
 
 func compileAdminView(tplPath string) (*pongo2.Template, error) {
@@ -402,7 +411,8 @@ func processPongo2Foreach(html string) string {
 			curVar := varStack[depth-1]
 			line = strings.ReplaceAll(line, "[value]", "{{ "+curVar+" }}")
 			line = strings.ReplaceAll(line, "[key]", "{{ key }}")
-			line = strings.ReplaceAll(line, "[num]", "{{ forloop.Counter }}")
+			// 序號：分頁時需加 PageStart 偏移量（對齊 PbootCMS: (PAGE-1)*PAGESIZE+$num）
+			line = strings.ReplaceAll(line, "[num]", "{{ forloop.Counter|add:PageStart }}")
 			// Replace standalone 'value' in PbootCMS conditions (e.g. {if(value!=X)}) → valN
 			// But NOT inside HTML attributes like value="..." or value='...'
 			// At this stage conditions are still {if(...)} not {% if ... %}
@@ -838,6 +848,20 @@ func processPongo2BracketVars(html string) string {
 		return fmt.Sprintf("{{ %s.%s }}", SnakeToPascal(varName), fieldName)
 	})
 
+	// Handle [$var->field] bracket-dollar-arrow syntax (e.g. [$form->fcode] → {{ Form.Fcode }})
+	html = reBracketDollarArrow.ReplaceAllStringFunc(html, func(match string) string {
+		subs := reBracketDollarArrow.FindStringSubmatch(match)
+		if len(subs) < 3 {
+			return match
+		}
+		varName := subs[1]
+		fieldName := SnakeToPascal(subs[2])
+		if isLoopVar(varName) {
+			return fmt.Sprintf("{{ %s.%s }}", varName, fieldName)
+		}
+		return fmt.Sprintf("{{ %s.%s }}", SnakeToPascal(varName), fieldName)
+	})
+
 	html = reBracketVar.ReplaceAllStringFunc(html, func(match string) string {
 		subs := reBracketVar.FindStringSubmatch(match)
 		if len(subs) < 2 {
@@ -943,6 +967,7 @@ func SnakeToPascal(s string) string {
 		"db":   "DB",
 		"cms":  "CMS",
 		"html": "HTML",
+		"os":   "OS",
 	}
 	// PbootCMS compound words without underscore separator
 	compoundMap := map[string]string{
@@ -1222,6 +1247,17 @@ func convertUrlSegment(seg string) string {
 		obj := SnakeToPascal(subs[1])
 		key := SnakeToPascal(subs[2])
 		return "{{ " + obj + "[" + key + "] }}"
+	}
+	// [$var->field] — bracket dollar arrow variable (e.g. [$form->fcode] → {{ Form.Fcode }})
+	if matched, _ := regexp.MatchString(`^\[\$(\w+)->(\w+)\]$`, seg); matched {
+		reBda := regexp.MustCompile(`^\[\$(\w+)->(\w+)\]$`)
+		subs := reBda.FindStringSubmatch(seg)
+		obj := subs[1]
+		field := SnakeToPascal(subs[2])
+		if isLoopVar(obj) {
+			return fmt.Sprintf("{{ %s.%s }}", obj, field)
+		}
+		return fmt.Sprintf("{{ %s.%s }}", SnakeToPascal(obj), field)
 	}
 	// [$var.field] — bracket dot variable
 	if matched, _ := regexp.MatchString(`^\[\$(\w+)\.(\w+)\]$`, seg); matched {

@@ -1,7 +1,8 @@
 package content
 
 import (
-	"pbootcms-go/core/db"
+	"gbootcms/core/db"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -54,18 +55,26 @@ func DeleteLabel(id int) error {
 	return db.DB.Exec("DELETE FROM ay_label WHERE id=?", id).Error
 }
 
-// BatchUpdateLabelValues 批量更新标签值（POST /admin/Label/index 的核心逻辑）
-// 遍历所有 POST 键，过滤合法标签名，对 value 字段进行换行符替换后批量 UPDATE
+// BatchUpdateLabelValues 批量更新標籤值（POST /admin/Label/index 的核心邏輯）
+// 遍歷所有 POST 鍵，過濾合法標籤名，對 value 字段進行換行符替換後批量 UPDATE
 func BatchUpdateLabelValues(postForm map[string]string, updateUser string) int {
 	updated := 0
 	validName := regexp.MustCompile(`^[\w\-]+$`)
+	// formcheck 是 CSRF token，不是標籤名，跳過
+	skipFields := map[string]bool{"formcheck": true}
 	for name, value := range postForm {
+		if skipFields[name] {
+			continue
+		}
 		if !validName.MatchString(name) {
 			continue
 		}
 		finalValue := strings.ReplaceAll(value, "\r\n", "<br>")
 		finalValue = strings.ReplaceAll(finalValue, "\n", "<br>")
 		result := db.DB.Exec("UPDATE ay_label SET value=?, update_user=?, update_time=? WHERE name=?", finalValue, updateUser, nowStr(), name)
+		if result.Error != nil {
+			log.Printf("[BatchUpdateLabelValues] UPDATE error for name=%s: %v", name, result.Error)
+		}
 		if result.RowsAffected > 0 {
 			updated++
 		}

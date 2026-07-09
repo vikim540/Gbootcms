@@ -7,12 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/admin/model/member"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/admin/model/member"
+	"gbootcms/apps/common"
 
-	"github.com/flosch/pongo2/v6"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,12 +47,12 @@ type MessageController struct {
 }
 
 // getFormFields 查詢留言字段定義（含 description 列）
-func getFormFields(fcode string) []formFieldDef {
+func getFormFields(c *gin.Context, fcode string) []formFieldDef {
 	var defs []struct {
 		Name        string `gorm:"column:name"`
 		Description string `gorm:"column:description"`
 	}
-	model.DB.Table("ay_form_field").
+	model.DB.WithContext(c.Request.Context()).Table("ay_form_field").
 		Select("name, description").
 		Where("fcode = ?", fcode).
 		Order("sorting ASC, id ASC").
@@ -125,67 +124,6 @@ func long2ip(ipVal string) string {
 		n&0xFF)
 }
 
-// buildPagebar 構建分頁 HTML（匹配 PbootCMS 原版 .page 結構）
-func buildPagebar(total int64, page, pageSize int, baseURL string) *pongo2.Value {
-	if total <= 0 || pageSize <= 0 {
-		return pongo2.AsSafeValue("")
-	}
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPages++
-	}
-	if page < 1 {
-		page = 1
-	}
-	if page > totalPages {
-		page = totalPages
-	}
-
-	var sb strings.Builder
-	sb.WriteString(`<div class="page">`)
-	sb.WriteString(fmt.Sprintf(`<span class="page-status">共%d條 當前%d/%d頁</span>`, total, page, totalPages))
-
-	// 首頁、前一頁
-	if page > 1 {
-		sb.WriteString(fmt.Sprintf(`<span class="page-index"><a href="%s?page=1">首頁</a></span>`, baseURL))
-		sb.WriteString(fmt.Sprintf(`<span class="page-pre"><a href="%s?page=%d">前一頁</a></span>`, baseURL, page-1))
-	} else {
-		sb.WriteString(`<span class="page-index"><a href="javascript:;">首頁</a></span>`)
-		sb.WriteString(`<span class="page-pre"><a href="javascript:;">前一頁</a></span>`)
-	}
-
-	// 頁碼
-	sb.WriteString(`<span class="page-numbar">`)
-	start := page - 2
-	if start < 1 {
-		start = 1
-	}
-	end := page + 2
-	if end > totalPages {
-		end = totalPages
-	}
-	for i := start; i <= end; i++ {
-		if i == page {
-			sb.WriteString(fmt.Sprintf(`<a href="%s?page=%d" class="page-num page-num-current">%d</a>`, baseURL, i, i))
-		} else {
-			sb.WriteString(fmt.Sprintf(`<a href="%s?page=%d" class="page-num">%d</a>`, baseURL, i, i))
-		}
-	}
-	sb.WriteString(`</span>`)
-
-	// 後一頁、尾頁
-	if page < totalPages {
-		sb.WriteString(fmt.Sprintf(`<span class="page-next"><a href="%s?page=%d">後一頁</a></span>`, baseURL, page+1))
-		sb.WriteString(fmt.Sprintf(`<span class="page-last"><a href="%s?page=%d">尾頁</a></span>`, baseURL, totalPages))
-	} else {
-		sb.WriteString(`<span class="page-next"><a href="javascript:;">後一頁</a></span>`)
-		sb.WriteString(`<span class="page-last"><a href="javascript:;">尾頁</a></span>`)
-	}
-
-	sb.WriteString(`</div>`)
-	return pongo2.AsSafeValue(sb.String())
-}
-
 // Index 留言列表
 func (ms *MessageController) Index(c *gin.Context) {
 	// 導出 Excel
@@ -195,20 +133,15 @@ func (ms *MessageController) Index(c *gin.Context) {
 	}
 
 	// 分頁參數
-	pageSize := 15
-	page, _ := strconv.Atoi(c.Query("page"))
-	if page < 1 {
-		page = 1
-	}
-	offset := (page - 1) * pageSize
+	page, pageSize, offset := ms.Paginate(c)
 
 	// 查詢總數
 	var total int64
-	model.DB.Model(&model.Message{}).Count(&total)
+	model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Count(&total)
 
 	// 查詢留言列表（分頁）
 	var messages []model.Message
-	model.DB.Order("id DESC").Offset(offset).Limit(pageSize).Find(&messages)
+	model.DB.WithContext(c.Request.Context()).Order("id DESC").Offset(offset).Limit(pageSize).Find(&messages)
 
 	// 批量查詢會員信息（避免 N+1 查詢）
 	uidSet := make(map[int]bool)
@@ -224,14 +157,14 @@ func (ms *MessageController) Index(c *gin.Context) {
 			uids = append(uids, uid)
 		}
 		var members []member.Member
-		model.DB.Where("id IN ?", uids).Find(&members)
+		model.DB.WithContext(c.Request.Context()).Where("id IN ?", uids).Find(&members)
 		for _, mem := range members {
 			memberMap[int(mem.ID)] = mem
 		}
 	}
 
 	// 查詢字段定義
-	fieldDefs := getFormFields("1")
+	fieldDefs := getFormFields(c, "1")
 
 	// 構建行數據
 	rows := make([]msgRow, 0, len(messages))
@@ -265,12 +198,13 @@ func (ms *MessageController) Index(c *gin.Context) {
 	}
 
 	// 構建分頁 HTML
-	pagebar := buildPagebar(total, page, pageSize, "/admin/content/message/index")
+	pagebar := helper.BuildPagebarHTML(total, page, pageSize, "/admin/content/message/index")
 
 	common.Render(c, "content/message.html", gin.H{
 		"messages": rows,
 		"list":     true,
 		"pagebar":  pagebar,
+		"pagesize": pageSize,
 		"C":        "content/message",
 	})
 }
@@ -299,7 +233,7 @@ func (ms *MessageController) Mod(c *gin.Context) {
 		value = c.Query("value")
 	}
 	if field != "" && value != "" && id > 0 {
-		model.DB.Model(&model.Message{}).Where("id = ?", id).Update(field, value)
+		model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Where("id = ?", id).Update(field, value)
 		c.Redirect(http.StatusFound, "/admin/content/message/index")
 		return
 	}
@@ -308,7 +242,7 @@ func (ms *MessageController) Mod(c *gin.Context) {
 		// 回覆提交
 		recontent := c.PostForm("recontent")
 		status := c.PostForm("status")
-		model.DB.Model(&model.Message{}).Where("id = ?", id).Updates(map[string]interface{}{
+		model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"recontent":   recontent,
 			"status":      status,
 			"update_time": time.Now().Format("2006-01-02 15:04:05"),
@@ -320,7 +254,7 @@ func (ms *MessageController) Mod(c *gin.Context) {
 
 	// 顯示回覆表單
 	var msg model.Message
-	model.DB.First(&msg, id)
+	model.DB.WithContext(c.Request.Context()).First(&msg, id)
 	// 使用 msgRow 包裝，提供 Recontent 別名字段（匹配模板轉換器 SnakeToPascal 輸出）
 	modRow := msgRow{
 		Message:   msg,
@@ -345,7 +279,7 @@ func (ms *MessageController) Del(c *gin.Context) {
 	if idStr != "" {
 		id, _ := strconv.Atoi(idStr)
 		if id > 0 {
-			model.DB.Delete(&model.Message{}, id)
+			model.DB.WithContext(c.Request.Context()).Delete(&model.Message{}, id)
 		}
 	}
 	ms.JSONOKMsg(c, common.NoticeDelete)
@@ -362,7 +296,7 @@ func (ms *MessageController) Clear(c *gin.Context) {
 			if s != "" {
 				id, _ := strconv.Atoi(s)
 				if id > 0 {
-					model.DB.Delete(&model.Message{}, id)
+					model.DB.WithContext(c.Request.Context()).Delete(&model.Message{}, id)
 				}
 			}
 		}
@@ -371,7 +305,7 @@ func (ms *MessageController) Clear(c *gin.Context) {
 	}
 	// 清空全部（僅 ucode==10001 有權限）
 	if common.GetSessionInt(c, "admin_ucode") == 10001 {
-		model.DB.Where("1 = 1").Delete(&model.Message{})
+		model.DB.WithContext(c.Request.Context()).Where("1 = 1").Delete(&model.Message{})
 	}
 	c.Redirect(http.StatusFound, "/admin/content/message/index")
 }
@@ -379,9 +313,9 @@ func (ms *MessageController) Clear(c *gin.Context) {
 // exportMessages 導出留言記錄為 Excel（HTML 表格格式）
 func (ms *MessageController) exportMessages(c *gin.Context) {
 	var messages []model.Message
-	model.DB.Order("id DESC").Find(&messages)
+	model.DB.WithContext(c.Request.Context()).Order("id DESC").Find(&messages)
 
-	fieldDefs := getFormFields("1")
+	fieldDefs := getFormFields(c, "1")
 
 	var sb strings.Builder
 	sb.WriteString("<html><head><meta charset='utf-8'></head><body>")

@@ -3,8 +3,9 @@
 package db
 
 import (
-	"pbootcms-go/config"
-	"pbootcms-go/core/mediaplugin"
+	"gbootcms/config"
+	"gbootcms/core/acodeplugin"
+	"gbootcms/core/mediaplugin"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -46,6 +47,15 @@ func InitDB(cfg *config.Config) error {
 	// 的 Create / Update / Delete 操作，自動標記媒體庫緩存為臟。
 	// Controller 中無需再手動調用 MarkMediaCacheDirty()。
 	if err := DB.Use(&mediaplugin.MediaDirtyPlugin{}); err != nil {
+		return err
+	}
+
+	// 註冊區域隔離插件：
+	// 對所有含 acode 欄位的表（content、content_sort、link、slide、tags、message、
+	// company、site、comment 等），自動注入 WHERE acode = ? 和填充 acode 值。
+	// 通過 context 傳遞當前區域，控制器只需 .WithContext(c.Request.Context())。
+	// 跨區查詢用 acodeplugin.SkipAcode(ctx)。
+	if err := DB.Use(&acodeplugin.AcodePlugin{}); err != nil {
 		return err
 	}
 

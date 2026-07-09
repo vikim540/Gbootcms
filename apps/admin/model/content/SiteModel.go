@@ -3,6 +3,7 @@ package content
 // Site 站點信息模型
 type Site struct {
 	ID          uint   `gorm:"primaryKey" json:"id"`
+	Acode       string `gorm:"column:acode" json:"acode"`
 	Name        string `gorm:"column:name" json:"name"`
 	Title       string `gorm:"column:title" json:"title"`
 	Subtitle    string `gorm:"column:subtitle" json:"subtitle"`

@@ -1,13 +1,16 @@
 package common
 
 import (
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
-	"pbootcms-go/core/db"
-	"pbootcms-go/core/mediaplugin"
+	"gbootcms/apps/admin/model"
+	"gbootcms/core/db"
+	"gbootcms/core/mediaplugin"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +33,70 @@ type BaseController struct{}
 //
 // The table name and primary-key column are auto-resolved from the model via GORM schema,
 // so callers only need to pass the sort column name and a default value.
+// LogAction 記錄操作日誌到 ay_syslog（對齊 PbootCMS Controller::log()）
+// 供所有 Controller 繼承使用，無需各自實現
+func (bc *BaseController) LogAction(c *gin.Context, msg string) {
+	username, _ := GetSession(c, "admin_username").(string)
+	if username == "" {
+		username = c.PostForm("username")
+	}
+	if username == "" {
+		username = "unknown"
+	}
+	ua := c.Request.UserAgent()
+	chPlatformVer := c.GetHeader("Sec-CH-UA-Platform-Version")
+	osName, browser := ParseUserAgent(ua, chPlatformVer)
+	now := time.Now()
+	entry := model.Syslog{
+		Level:      "admin",
+		Event:      msg,
+		UserIP:     c.ClientIP(),
+		UserOS:     osName,
+		UserBs:     browser,
+		CreateUser: username,
+		CreateTime: now.Format("2006-01-02 15:04:05"),
+		Username:   username,
+		URL:        c.Request.URL.Path,
+		Content:    msg,
+		IP:         c.ClientIP(),
+		LogTime:    now,
+	}
+	if err := model.DB.Create(&entry).Error; err != nil {
+		slog.Error("[Syslog] 寫入失敗", "err", err, "msg", msg)
+	}
+}
+
+// Paginate 組件化分頁（對齊 PbootCMS Controller::page() + Paging::limit()）
+// 從 query 讀取 page（默認1）和 pagesize（默認15，可透過下拉選擇器覆蓋）
+//
+// 用法：
+//
+//	page, pageSize, offset := bc.Paginate(c)
+//	db.Offset(offset).Limit(pageSize).Find(&items)
+//	data["pagebar"] = helper.BuildPagebarHTML(total, page, pageSize, baseURL)
+//	data["pagesize"] = pageSize
+func (bc *BaseController) Paginate(c *gin.Context) (page, pageSize, offset int) {
+	page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+	// 默認分頁大小從資料庫配置讀取（對齊 PbootCMS pagenum 配置），默認 15
+	pageSize = 15
+	if ps := c.Query("pagesize"); ps != "" {
+		if v, err := strconv.Atoi(ps); err == nil && v > 0 {
+			pageSize = v
+		}
+	} else {
+		if cfgVal := model.GetConfigValue("pagesize", ""); cfgVal != "" {
+			if v, err := strconv.Atoi(cfgVal); err == nil && v > 0 {
+				pageSize = v
+			}
+		}
+	}
+	offset = (page - 1) * pageSize
+	return
+}
+
 func (bc *BaseController) IsBatchSort(c *gin.Context) bool {
 	return c.Request.Method == "POST" && c.PostForm("submit") == "sorting"
 }
@@ -113,15 +180,15 @@ func extractIndexedArray(c *gin.Context, field string) []string {
 }
 
 func (bc *BaseController) JSONOK(c *gin.Context, data interface{}) {
-	c.JSON(http.StatusOK, gin.H{"code": 1, "data": data})
+	c.JSON(http.StatusOK, gin.H{"code": 1, "data": data, "tourl": ""})
 }
 
 func (bc *BaseController) JSONOKMsg(c *gin.Context, msg string) {
-	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": msg})
+	c.JSON(http.StatusOK, gin.H{"code": 1, "data": msg, "msg": msg, "tourl": ""})
 }
 
 func (bc *BaseController) JSONFail(c *gin.Context, msg string) {
-	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": msg})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "data": msg, "msg": msg, "tourl": ""})
 }
 
 func (bc *BaseController) GetAdminUsername(c *gin.Context) string {

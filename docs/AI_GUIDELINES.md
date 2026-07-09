@@ -2,7 +2,7 @@
 
 > **所有在本倉庫工作的 AI 助手必須閱讀本文檔並嚴格遵守。**
 > AI 助手包括但不限於:Trae、Cursor、Copilot、Cline、Windsurf、ChatGPT、Claude 等。
-> 最後更新：2026-07-02
+> 最後更新：2026-07-08
 
 ---
 
@@ -156,8 +156,37 @@ mg.JSONOKMsg(c, "新增成功")
 | 18 | 缺少 `{pboot:mustlogin}` 整頁強制登入 | 需要會員才能看的頁面對未登入訪客暴露 | 高 |
 | 19 | `{user:uid}` 不存在 | 模板無法取得會員 ID | 低 |
 | 20 | backurl 在 POST body 中用 `c.Query` 讀取 | POST 請求的 backurl 要用 `c.DefaultPostForm` 讀取 | 中 |
+| 21 | 路由大小寫不匹配導致 404 | 見下方「路由大小寫陷阱」 | 高 |
+| 22 | ajaxlink 返回格式用 `msg` 而非 `data` | `comm.js` 的 ajaxlink 讀 `response.data`，必須用 `JSONOK(c, msg)` 返回 | 高 |
+| 23 | pongo2 `{foreach $value->Field(key,value)}` 不支援 | `reForeach` 正則只匹配 `$varName`，不支援 `->`；必須在 controller 預計算為字串 | 高 |
+| 24 | layui `form.on('submit()')` 攔截非 `lay-submit` 按鈕導致批量操作失敗 | 改用 jQuery `$(document).on('submit')` 統一攔截 | 高 |
+| 25 | ExtField 同模型下 field 名稱重複導致數據覆蓋 | `ay_content_ext` 每列對應一個 field 名，重複會共用同一列；必須用 `CheckFieldUnique` 檢查 | 高 |
 
-### 1.4 後台狀態切換速查（class="switch"）
+### 1.4 路由大小寫陷阱（Gin + 模板引擎）
+
+**Gin 路由是大小寫敏感的**，但模板引擎的 `{url.路徑}` 解析會把路徑轉成**全小寫**
+（`view.go` 的 `strings.ToLower`）。兩者不匹配時導致 404。
+
+```
+模板寫：{url./admin/deleCache/index}
+解析為：/admin/delecache/index   ← 全小寫
+路由寫：adminGroup.GET("/content/deleCache/index", ...)  ← 大寫 C
+結果：404（大小寫不匹配）
+```
+
+**規則**：
+1. 模板中 `{url.路徑}` 的路徑會被轉全小寫
+2. `route.go` 中註冊的路由路徑也必須用全小寫，或同時註冊小寫別名
+3. 若需保留大小寫路徑（如兼容舊連結），同時註冊兩個：
+
+```go
+// 原始路徑（保留大小寫）
+adminGroup.GET("/content/deleCache/index", dc.Index)
+// 別名（全小寫，匹配模板引擎輸出）
+adminGroup.GET("/delecache/index", dc.Index)
+```
+
+### 1.5 後台狀態切換速查（class="switch"）
 
 後台模板的狀態切換圖標**必須**加 `class="switch"`，否則 `comm.js` 無法攔截點擊事件，
 瀏覽器會直接訪問 URL 並顯示 JSON 文本。
@@ -170,9 +199,9 @@ mg.JSONOKMsg(c, "新增成功")
 <a href="/admin/xxx/mod/id/[value->id]/field/status/value/0" class="switch"><i class='fa fa-toggle-on'></i></a>
 ```
 
-**原理**：`static/admin/js/comm.js` 中 `$('.switch').on("click", ".fa-toggle-on", ...)` 用 `$.get()` 發送請求，然後修改 DOM 切換圖標狀態，`return false` 阻止跳轉。
+**原理**：`static/admin/js/comm.js` 中 `$('.switch').on("click", ".fa-toggle-on", ...)` 用 `$.get()` 發送請求，然後修改 DOM 切換圖標狀態，`return false` 阻止跳轉。所有後台模板的狀態切換鏈接（status/required/istop/isrecommend 等）都必須加此 class。
 
-### 1.5 前台默認頭像速查
+### 1.6 前台默認頭像速查
 
 前台所有用戶頭像為空時，統一使用 `/static/admin/images/logo.png`（與留言板 provider 一致）：
 
@@ -187,7 +216,7 @@ if headpic == "" {
 headpic = "/static/images/logo.png"
 ```
 
-### 1.6 模板引擎速查（不要混淆）
+### 1.7 模板引擎速查（不要混淆）
 
 | 場景 | 引擎 | 語法 | 轉換器 |
 |------|------|------|--------|
@@ -196,7 +225,70 @@ headpic = "/static/images/logo.png"
 
 > **關鍵區別**：後台模板用 `{$var->field}` 語法（pongo2 轉譯），前台模板用 `{gboot:xxx}` 和 `[prefix:field]` 語法。
 
-### 1.7 會員系統速查
+#### pongo2 foreach 限制（重要）
+
+pongo2 的 `reForeach` 正則只匹配 `{foreach $varName(key,value)}`，其中 `varName` 只允許 `[\w_]+`，**不支援 `->` 語法**。
+
+```html
+<!-- ❌ 錯誤：reForeach 不匹配 $value->Scodes，導致 {/foreach} 變成孤立 endfor -->
+{foreach $value->Scodes(skey,sval)}
+    [sval]
+{/foreach}
+
+<!-- ✅ 正確：在 controller 中預計算為字串，模板直接輸出 -->
+<!-- controller: listFields[i]["ScodeDisplay"] = "├ 行業動態、├ 公司動態" -->
+<td>[value->ScodeDisplay]</td>
+```
+
+**規則**：如果需要在模板中遍歷 struct 的某個欄位（如陣列），改為在 controller 中預計算為顯示字串。
+
+### 1.8 ExtField 擴展字段速查
+
+#### scode 適用欄目功能
+
+`ay_extfield` 表的 `scode` 列存儲適用欄目代碼（逗號分隔，空=全展示）：
+
+```go
+// 過濾邏輯：scode 為空匹配所有欄目，否則檢查目標欄目是否在列表中
+content.ScodeMatches(fieldScode, targetScode)
+
+// 多選存儲：scode = "3,4"（逗號分隔）
+// 全展示：scode = ""
+```
+
+#### 選項規範化
+
+```go
+// NormalizeOptions 將換行符轉為逗號，支援回車或逗號分隔選項
+options := content.NormalizeOptions(c.PostForm("value"))
+// 輸入 "選項A\n選項B\n選項C" → 輸出 "選項A,選項B,選項C"
+```
+
+#### field 唯一性檢查
+
+```go
+// 同一模型下 field 名稱必須唯一（共用 ay_content_ext 同一物理列）
+if content.CheckFieldUnique(mcode, field, excludeID) {
+    ef.JSONFail(c, "字段名稱在該模型下已存在")
+    return
+}
+```
+
+#### layui form.on('submit()') 衝突
+
+```javascript
+// ❌ 錯誤：form.on('submit()') 會攔截 lay-submit 按鈕，但批量操作按鈕（複製/移動/刪除）沒有 lay-submit
+form.on('submit()', function(data){ ... });
+
+// ✅ 正確：用 jQuery 統一攔截所有表單提交（mylayui.js）
+$(document).on('submit', 'form:not(#dologin)', function(e) {
+    // 用 button._clicked 識別點擊的提交按鈕
+    var $btn = $form.find('button._clicked');
+    // ...
+});
+```
+
+### 1.9 會員系統速查
 
 #### Session 鍵名（前台會員）
 
@@ -234,7 +326,7 @@ headpic = "/static/images/logo.png"
 | Lscore | `lscore` | 積分下限 |
 | Uscore | `uscore` | 積分上限 |
 
-### 1.8 欄目/內容瀏覽權限速查
+### 1.9 欄目/內容瀏覽權限速查
 
 前台所有渲染方法（ListPage、ContentPage、SortByScode、ContentByID、renderSortPage）都**必須**呼叫權限檢查：
 
@@ -260,7 +352,7 @@ if !fc.checkContentPermission(c, &ct) {
 - 已登入（uid>0）→ 顯示 gnote 提示文字
 - 未登入 → 302 跳轉 `/login?backurl=<當前URL>`
 
-### 1.9 Session 速查（SetSession 復用機制）
+### 1.10 Session 速查（SetSession 復用機制）
 
 **關鍵**：同一請求內多次呼叫 `SetSession` 時，必須復用同一個 session ID。`getSessionID` 優先從 `c.Get("sessionID")` 取，避免每次建立新 ID 導致資料分散：
 
@@ -278,7 +370,7 @@ func SetSession(c *gin.Context, key string, value interface{}) {
 
 **注意**：`pboot_gcode` 存入 session 時必須轉為 `int`（`GetSessionInt` 讀取）。
 
-### 1.10 checkLabelLevel 速查（標籤屬性權限）
+### 1.11 checkLabelLevel 速查（標籤屬性權限）
 
 所有 pair 標籤（`{gboot:list}`、`{gboot:nav}`、`{gboot:slide}` 等）支援 14 種權限屬性，
 在 `processPairTags` 中統一檢查，權限不足時整個區塊回傳空字串：
@@ -297,7 +389,7 @@ func SetSession(c *gin.Context, key string, value interface{}) {
 | `showgcodege=1` | 等級>=1顯示 | `{gboot:list showgcodege=1}` |
 | `hidegcodelt/gt/le/ge` | 等級比較隱藏 | 同上 |
 
-### 1.11 `{pboot:mustlogin}` 速查（整頁強制登入）
+### 1.12 `{pboot:mustlogin}` 速查（整頁強制登入）
 
 模板中含 `{gboot:mustlogin}` 或 `{pboot:mustlogin}` 時，未登入訪客自動跳轉登入頁：
 
@@ -363,7 +455,6 @@ func SetSession(c *gin.Context, key string, value interface{}) {
 | `apps/admin/view/` | 後台模板 | 自由修改 |
 | `config/config.json` | 配置文件 | 自由修改 |
 | **`data/pbootcms.db`** | **業務資料庫** | **🔒 僅 UI 寫入** |
-| **`.plan.md`** | 用戶活筆記 | **📝 追加,不重寫** |
 
 ### 技術棧速查
 
@@ -410,7 +501,6 @@ A: **不要**。如果資料庫需要任何變更,必須由用戶親自確認並
 
 ## 七、相關文檔 / Related Docs
 
-- `0701pbootcms-go-dev-guide.md` — 完整開發技術文檔（含防遺忘清單詳細版、會員系統、開發指南）
-- `ARCHITECTURE_REVIEW.md` — 項目整體架構評測
+- `pbootcms-go-dev-guide.md` — 完整開發技術文檔（含防遺忘清單詳細版、會員系統、開發指南）
 - `.plan.md` — 開發進度活筆記
-- `build.ps1` — 構建腳本
+- `build-run.bat` — 構建腳本

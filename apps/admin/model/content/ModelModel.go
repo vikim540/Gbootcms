@@ -3,7 +3,7 @@ package content
 import (
 	"errors"
 	"fmt"
-	"pbootcms-go/core/db"
+	"gbootcms/core/db"
 	"strconv"
 	"time"
 )

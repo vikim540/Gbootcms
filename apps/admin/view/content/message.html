@@ -19,9 +19,9 @@
 								在線留言-[num]
 					  			<span style="float:right">
 						  			{if($value->status)}
-		                            <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/status/value/0}"><i class='fa fa-toggle-on' title="點擊前端隱藏" style="vertical-align:middle"></i></a>
-		                            {else}
-		                            <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/status/value/1}"><i class='fa fa-toggle-off' title="點擊前端顯示" style="vertical-align:middle"></i></a>
+		                            <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/status/value/0}" class="switch"><i class='fa fa-toggle-on' title="點擊前端隱藏" style="vertical-align:middle"></i></a>
+	                            {else}
+	                            <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/status/value/1}" class="switch"><i class='fa fa-toggle-off' title="點擊前端顯示" style="vertical-align:middle"></i></a>
 		                            {/if}
 						  			{fun=get_btn_mod($value->id,'id','回覆')}
 						  			{fun=get_btn_del($value->id)}

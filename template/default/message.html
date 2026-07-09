@@ -96,6 +96,13 @@
                 </div>
                 {/gboot:if}
                 
+                {gboot:if({gboot:msgturnstilestatus})}
+                <div class="form-group">
+                    <label>人機驗證</label>
+                    <div class="cf-turnstile" data-sitekey="{gboot:turnstile_sitekey}" data-theme="light"></div>
+                </div>
+                {/gboot:if}
+                
                 <div class="form-group">
                    <button type="submit" class="btn btn-info mb-2">提交留言</button>
                 </div>
@@ -118,6 +125,7 @@ function submsg(obj){
   var checkcode=$(obj).find("#checkcode").val();
   var website=$(obj).find('input[name="website"]').val();
   var loadts=$(obj).find('input[name="_loadts"]').val();
+  var turnstileToken=$(obj).find('input[name="cf-turnstile-response"]').val();
   
   $.ajax({
     type: 'POST',
@@ -129,7 +137,8 @@ function submsg(obj){
     	content: content,
     	checkcode: checkcode,
     	website: website,
-    	_loadts: loadts
+    	_loadts: loadts,
+    	'cf-turnstile-response': turnstileToken || ''
     },
     success: function (response, status) {
       if(response.code){
@@ -142,6 +151,7 @@ function submsg(obj){
    	   	     }
     	 }
     	 $('.codeimg').click();//更新驗證碼
+    	 if(typeof turnstile !== 'undefined'){turnstile.reset();}//重置 Turnstile
       }
     },
     error:function(xhr,status,error){

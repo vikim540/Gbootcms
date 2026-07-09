@@ -1,8 +1,9 @@
-﻿package system
+package system
 
 import (
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -16,9 +17,18 @@ type TypeController struct {
 
 // Index - Type list
 func (tp *TypeController) Index(c *gin.Context) {
+	page, pageSize, offset := tp.Paginate(c)
+	var total int64
+	model.DB.Model(&model.DictType{}).Count(&total)
 	var types []model.DictType
-	model.DB.Order("sorting ASC").Find(&types)
-	common.Render(c, "system/type.html", gin.H{"types": types})
+	model.DB.Order("sorting ASC").Offset(offset).Limit(pageSize).Find(&types)
+	baseURL := "/admin/system/type/index"
+	common.Render(c, "system/type.html", gin.H{
+		"list":     true,
+		"types":    types,
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
+	})
 }
 
 // Add - Add new type

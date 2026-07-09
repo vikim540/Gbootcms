@@ -1,10 +1,11 @@
 package content
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"pbootcms-go/apps/admin/model"
-	contentmodel "pbootcms-go/apps/admin/model/content"
+	"gbootcms/apps/admin/model"
+	contentmodel "gbootcms/apps/admin/model/content"
 	"strings"
 	"time"
 )
@@ -13,16 +14,16 @@ import (
 type ContentSortService struct{}
 
 // ListSorts returns all sorts ordered by sorting
-func (s *ContentSortService) ListSorts() ([]model.ContentSort, error) {
+func (s *ContentSortService) ListSorts(ctx context.Context) ([]model.ContentSort, error) {
 	var sorts []model.ContentSort
-	err := model.DB.Order("sorting ASC, id ASC").Find(&sorts).Error
+	err := model.DB.WithContext(ctx).Order("sorting ASC, id ASC").Find(&sorts).Error
 	return sorts, err
 }
 
 // GetSort returns a single sort by ID
-func (s *ContentSortService) GetSort(id int) (*model.ContentSort, error) {
+func (s *ContentSortService) GetSort(ctx context.Context, id int) (*model.ContentSort, error) {
 	var sort model.ContentSort
-	err := model.DB.First(&sort, id).Error
+	err := model.DB.WithContext(ctx).First(&sort, id).Error
 	if err != nil {
 		return nil, errors.New("欄目不存在")
 	}
@@ -33,28 +34,28 @@ func (s *ContentSortService) GetSort(id int) (*model.ContentSort, error) {
 // If scode looks like a numeric id and no scode match is found,
 // fall back to id-based lookup (covers the case where the DB
 // was seeded without scode values).
-func (s *ContentSortService) GetSortByScode(scode string) (*model.ContentSort, error) {
+func (s *ContentSortService) GetSortByScode(ctx context.Context, scode string) (*model.ContentSort, error) {
 	var sort model.ContentSort
-	err := model.DB.Where("scode = ?", scode).First(&sort).Error
+	err := model.DB.WithContext(ctx).Where("scode = ?", scode).First(&sort).Error
 	if err == nil {
 		return &sort, nil
 	}
 	// Fallback: try id-based lookup
 	var byID model.ContentSort
-	if err2 := model.DB.Where("id = ?", scode).First(&byID).Error; err2 == nil {
+	if err2 := model.DB.WithContext(ctx).Where("id = ?", scode).First(&byID).Error; err2 == nil {
 		return &byID, nil
 	}
 	return nil, errors.New("欄目不存在")
 }
 
 // BatchAddSorts creates multiple sorts from comma-separated names
-func (s *ContentSortService) BatchAddSorts(multiplename, pcode string) error {
+func (s *ContentSortService) BatchAddSorts(ctx context.Context, multiplename, pcode string) error {
 	names := splitAndTrim(multiplename)
 	if len(names) == 0 {
 		return nil
 	}
 	var lastSort model.ContentSort
-	model.DB.Order("id DESC").First(&lastSort)
+	model.DB.WithContext(ctx).Order("id DESC").First(&lastSort)
 	lastCodeNum := 0
 	fmt.Sscanf(lastSort.Scode, "%d", &lastCodeNum)
 
@@ -64,7 +65,7 @@ func (s *ContentSortService) BatchAddSorts(multiplename, pcode string) error {
 		}
 		lastCodeNum++
 		newScode := fmt.Sprintf("%d", lastCodeNum)
-		model.DB.Create(&model.ContentSort{
+		model.DB.WithContext(ctx).Create(&model.ContentSort{
 			Scode:  newScode,
 			Pcode:  pcode,
 			Name:   name,
@@ -77,14 +78,14 @@ func (s *ContentSortService) BatchAddSorts(multiplename, pcode string) error {
 }
 
 // CreateSort creates a new sort
-func (s *ContentSortService) CreateSort(sort *model.ContentSort) error {
+func (s *ContentSortService) CreateSort(ctx context.Context, sort *model.ContentSort) error {
 	if sort.Name == "" {
 		return errors.New("欄目名稱不能為空")
 	}
 	// scode 為空時自動生成（與 BatchAddSorts 一致）
 	if sort.Scode == "" {
 		var lastSort model.ContentSort
-		model.DB.Order("id DESC").First(&lastSort)
+		model.DB.WithContext(ctx).Order("id DESC").First(&lastSort)
 		lastCodeNum := 0
 		fmt.Sscanf(lastSort.Scode, "%d", &lastCodeNum)
 		sort.Scode = fmt.Sprintf("%d", lastCodeNum+1)
@@ -102,15 +103,15 @@ func (s *ContentSortService) CreateSort(sort *model.ContentSort) error {
 		return errors.New("URL名稱與模型URL名稱衝突，請換一個名稱")
 	}
 	if sort.Filename != "" {
-		sort.Filename = contentmodel.GenerateUniqueFilename(sort.Filename)
+		sort.Filename = contentmodel.GenerateUniqueFilename(ctx, sort.Filename)
 	}
 
-	if err := model.DB.Create(sort).Error; err != nil {
+	if err := model.DB.WithContext(ctx).Create(sort).Error; err != nil {
 		return err
 	}
 	// If type=1 (list) and no outlink, create initial content
 	if sort.Type == 1 && sort.Outlink == "" {
-		model.DB.Create(&model.Content{
+		model.DB.WithContext(ctx).Create(&model.Content{
 			Scode:  sort.Scode,
 			Title:  sort.Name,
 			Status: 1,
@@ -121,25 +122,25 @@ func (s *ContentSortService) CreateSort(sort *model.ContentSort) error {
 }
 
 // UpdateSort updates a sort record
-func (s *ContentSortService) UpdateSort(id int, updates map[string]interface{}) error {
-	if err := validateAndNormalizeFilenameUpdate(updates, "id="+fmt.Sprintf("%d", id)); err != nil {
+func (s *ContentSortService) UpdateSort(ctx context.Context, id int, updates map[string]interface{}) error {
+	if err := validateAndNormalizeFilenameUpdate(ctx, updates, "id="+fmt.Sprintf("%d", id)); err != nil {
 		return err
 	}
-	return model.DB.Model(&model.ContentSort{}).Where("id = ?", id).Updates(updates).Error
+	return model.DB.WithContext(ctx).Model(&model.ContentSort{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // UpdateSortByScode updates a sort record by scode, with id fallback
-func (s *ContentSortService) UpdateSortByScode(scode string, updates map[string]interface{}) error {
-	if err := validateAndNormalizeFilenameUpdate(updates, "scode <> '"+scode+"'"); err != nil {
+func (s *ContentSortService) UpdateSortByScode(ctx context.Context, scode string, updates map[string]interface{}) error {
+	if err := validateAndNormalizeFilenameUpdate(ctx, updates, "scode <> '"+scode+"'"); err != nil {
 		return err
 	}
-	res := model.DB.Model(&model.ContentSort{}).Where("scode = ?", scode).Updates(updates)
+	res := model.DB.WithContext(ctx).Model(&model.ContentSort{}).Where("scode = ?", scode).Updates(updates)
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
 		// scode not found in DB — try id-based fallback
-		res2 := model.DB.Model(&model.ContentSort{}).Where("id = ?", scode).Updates(updates)
+		res2 := model.DB.WithContext(ctx).Model(&model.ContentSort{}).Where("id = ?", scode).Updates(updates)
 		if res2.Error != nil {
 			return res2.Error
 		}
@@ -152,7 +153,7 @@ func (s *ContentSortService) UpdateSortByScode(scode string, updates map[string]
 
 // validateAndNormalizeFilenameUpdate 對 updates 中的 filename 做完整 PbootCMS 校驗鏈
 // excludeWhere 為排除自身的 WHERE 條件
-func validateAndNormalizeFilenameUpdate(updates map[string]interface{}, excludeWhere string) error {
+func validateAndNormalizeFilenameUpdate(ctx context.Context, updates map[string]interface{}, excludeWhere string) error {
 	raw, ok := updates["filename"]
 	if !ok {
 		return nil
@@ -168,23 +169,23 @@ func validateAndNormalizeFilenameUpdate(updates map[string]interface{}, excludeW
 		return errors.New("URL名稱與模型URL名稱衝突，請換一個名稱")
 	}
 	if filename != "" {
-		updates["filename"] = contentmodel.GenerateUniqueFilename(filename, excludeWhere)
+		updates["filename"] = contentmodel.GenerateUniqueFilename(ctx, filename, excludeWhere)
 	}
 	return nil
 }
 
 // UpdateSortByScodeField updates a single field by scode with whitelist validation, with id fallback
-func (s *ContentSortService) UpdateSortByScodeField(scode, field, value string) error {
+func (s *ContentSortService) UpdateSortByScodeField(ctx context.Context, scode, field, value string) error {
 	if !allowedSortSingleFields[field] {
 		return errors.New("不允許修改的欄位: " + field)
 	}
-	res := model.DB.Model(&model.ContentSort{}).Where("scode = ?", scode).Update(field, value)
+	res := model.DB.WithContext(ctx).Model(&model.ContentSort{}).Where("scode = ?", scode).Update(field, value)
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
 		// scode not found — try id-based fallback
-		res2 := model.DB.Model(&model.ContentSort{}).Where("id = ?", scode).Update(field, value)
+		res2 := model.DB.WithContext(ctx).Model(&model.ContentSort{}).Where("id = ?", scode).Update(field, value)
 		if res2.Error != nil {
 			return res2.Error
 		}
@@ -196,9 +197,9 @@ func (s *ContentSortService) UpdateSortByScodeField(scode, field, value string) 
 }
 
 // UpdateSortSorting updates sorting order for multiple sorts
-func (s *ContentSortService) UpdateSortSorting(idSortingMap map[string]int) error {
+func (s *ContentSortService) UpdateSortSorting(ctx context.Context, idSortingMap map[string]int) error {
 	for idStr, sorting := range idSortingMap {
-		if err := model.DB.Model(&model.ContentSort{}).Where("id = ?", idStr).Update("sorting", sorting).Error; err != nil {
+		if err := model.DB.WithContext(ctx).Model(&model.ContentSort{}).Where("id = ?", idStr).Update("sorting", sorting).Error; err != nil {
 			return err
 		}
 	}
@@ -216,27 +217,27 @@ var allowedSortSingleFields = map[string]bool{
 }
 
 // UpdateSortSingleField updates a single field with whitelist validation
-func (s *ContentSortService) UpdateSortSingleField(id int, field, value string) error {
+func (s *ContentSortService) UpdateSortSingleField(ctx context.Context, id int, field, value string) error {
 	if !allowedSortSingleFields[field] {
 		return errors.New("不允許修改的欄位: " + field)
 	}
-	return model.DB.Model(&model.ContentSort{}).Where("id = ?", id).Update(field, value).Error
+	return model.DB.WithContext(ctx).Model(&model.ContentSort{}).Where("id = ?", id).Update(field, value).Error
 }
 
 // DeleteSort deletes a sort by ID
-func (s *ContentSortService) DeleteSort(idStr string) error {
-	return model.DB.Delete(&model.ContentSort{}, idStr).Error
+func (s *ContentSortService) DeleteSort(ctx context.Context, idStr string) error {
+	return model.DB.WithContext(ctx).Delete(&model.ContentSort{}, idStr).Error
 }
 
 // DeleteSortByScode deletes a sort record by scode, with id fallback
-func (s *ContentSortService) DeleteSortByScode(scode string) error {
-	res := model.DB.Where("scode = ?", scode).Delete(&model.ContentSort{})
+func (s *ContentSortService) DeleteSortByScode(ctx context.Context, scode string) error {
+	res := model.DB.WithContext(ctx).Where("scode = ?", scode).Delete(&model.ContentSort{})
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
 		// scode not found — try id-based fallback
-		res2 := model.DB.Where("id = ?", scode).Delete(&model.ContentSort{})
+		res2 := model.DB.WithContext(ctx).Where("id = ?", scode).Delete(&model.ContentSort{})
 		if res2.Error != nil {
 			return res2.Error
 		}

@@ -1,11 +1,12 @@
-﻿package content
+package content
 
 import (
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model"
-	contentModel "pbootcms-go/apps/admin/model/content"
-	svc "pbootcms-go/apps/admin/service/content"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	contentModel "gbootcms/apps/admin/model/content"
+	svc "gbootcms/apps/admin/service/content"
+	"gbootcms/apps/common"
+	"gbootcms/core/acodeplugin"
 	"strings"
 	"time"
 
@@ -33,21 +34,23 @@ func (sg *SingleController) Index(c *gin.Context) {
 
 	// 通過 mcode 查詢屬於單頁模型的欄目
 	var sorts []model.ContentSort
-	sortQuery := model.DB.Where("mcode = ? AND status = 1", mcode)
+	sortQuery := model.DB.WithContext(c.Request.Context()).Where("mcode = ? AND status = 1", mcode)
 	if keyword != "" && field == "b.name" {
 		sortQuery = sortQuery.Where("name LIKE ?", "%"+keyword+"%")
 	}
 	sortQuery.Order("sorting ASC").Find(&sorts)
 
 	// 查詢每個欄目下的最新一條內容(單頁每個欄目只有一條)
+	// 注意：子查詢是原始 SQL，AcodePlugin 無法自動注入 acode 條件，需手動添加
 	var contents []model.Content
 	if len(sorts) > 0 {
 		var scodes []string
 		for _, s := range sorts {
 			scodes = append(scodes, s.Scode)
 		}
-		contentQuery := model.DB.Where("scode IN (?)", scodes).
-			Where("id IN (SELECT MAX(id) FROM ay_content WHERE scode IN (?) GROUP BY scode)", scodes)
+		acode := acodeplugin.GetAcode(c.Request.Context())
+		contentQuery := model.DB.WithContext(c.Request.Context()).Where("scode IN (?)", scodes).
+			Where("id IN (SELECT MAX(id) FROM ay_content WHERE scode IN (?) AND acode = ? GROUP BY scode)", scodes, acode)
 		if keyword != "" && field == "a.title" {
 			contentQuery = contentQuery.Where("title LIKE ?", "%"+keyword+"%")
 		}
@@ -109,7 +112,11 @@ func (sg *SingleController) Mod(c *gin.Context) {
 			sg.JSONFail(c, "field not allowed: "+field)
 			return
 		}
-		model.DB.Model(&model.Content{}).Where("id = ?", id).Update(field, value)
+		model.DB.WithContext(c.Request.Context()).Model(&model.Content{}).Where("id = ?", id).
+			Updates(map[string]interface{}{
+				field:        value,
+				"update_time": time.Now(),
+			})
 		sg.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
@@ -128,6 +135,8 @@ func (sg *SingleController) Mod(c *gin.Context) {
 			"tags":        strings.ReplaceAll(c.PostForm("tags"), "，", ","),
 			"titlecolor":  c.PostForm("titlecolor"),
 			"enclosure":   c.PostForm("enclosure"),
+			"update_time": time.Now(),
+			"update_user": sg.GetAdminUsername(c),
 		}
 		if v := c.PostForm("date"); v != "" {
 			if t, err := time.Parse("2006-01-02 15:04:05", v); err == nil {
@@ -143,11 +152,11 @@ func (sg *SingleController) Mod(c *gin.Context) {
 		// 收集擴展字段數據
 		extFields := helper.GetExtFieldsByMcode(mcode)
 		extSvc := svc.ContentService{}
-		extData := extSvc.CollectExtFieldData(extFields,
+		extData := extSvc.CollectExtFieldData(c.Request.Context(), extFields,
 			func(key string) string { return c.PostForm(key) },
 			func(key string) []string { return c.PostFormArray(key) },
 		)
-		model.DB.Model(&model.Content{}).Where("id = ?", id).Updates(updates)
+		model.DB.WithContext(c.Request.Context()).Model(&model.Content{}).Where("id = ?", id).Updates(updates)
 		if len(extData) > 0 {
 			contentModel.UpsertContentExt(uint(id), extData)
 		}
@@ -156,12 +165,12 @@ func (sg *SingleController) Mod(c *gin.Context) {
 	}
 
 	var doc model.Content
-	model.DB.First(&doc, id)
+	model.DB.WithContext(c.Request.Context()).First(&doc, id)
 
 	// Get mcode from content's sort if not in query
 	if mcode == "" {
 		var sort model.ContentSort
-		if model.DB.Where("scode = ?", doc.Scode).First(&sort).Error == nil {
+		if model.DB.WithContext(c.Request.Context()).Where("scode = ?", doc.Scode).First(&sort).Error == nil {
 			mcode = sort.Mcode
 		}
 	}
@@ -190,7 +199,7 @@ func (sg *SingleController) Del(c *gin.Context) {
 		sg.JSONFail(c, "ID required")
 		return
 	}
-	model.DB.Delete(&model.Content{}, idStr)
+	model.DB.WithContext(c.Request.Context()).Delete(&model.Content{}, idStr)
 	sg.JSONOKMsg(c, common.NoticeDelete)
 }
 

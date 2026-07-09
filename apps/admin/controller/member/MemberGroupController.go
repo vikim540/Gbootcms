@@ -1,9 +1,9 @@
 package member
 
 import (
-	"pbootcms-go/apps/admin/helper"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -17,12 +17,22 @@ type MemberGroupController struct {
 
 // Index - 會員等級列表（含新增Tab）
 func (mg *MemberGroupController) Index(c *gin.Context) {
+	// 分頁處理
+	page, pageSize, offset := mg.Paginate(c)
+	baseURL := "/admin/member/group/index"
+
+	// 統計總記錄數
+	var total int64
+	model.DB.Model(&model.MemberGroup{}).Count(&total)
+
 	var groups []model.MemberGroup
-	model.DB.Order("gcode ASC, id ASC").Find(&groups)
+	model.DB.Order("gcode ASC, id ASC").Offset(offset).Limit(pageSize).Find(&groups)
 	common.Render(c, "member/group.html", gin.H{
-		"list":   true,
-		"groups": groups,
-		"C":      "member/group",
+		"list":     true,
+		"groups":   groups,
+		"C":        "member/group",
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
 	})
 }
 

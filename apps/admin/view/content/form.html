@@ -4,18 +4,18 @@
 	{if([$list])}
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">表单列表</li>
-	    <li lay-id="t2">表单新增</li>
+	    <li class="layui-this" lay-id="t1">表單列表</li>
+	    <li lay-id="t2">表單新增</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	   <div class="layui-tab-item layui-show">
 	  	   		<table class="layui-table">
 	            	<thead>
 	                    <tr>
-	                    	<th>编码</th>
-							<th>表单名称</th>
-	                        <th>表名称</th>
-	                        <th>数据</th>
+	                    	<th>編碼</th>
+							<th>表單名稱</th>
+	                        <th>表名稱</th>
+	                        <th>數據</th>
 	                        <th>字段</th>
 	                        <th>操作</th>
 	                    </tr>
@@ -28,16 +28,16 @@
 	                    	<td>[value->table_name]</td>
 	                    	<td>
 	                    	{if($value->id==1)}
-	                    	<a href="{url./admin/Message/index}"><i class="fa fa-list"></i> 查看数据</a></td>
+	                    	<a href="{url./admin/Message/index}"><i class="fa fa-list"></i> 查看數據</a></td>
 	                    	{else}
-	                    	<a href="{url./admin/Form/index/fcode/'.$value->fcode.'/action/showdata}"><i class="fa fa-list"></i> 查看数据</a></td>
+	                    	<a href="{url./admin/Form/index/fcode/'.$value->fcode.'/action/showdata}"><i class="fa fa-list"></i> 查看數據</a></td>
 	                    	{/if}
-	                    	<td><a href="{url./admin/Form/index/fcode/'.$value->fcode.'/action/showfield}"><i class="fa fa-pencil-square-o"></i> 编辑字段</a></td>
+	                    	<td><a href="{url./admin/Form/index/fcode/'.$value->fcode.'/action/showfield}"><i class="fa fa-pencil-square-o"></i> 編輯字段</a></td>
 	                        <td>
 								
 	                        	{if($value->id!=1)}
-									<a href="{url./admin/Form/mod/id/'.$value->id.'/action/addmenu}{$btnqs}" class="layui-btn layui-btn-xs layui-btn-primary">添加到菜单</a>
-	                        		<a href="{url./admin/Form/del/id/'.$value->id.'/action/delform}" onclick="return confirm('您确定要删除么？')" class="layui-btn layui-btn-xs layui-btn-danger" title="删除">删除</a>
+									<a href="{url./admin/Form/mod/id/'.$value->id.'/action/addmenu}{$btnqs}" class="layui-btn layui-btn-xs layui-btn-primary">添加到菜單</a>
+	                        		<a href="{url./admin/Form/del/id/'.$value->id.'/action/delform}" onclick="return confirm('您確定要刪除麼？')" class="layui-btn layui-btn-xs layui-btn-danger" title="刪除">刪除</a>
 	                            {/if}
 	                            <a href="{url./admin/Form/mod/id/'.$value->id.'/action/modform}{$btnqs}" class="layui-btn layui-btn-xs">修改</a>
 								
@@ -53,16 +53,16 @@
 	   			<form action="{url./admin/Form/add/action/addform}" method="post" class="layui-form">
 	   				<input type="hidden" name="formcheck" value="{$formcheck}" > 
 	   				<div class="layui-form-item">
-	                     <label class="layui-form-label">表单名称</label>
+	                     <label class="layui-form-label">表單名稱</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="form_name" maxlength=20 required lay-verify="required"  placeholder="请输入表单名称，如：报名表" class="layui-input">
+	                     	<input type="text" name="form_name" maxlength=20 required lay-verify="required"  placeholder="請輸入表單名稱，如：報名表" class="layui-input">
 	                     </div>
 	                </div>
 	                
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">表名称</label>
+	                     <label class="layui-form-label">表名稱</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="table_name" maxlength=30 required lay-verify="required"  placeholder="请输入表名称，如：baoming" class="layui-input">
+	                     	<input type="text" name="table_name" maxlength=30 required lay-verify="required"  placeholder="請輸入表名稱，如：baoming" class="layui-input">
 	                     </div>
 	                </div>
 	                
@@ -81,7 +81,7 @@
 	{if([$showdata])}
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">{$form->form_name} — 数据</li>
+	    <li class="layui-this" lay-id="t1">{$form->form_name} — 數據</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	   <div class="layui-tab-item layui-show">
@@ -91,7 +91,7 @@
 				  		<tr>
 					  		<th colspan="2">
 					  			{$form->form_name}-[num] 
-					  			<span style="float:right"><a href="{url./admin/Form/del/id/'.$value->id.'/fcode/'.[$form->fcode].'/action/deldata}" onclick="return confirm('您确定要删除么？')" class="layui-btn layui-btn-xs layui-btn-danger" style="margin-bottom:0px" title="删除">删除</a></span>
+					  			<span style="float:right"><a href="{url./admin/Form/del/id/'.$value->id.'/fcode/'.[$form->fcode].'/action/deldata}" onclick="return confirm('您確定要刪除麼？')" class="layui-btn layui-btn-xs layui-btn-danger" style="margin-bottom:0px" title="刪除">刪除</a></span>
 					  		</th>
 					  	</tr>
 				    </thead>
@@ -99,12 +99,11 @@
 		  	   			{foreach $fields(key2,value2,num2)}
 			  	   			<tr>
 						      	<th>[value2->description]</th>
-						      	{php} $field=$value2->name {/php}
-						      	<td>[value->$field]</td>
+						      	<td>{{ val1[FieldNameMap[val2.Name]] }}</td>
 						    </tr>
 		  	   			{/foreach}
 		  	   			<tr>
-					      	<th>时间</th>
+					      	<th>時間</th>
 					      	<td>[value->create_time]</td>
 					    </tr>
 	  	   			</tbody>
@@ -112,11 +111,11 @@
 	            {/foreach}
 	            
 	            {if(session('ucode')==10001 && [$formdata])}
-			     	<a href="{url./admin/Form/clear/fcode/'.[$form->fcode].'}"  onclick='return confirm("您确定要清空么？")' class="layui-btn layui-btn-sm">清空记录</a>
+			     	<a href="{url./admin/Form/clear/fcode/'.[$form->fcode].'}"  onclick='return confirm("您確定要清空麼？")' class="layui-btn layui-btn-sm">清空記錄</a>
 			    {/if}
 			    
 			    {if([$formdata])}
-			    	<a href="{url./admin/Form/index/fcode/'.[$form->fcode].'/action/showdata/export/1}" class="layui-btn layui-btn-sm">导出记录</a>
+			    	<a href="{url./admin/Form/index/fcode/'.[$form->fcode].'/action/showdata/export/1}" class="layui-btn layui-btn-sm">導出記錄</a>
 			    {/if}
 			    
 	            <div class="page">{$pagebar}</div>
@@ -128,7 +127,7 @@
 	{if([$showfield])}
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">{$form->form_name}-表单字段</li>
+	    <li class="layui-this" lay-id="t1">{$form->form_name}-表單字段</li>
 	    <li lay-id="t2">新增字段</li>
 	  </ul>
 	  <div class="layui-tab-content">
@@ -136,10 +135,10 @@
 	  	   		<table class="layui-table">
 	            	<thead>
 	                    <tr>
-	                    	<th width=40>序号</th>
+	                    	<th width=40>序號</th>
 	                    	<th>描述</th>
 	                    	<th>字段</th>
-	                    	<th>长度</th>
+	                    	<th>長度</th>
 	                    	<th>是否必填</th>
 	                    	<th>排序</th>
 	                        <th>操作</th>
@@ -154,14 +153,14 @@
 	                    	<td>[value->length]</td>
 	                    	<td>
 		                        {if($value->required)}
-		                        <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/required/value/0}"><i class='fa fa-toggle-on' title="点击关闭必填"></i></a>
-		                        {else}
-		                        <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/required/value/1}"><i class='fa fa-toggle-off' title="点击开启必填"></i></a>
-		                        {/if}
+	                        <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/required/value/0}" class="switch"><i class='fa fa-toggle-on' title="點擊關閉必填"></i></a>
+	                        {else}
+	                        <a href="{url./admin/'.C.'/mod/id/'.$value->id.'/field/required/value/1}" class="switch"><i class='fa fa-toggle-off' title="點擊開啓必填"></i></a>
+	                        {/if}
 	                    	</td>
 	                    	<td>[value->sorting]</td>
 	                        <td>
-	                       		<a href="{url./admin/Form/del/id/'.$value->id.'/fcode/'.[$get.fcode].'}" onclick="return confirm('您确定要删除么？')" class="layui-btn layui-btn-xs layui-btn-danger" title="删除">删除</a>
+	                       		<a href="{url./admin/Form/del/id/'.$value->id.'/fcode/'.[$get.fcode].'}" onclick="return confirm('您確定要刪除麼？')" class="layui-btn layui-btn-xs layui-btn-danger" title="刪除">刪除</a>
 	                            {fun=get_btn_mod($value->id)}
 	                        </td>
 	                    </tr>
@@ -169,7 +168,7 @@
 	                </tbody>
 	            </table>
 	            <div class="page">{$pagebar}</div>
-	            <div><a href="{url./admin/Form/index}" class="layui-btn">返回表单</a></div>
+	            <div><a href="{url./admin/Form/index}" class="layui-btn">返回表單</a></div>
 	  	   </div>
 	  	   
 	  	   <div class="layui-tab-item">
@@ -179,19 +178,19 @@
 	                     <label class="layui-form-label">字段描述</label>
 	                     <div class="layui-input-block">
 	                     	<input type="hidden" value="{$get.fcode}" name="fcode" >
-	                     	<input type="text" name="description" required lay-verify="required"  placeholder="请输入字段描述，如：联系人" class="layui-input">
+	                     	<input type="text" name="description" required lay-verify="required"  placeholder="請輸入字段描述，如：聯繫人" class="layui-input">
 	                     </div>
 	                </div>
 	                
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">字段名称</label>
+	                     <label class="layui-form-label">字段名稱</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="name" required maxlength="20" lay-verify="required"  placeholder="请输入字段名称，必须以字母开头，如：contacts" class="layui-input">
+	                     	<input type="text" name="name" required maxlength="20" lay-verify="required"  placeholder="請輸入字段名稱，必須以字母開頭，如：contacts" class="layui-input">
 	                     </div>
 	                </div>
 	                
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">字段长度</label>
+	                     <label class="layui-form-label">字段長度</label>
 	                     <div class="layui-input-block">
 	                     	<input type="text" name="length" value="20" required lay-verify="required" class="layui-input">
 	                     </div>
@@ -231,23 +230,23 @@
 	{if([$form])}
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this">自定义表单修改</li>
+	    <li class="layui-this">自定義表單修改</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	<div class="layui-tab-item layui-show">
 	  		<form action="{url./admin/Form/mod/id/'.[$get.id].'/action/modform}{$backurl}" method="post" class="layui-form">
 	  			<input type="hidden" name="formcheck" value="{$formcheck}" > 
 	  			<div class="layui-form-item">
-                     <label class="layui-form-label">表单名称</label>
+                     <label class="layui-form-label">表單名稱</label>
                      <div class="layui-input-block">
-                     	<input type="text" name="form_name" maxlength=20 required value="{$form->form_name}" lay-verify="required"  placeholder="请输入表单名称，如：报名表" class="layui-input">
+                     	<input type="text" name="form_name" maxlength=20 required value="{$form->form_name}" lay-verify="required"  placeholder="請輸入表單名稱，如：報名表" class="layui-input">
                      </div>
                 </div>
                 
                 <div class="layui-form-item">
-                     <label class="layui-form-label">表名称</label>
+                     <label class="layui-form-label">表名稱</label>
                      <div class="layui-input-block">
-                     	<input type="text" maxlength=30 required readonly value="{$form->table_name}" lay-verify="required"  placeholder="请输入表名称，如：baoming" class="layui-input readonly">
+                     	<input type="text" maxlength=30 required readonly value="{$form->table_name}" lay-verify="required"  placeholder="請輸入表名稱，如：baoming" class="layui-input readonly">
                      </div>
                 </div>
 
@@ -267,7 +266,7 @@
 	 {if(@[$field])}
 	 <div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this">表单字段修改</li>
+	    <li class="layui-this">表單字段修改</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	<div class="layui-tab-item layui-show">
@@ -276,19 +275,19 @@
                 <div class="layui-form-item">
                      <label class="layui-form-label">字段描述</label>
                      <div class="layui-input-block">
-                     	<input type="text" name="description"  value="{$field->description}" placeholder="请输入字段描述，如：联系人" class="layui-input">
+                     	<input type="text" name="description"  value="{$field->description}" placeholder="請輸入字段描述，如：聯繫人" class="layui-input">
                      </div>
                 </div>
                 
                 <div class="layui-form-item">
-                     <label class="layui-form-label">字段名称</label>
+                     <label class="layui-form-label">字段名稱</label>
                      <div class="layui-input-block">
                      	<input type="text" name="name" readonly value="{$field->name}" class="layui-input readonly">
                      </div>
                 </div>
                 
                 <div class="layui-form-item">
-                     <label class="layui-form-label">字段长度</label>
+                     <label class="layui-form-label">字段長度</label>
                      <div class="layui-input-block">
                      	<input type="text" name="length" readonly value="{$field->length}" class="layui-input readonly">
                      </div>

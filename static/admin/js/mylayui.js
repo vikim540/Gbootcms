@@ -115,33 +115,34 @@ layui.use(['element','upload','laydate','form'], function(){
       });
   }
 
-  // 通用后台表单 AJAX 提交
-  // 使用 layui 的 form.on('submit()') 攔截 lay-submit 按鈕提交
-  // 原因：layui 驗證通過後調用 formElem.submit()（原生方法），不觸發 jQuery delegated submit 事件
-  form.on('submit()', function(data) {
-      var $form = $(data.form);
-      if (!$form.length && data.elem) {
-          $form = $(data.elem).closest('form');
-      }
-      if ($form.attr('id') === 'dologin') return true; // 跳過登錄表單
-      // GET 表單（搜索/篩選）直接原生提交，跳過 LayUI AJAX 處理
+  // 通用後台表單 AJAX 提交（jQuery 統一攔截，不依賴 layui form.on('submit()')）
+  // 處理所有 POST 表單（包含 layui-form），用 _clicked 按鈕判斷操作類型
+  $(document).on('submit', 'form:not(#dologin)', function(e) {
+      var $form = $(this);
+      // GET 表單（搜索/篩選）直接原生提交
       var method = ($form.attr('method') || 'POST').toUpperCase();
-      if (method === 'GET') {
-          $form[0].submit();
-          return false;
-      }
-      // 跳過有 lay-filter 的按鈕（已由專屬 handler 處理）
-      var $btn = $(data.elem);
-      if ($btn.attr('lay-filter')) return true;
+      if (method === 'GET') return true;
+      // 跳過有 lay-filter 的按鈕（已由 layui 專屬 handler 處理）
+      var $btn = $form.find('button._clicked');
+      if ($btn.length && $btn.attr('lay-filter')) return true;
 
-      // 用 FormData 保持 array 字段名原樣（listall[] 而非 listall[0]）
+      e.preventDefault();
+      // 修復：layui form.getValue() 在點擊 lay-submit 時會將 name="field[]" 重命名為
+      // name="field[0]"、name="field[1]" 等，導致 FormData 發送索引鍵名而非 [] 格式，
+      // 後端 PostFormArray("field[]") 取不到值。在建立 FormData 前還原為 [] 格式。
+      $form.find('input[name],select[name],textarea[name]').each(function(){
+          var m = this.name.match(/^(.+)\[\d+\]$/);
+          if (m) { this.name = m[1] + '[]'; }
+      });
+      // 用 FormData 保持 array 字段名原樣（list[] 而非 list[0]）
       var formData = new FormData($form[0]);
-      if ($btn.attr('name')) {
+      // 手動附加被點擊的 submit 按鈕值（FormData 不包含按鈕）
+      if ($btn.length && $btn.attr('name')) {
           formData.append($btn.attr('name'), $btn.val());
       }
 
       $.ajax({
-          type: $form.attr('method') || 'POST',
+          type: 'POST',
           url: $form.attr('action'),
           dataType: 'json',
           data: formData,
@@ -153,37 +154,9 @@ layui.use(['element','upload','laydate','form'], function(){
                   var returnto = $form.find('input[name="returnto"]').val();
                   if (returnto) {
                       setTimeout(function(){ window.location.href = returnto; }, 1500);
+                  } else if (res.tourl && res.tourl != '') {
+                      setTimeout(function(){ window.location.href = res.tourl; }, 1500);
                   }
-              } else {
-                  showNotify(res.msg || '操作失敗', 'error');
-              }
-          },
-          error: function() {
-              showNotify('请求发生错误', 'error');
-          }
-      });
-      return false; // 阻止 layui 原生 formElem.submit()
-  });
-
-  // 排序表單（非 layui-form）的 AJAX 攔截
-  $(document).on('submit', 'form:not(#dologin):has(button[value=sorting]):not(.layui-form)', function(e) {
-      var $form = $(this);
-      var activeEl = $(document.activeElement);
-      var isSortingBtn = activeEl.is('button[value=sorting]') || $form.find('button[value=sorting]._clicked').length > 0;
-      if (!isSortingBtn) return true; // 非排序按鈕（如批量刪除）正常提交
-
-      e.preventDefault();
-      var formData = $form.serialize();
-      // serialize 不包含 submit 按鈕值，手動補上
-      formData += '&submit=sorting';
-      $.ajax({
-          type: $form.attr('method') || 'POST',
-          url: $form.attr('action'),
-          dataType: 'json',
-          data: formData,
-          success: function(res) {
-              if (res.code == 1) {
-                  showNotify(res.msg || '操作成功', 'success');
               } else {
                   showNotify(res.msg || '操作失敗', 'error');
               }

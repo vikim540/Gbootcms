@@ -1,11 +1,12 @@
-﻿package content
+package content
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -30,13 +31,13 @@ func (dc *DeleCacheController) Index(c *gin.Context) {
 		case "1":
 			dc.deleIndex(cacheDir)
 			dc.deleSort(cacheDir, "")
-			dc.JSONOKMsg(c, common.NoticeCacheHomepage)
+			dc.JSONOK(c, common.NoticeCacheHomepage)
 		case "2":
 			dc.deleSortAll(cacheDir, scode)
-			dc.JSONOKMsg(c, common.NoticeCacheSortList)
+			dc.JSONOK(c, common.NoticeCacheSortList)
 		case "3":
 			dc.deleContent(cacheDir, idMinStr, idMaxStr)
-			dc.JSONOKMsg(c, common.NoticeCacheContent)
+			dc.JSONOK(c, common.NoticeCacheContent)
 		default:
 			dc.JSONFail(c, "Invalid parameter")
 		}
@@ -47,7 +48,8 @@ func (dc *DeleCacheController) Index(c *gin.Context) {
 	model.DB.Order("sorting ASC, id ASC").Find(&sorts)
 
 	dc.render(c, "content/delecache.html", gin.H{
-		"sorts": sorts,
+		"sorts":        sorts,
+		"sort_select":  helper.BuildSortSelectHTML(sorts, ""),
 	})
 }
 
@@ -65,7 +67,7 @@ func (dc *DeleCacheController) deleIndex(cacheDir string) {
 			data, err := os.ReadFile(fullPath)
 			if err == nil {
 				content := string(data)
-				if contains(content, "PbootCMS") || contains(content, "ay_") {
+				if contains(content, "Gbootcms") || contains(content, "ay_") {
 					os.Remove(fullPath)
 				}
 			}

@@ -1,8 +1,8 @@
-# PbootCMS-Go 開發技術文檔（整合版）
+# Gbootcms 開發技術文檔（整合版）
 
 > 本文檔供新人接手參考，整合自「留言系統前基線版」與代碼實勘，已逐項核對 go.mod、config、session、controller、parser 等源碼。
-> 對應源碼版本：PbootCMS 3.2.12 PHP → Go 移植版
-> 最後更新：2026-07-02
+> 對應源碼版本：基於 PbootCMS 3.2.12 PHP → Go 移植版
+> 最後更新：2026-07-08
 
 ---
 
@@ -156,6 +156,10 @@ mg.JSONOKMsg(c, "新增成功")
 | 18 | 缺少 `{pboot:mustlogin}` 整頁強制登入 | 需要會員才能看的頁面對未登入訪客暴露 | 高 |
 | 19 | `{user:uid}` 不存在 | 模板無法取得會員 ID | 低 |
 | 20 | backurl 在 POST body 中用 `c.Query` 讀取 | POST 請求的 backurl 要用 `c.DefaultPostForm` 讀取 | 中 |
+| 21 | pongo2 `{foreach $value->Field(key,value)}` 不支援 | `reForeach` 正則只匹配 `$varName`，不支援 `->`；在 controller 預計算為字串 | 高 |
+| 22 | layui `form.on('submit()')` 攔截非 `lay-submit` 按鈕 | 改用 jQuery `$(document).on('submit')` 統一攔截 | 高 |
+| 23 | ExtField 同模型 field 名稱重複導致數據覆蓋 | `ay_content_ext` 每列對應一個 field 名，必須用 `CheckFieldUnique` 檢查 | 高 |
+| 24 | `c.Query()` 在 IndexCatchAll 後返回舊值 | `IndexCatchAll` 修改 `RawQuery` 後 gin 緩存失效，改用 `c.Request.URL.Query().Get()` | 高 |
 
 ### 0.4 後台狀態切換速查（class="switch"）
 
@@ -320,7 +324,7 @@ func SetSession(c *gin.Context, key string, value interface{}) {
 
 ## 一、項目概述
 
-PbootCMS-Go 是將 PHP 版 PbootCMS 3.2.12 忠實移植為 Go 語言的企業網站管理系統。項目保留了原版的數據庫表結構（`ay_` 前綴）、模板語法、URL 路由規則和後台 UI（Layui），用 Go 技術棧替換了 PHP 後端。
+Gbootcms 是將 PHP 版 PbootCMS 3.2.12 忠實移植為 Go 語言的企業網站管理系統。項目保留了原版的數據庫表結構（`ay_` 前綴）、模板語法、URL 路由規則和後台 UI（Layui），用 Go 技術棧替換了 PHP 後端。
 
 ### 技術棧一覽
 
@@ -334,6 +338,8 @@ PbootCMS-Go 是將 PHP 版 PbootCMS 3.2.12 忠實移植為 Go 語言的企業網
 | 前台模板 | 自研 TagParser | — | `{gboot:xxx}` 標籤語法 + fsnotify 熱重載 |
 | 模板熱更新 | fsnotify | v1.10.1 | 前台模板文件變更自動重載 |
 | 郵件 | go-mail | v0.7.3 | SMTP 發信，配置存 `ay_config` |
+| 配置管理 | Viper | v1.21.0 | 環境變數支援，前綴 `PBOOTCMS_GO_` |
+| 結構化日誌 | log/slog | (stdlib) | Go 1.21+ 標準庫，`apps/common/logger.go` |
 | 前端 UI（後台） | Layui 2.5.4 + jQuery 1.12.4 | — | 與 PbootCMS 原版一致 |
 | 前端 UI（前台） | Bootstrap 4 + Swiper 4 | — | 前台模板自帶 |
 
@@ -355,7 +361,7 @@ PbootCMS-Go 是將 PHP 版 PbootCMS 3.2.12 忠實移植為 Go 語言的企業網
 pbootcms-go/
 ├── main.go                          # 程序入口，啟動流程，路由註冊
 ├── go.mod / go.sum                  # Go 模組定義
-├── build.ps1                        # 編譯腳本（PowerShell）
+├── build-run.bat                    # 編譯腳本
 ├── config/
 │   ├── config.go                    # 配置結構體與載入邏輯（sync.Once 單例）
 │   └── config.json                  # 配置文件（端口、資料庫路徑等）
@@ -373,7 +379,13 @@ pbootcms-go/
 │   │   ├── captcha.go               # 驗證碼生成與校驗
 │   │   ├── middleware/
 │   │   │   ├── auth.go              # 後台認證中間件
-│   │   │   └── path_rewrite.go      # PbootCMS URL 重寫映射表
+│   │   │   ├── gzip.go              # Gzip/Brotli 壓縮中間件
+│   │   │   ├── html_cache.go        # HTML 快取中間件
+│   │   │   ├── ip_filter.go         # IP 黑白名單中間件
+│   │   │   ├── path_rewrite.go      # PbootCMS URL 重寫映射表
+│   │   │   ├── redirect.go          # HTTPS 跳轉與主域名跳轉中間件
+│   │   │   ├── site_status.go       # 關站檢查中間件
+│   │   │   └── spider_log.go        # 蜘蛛訪問日誌中間件
 │   │   └── parser/                  # 前台模板標籤解析引擎
 │   │       ├── tags.go              # TagParser 核心解析管線
 │   │       ├── engine.go            # TemplateStore 模板存儲與熱重載
@@ -398,7 +410,8 @@ pbootcms-go/
 │   └── home/
 │       └── controller/
 │           ├── front.go             # 前台控制器（FrontController）
-│           └── member.go            # 會員前台控制器（登入/註冊/中心）
+│           ├── member.go            # 會員前台控制器（登入/註冊/中心）
+│           └── comment.go           # 評論控制器（CommentController：Add/My/Del）
 ├── template/default/                # 前台模板目錄
 │   ├── comm/                        # 公共模板（head/foot/page等）
 │   ├── member/                      # 會員前台模板（login/register/ucenter/umodify）
@@ -444,7 +457,7 @@ pbootcms-go/
 
 > 第四章至第十六章的內容與之前版本一致，包含：配置系統、資料庫層、路由系統、後台管理系統、後台模板引擎、前台模板引擎與標籤系統、前台路由與模板映射、擴展子系統、開發約束與規範、開發指南、開發環境與構建、已實現功能清單、關鍵文件索引。
 >
-> 詳細內容請參見 `docs/ARCHITECTURE_REVIEW.md` 和 `docs/AI_GUIDELINES.md`。
+> 詳細內容待補充，亦可參見 `docs/AI_GUIDELINES.md`。
 
 ---
 
@@ -481,7 +494,9 @@ template/default/member/
 ├── login.html     # AJAX 登入表單
 ├── register.html  # AJAX 註冊表單
 ├── ucenter.html   # 會員資訊展示
-└── umodify.html   # AJAX 資料修改表單
+├── umodify.html   # AJAX 資料修改表單
+├── mycomment.html # 我的評論頁
+└── retrieve.html  # 密碼找回頁
 ```
 
 #### 會員配置項（ay_config 表）
@@ -494,12 +509,17 @@ template/default/member/
 | register_verify | 0 | 註冊審核開關 |
 | register_score | 0 | 註冊贈送積分 |
 | register_gcode | (空) | 註冊預設等級 |
+| register_title | 會員註冊 | 註冊頁標題 |
 | login_status | 1 | 登入開關 |
 | login_check_code | 1 | 登入驗證碼開關 |
+| login_title | 會員登錄 | 登入頁標題 |
+| ucenter_title | 個人中心 | 個人中心頁標題 |
+| umodify_title | 資料修改 | 資料修改頁標題 |
 | comment_status | 1 | 評論開關 |
 | comment_check_code | 1 | 評論驗證碼開關 |
 | comment_verify | 1 | 評論審核開關 |
 | comment_anonymous | 0 | 匿名評論開關 |
+| home_upload_ext | jpg,jpeg,png,gif,xls,xlsx,doc,docx,ppt,pptx,rar,zip,pdf,txt | 前台上傳允許的副檔名 |
 
 ### 後台會員管理（已完成）
 
@@ -527,11 +547,11 @@ apps/admin/view/member/
 └── comment.html  # 文章評論（列表/詳情/回覆）
 ```
 
-### 階段 2-4（規劃中）
+### 階段 2-4
 
-- **階段 2**：會員中心增強功能（積分系統、等級自動升級）
-- **階段 3**：前台評論系統（提交/列表/我的評論/刪除）
-- **階段 4**：密碼找回 + 郵件驗證 + 帳號檢查
+- **階段 2**（規劃中）：會員中心增強功能（積分系統、等級自動升級）
+- **階段 3**（已完成）：前台評論系統（提交/列表/我的評論/刪除）
+- **階段 4**（已完成）：密碼找回 + 郵件驗證 + 帳號檢查
 
 ---
 
@@ -564,3 +584,104 @@ apps/admin/view/member/
 3. **反模式清單**：曾犯過的錯誤及正確做法
 4. **強制檢查流程**：5 步前置檢查流程
 5. **記憶文件**：project_memory.md 記錄硬約束和經驗教訓
+
+---
+
+## 十九、ExtField 擴展字段系統（2026-07-08 新增）
+
+### 19.1 數據結構
+
+`ay_extfield` 表新增 `scode TEXT DEFAULT ''` 欄位，用於存儲適用欄目（逗號分隔，空=全展示）：
+
+```sql
+-- EnsureExtFieldScodeColumn() 自動執行
+ALTER TABLE ay_extfield ADD COLUMN scode TEXT DEFAULT '';
+```
+
+`ay_content_ext` 表的每個物理列對應一個 field 名稱，同一模型下 field 名稱必須唯一。
+
+### 19.2 核心函數
+
+```go
+// 過濾：返回適用於指定欄目的字段（全展示 + 匹配的）
+content.GetExtFieldsByModelCodeAndScode(mcode, scode string) []ExtField
+
+// 檢查：scode 是否匹配（空=全展示，逗號分隔多選）
+content.ScodeMatches(fieldScode, targetScode string) bool
+
+// 規範化：換行符轉逗號，清理空項
+content.NormalizeOptions(options string) string
+
+// 唯一性：同模型下 field 名稱檢查（excludeID 用於修改時排除自身）
+content.CheckFieldUnique(mcode, field string, excludeID int) bool
+
+// 遷移：舊 || 格式自動遷移到 scode 列（冪等）
+content.MigrateScodeFromValue()
+```
+
+### 19.3 模板注意事項
+
+1. **pongo2 foreach 不支援 `->` 語法**：不能在模板中遍歷 struct 欄位，必須在 controller 預計算為字串（如 `ScodeDisplay`）
+2. **scode 下拉用 checkbox 列表**：JS 根據 mcode 動態生成對應欄目的 checkbox，支援多選
+3. **修改頁回顯**：controller 傳遞 `extfieldScodes` 陣列，JS 中的 `selectedScodes` 用於回顯
+
+### 19.4 內容頁過濾
+
+`ContentController.contentTemplateData` 接受 scode 參數，傳遞給 `BuildExtFieldTemplateData`：
+
+```go
+// 新增頁：scode=""（不顯示指定欄目的字段）
+data := cc.contentTemplateData(mcode, "", sorts, nil)
+
+// 修改頁：scode=內容的實際欄目
+data := cc.contentTemplateData(mcode, scodeVal, sorts, contentMap)
+```
+
+---
+
+## 二十、配置與日誌（2026-07-08 新增）
+
+### 20.1 Viper 配置管理
+
+`config/config.go` 使用 Viper 管理配置，支援環境變數覆蓋：
+
+```go
+// 環境變數前綴：PBOOTCMS_GO_
+// 範例：PBOOTCMS_GO_DATABASE_TYPE=mysql 覆蓋 database.type
+viper.SetEnvPrefix("PBOOTCMS_GO")
+viper.AutomaticEnv()
+viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+```
+
+`SessionKey` 從配置讀取，不再硬編碼。
+
+### 20.2 slog 結構化日誌
+
+`apps/common/logger.go` 封裝 Go 1.21+ 標準庫的 `log/slog`：
+
+```go
+import "pbootcms-go/apps/common"
+
+common.Logger.Info("操作成功", "user", username, "action", "login")
+common.Logger.Error("操作失敗", "err", err)
+```
+
+使用 `SetLogLevel(level string)` 設定日誌級別（debug/info/warn/error）。
+
+### 20.3 會員輸入驗證
+
+`MemberController.go` 使用正則表達式驗證會員輸入：
+
+```go
+// 用戶名：3-20 字元，字母數字下劃線
+// 郵箱：標準 email 格式
+// 手機：台灣/香港/大陸格式
+```
+
+### 20.4 內容批量操作
+
+`mylayui.js` 中使用 jQuery `$(document).on('submit')` 統一攔截表單提交，解決 layui `form.on('submit()')` 與非 `lay-submit` 按鈕的衝突：
+
+- 複製/移動/刪除按鈕不需要 `lay-submit` 屬性
+- 用 `button._clicked` class 識別點擊的提交按鈕
+- GET 表單直接放行，POST 表單走 AJAX

@@ -1,7 +1,7 @@
 package system
 
 import (
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/common"
 
 	"github.com/gin-gonic/gin"
 )

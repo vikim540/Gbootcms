@@ -4,23 +4,23 @@
 	{if([$list])}
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">区域列表</li>
-	    <li lay-id="t2">区域新增</li>
+	    <li class="layui-this" lay-id="t1">區域列表</li>
+	    <li lay-id="t2">區域新增</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	   <div class="layui-tab-item layui-show">
 				<table class="layui-table">
 				  <thead>
 				    <tr>
-				       <th>序号</th>
-			               <th>区域名称</th>
-			               <th>区域编码</th>
-			               <th>绑定域名</th>
-			               <th>是否默认</th>
-			               <th>添加人员</th>
-			               <th>更新时间</th>
+				       <th>序號</th>
+			               <th>區域名稱</th>
+			               <th>區域編碼</th>
+			               <th>綁定域名</th>
+			               <th>是否默認</th>
+			               <th>添加人員</th>
+			               <th>更新時間</th>
 			               <th>操作</th>
-				    </tr> 
+				    </tr>
 				  </thead>
 				  <tbody>
 				   {foreach $areas(key,value)}
@@ -37,7 +37,7 @@
 			                </td>
 			                <td>[value->acode]</td>
 			                <td>[value->domain]</td>
-			                <td>{if($value->is_default)}是{else}否{/if}</td>
+			                <td>{if($value->is_default=='1')}是{else}否{/if}</td>
 			                <td>[value->create_user]</td>
 			                <td>[value->update_time]</td>
 			                <td>
@@ -48,42 +48,53 @@
 			        {/foreach}
 				  </tbody>
 				</table>
-			    <div class="page">{$pagebar}</div>
 		   </div>
-		   
+
     	   <div class="layui-tab-item">
 				<form action="{url./admin/Area/add}" method="post" class="layui-form">
-					<input type="hidden" name="formcheck" value="{$formcheck}" > 
-					
+					<input type="hidden" name="formcheck" value="{$formcheck}" >
+
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">区域名称</label>
+	                     <label class="layui-form-label">區域名稱</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="name" required  lay-verify="required" placeholder="请输入区域名称，如：中文" class="layui-input">
+	                     	<input type="text" name="name" required  lay-verify="required" placeholder="請輸入區域名稱，如：中文" class="layui-input">
 	                     </div>
 	                </div>
-	                
+
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">区域编码</label>
+	                     <label class="layui-form-label">區域編碼</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="acode" required  lay-verify="required" placeholder="请输入区域编码，如：cn" class="layui-input">
+	                     	<input type="text" name="acode" required  lay-verify="required" placeholder="請輸入區域編碼，如：cn" class="layui-input">
 	                     </div>
 	                </div>
-	                
+
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">绑定域名</label>
+	                     <label class="layui-form-label">父區域</label>
 	                     <div class="layui-input-block">
-	                     	<input type="text" name="domain"  placeholder="请不要填写重复的域名，不区分就不填！" class="layui-input">
+	                     	<select name="pcode">
+	                     		<option value="0">頂級區域</option>
+	                     		{foreach $area_options(key,value)}
+	                     			<option value="[value->acode]" {if($value->selected)}selected{/if}>[value->indent][value->acode] [value->name]</option>
+	                     		{/foreach}
+	                     	</select>
 	                     </div>
 	                </div>
-	                
+
 	                <div class="layui-form-item">
-	                     <label class="layui-form-label">是否默认</label>
+	                     <label class="layui-form-label">綁定域名</label>
+	                     <div class="layui-input-block">
+	                     	<input type="text" name="domain"  placeholder="請不要填寫重複的域名，不區分就不填！" class="layui-input">
+	                     </div>
+	                </div>
+
+	                <div class="layui-form-item">
+	                     <label class="layui-form-label">是否默認</label>
 	                     <div class="layui-input-block">
 	                     	<input type="radio" name="is_default" value="1" title="是">
 							<input type="radio" name="is_default" value="0" title="否" checked>
 	                     </div>
 	                </div>
-	                
+
 	                 <div class="layui-form-item">
 						 <div class="layui-input-block">
 						    <button class="layui-btn" lay-submit>立即提交</button>
@@ -93,52 +104,64 @@
 				</form>
 		    </div>
 	  </div>
-	</div>  
+	</div>
 	{/if}
-	
+
 	{if([$mod])}
-	
+
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this">区域修改</li>
+	    <li class="layui-this">區域修改</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	<div class="layui-tab-item layui-show">
-	  	 <form action="{url./admin/Area/mod/acode/'.[$get.acode].'}{$backurl}" method="post" class="layui-form">
-	  	 	  <input type="hidden" name="formcheck" value="{$formcheck}" > 
-	  	
+	  	 <form action="{url./admin/Area/mod/acode/'.[$get_acode].'}{$backurl}" method="post" class="layui-form">
+	  	 	  <input type="hidden" name="formcheck" value="{$formcheck}" >
+
                <div class="layui-form-item">
-                     <label class="layui-form-label">区域名称</label>
+                     <label class="layui-form-label">區域名稱</label>
                      <div class="layui-input-block">
-                     	<input type="text" name="name" required  lay-verify="required"  value="{$area->name}" placeholder="请输入区域名称，如：中文" class="layui-input">
+                     	<input type="text" name="name" required  lay-verify="required"  value="{$area->name}" placeholder="請輸入區域名稱，如：中文" class="layui-input">
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
-                     <label class="layui-form-label">区域编码</label>
+                     <label class="layui-form-label">區域編碼</label>
                      <div class="layui-input-block">
-                     	<input type="text" name="acode" required  lay-verify="required"  readonly value="{$area->acode}" placeholder="请输入区域编码，如：cn" class="layui-input readonly">
+                     	<input type="text" name="acode" required  lay-verify="required"  value="{$area->acode}" placeholder="請輸入區域編碼，如：cn" class="layui-input">
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
-                     <label class="layui-form-label">绑定域名</label>
+                     <label class="layui-form-label">父區域</label>
                      <div class="layui-input-block">
-                     	<input type="text" name="domain"  value="{$area->domain}" placeholder="请不要填写重复的域名，不区分就不填！" class="layui-input">
+                     	<select name="pcode">
+	                     		<option value="0">頂級區域</option>
+	                     		{foreach $area_options(key,value)}
+	                     			<option value="[value->acode]" {if($value->selected)}selected{/if}>[value->indent][value->acode] [value->name]</option>
+	                     		{/foreach}
+	                     	</select>
                      </div>
                 </div>
-               
+
+                <div class="layui-form-item">
+                     <label class="layui-form-label">綁定域名</label>
+                     <div class="layui-input-block">
+                     	<input type="text" name="domain"  value="{$area->domain}" placeholder="請不要填寫重複的域名，不區分就不填！" class="layui-input">
+                     </div>
+                </div>
+
                <div class="layui-form-item">
-                    <label class="layui-form-label">是否默认</label>
+                    <label class="layui-form-label">是否默認</label>
                     <div class="layui-input-block">
-                    	<input type="radio" name="is_default" value="1" title="是" {if([$area->is_default]==1)}checked="checked"{/if}>
-						<input type="radio" name="is_default" value="0" title="否" {if([$area->is_default]==0)}checked="checked"{/if}>
+                    	<input type="radio" name="is_default" value="1" title="是" {if([$area->is_default]=='1')}checked="checked"{/if}>
+						<input type="radio" name="is_default" value="0" title="否" {if([$area->is_default]!='1')}checked="checked"{/if}>
                     </div>
                </div>
-               
+
                 <div class="layui-form-item">
 				 <div class="layui-input-block">
-				    <button class="layui-btn" lay-submit lay-filter="formDemo">立即提交</button>
+				    <button class="layui-btn" lay-submit>立即提交</button>
 				    <button type="reset" class="layui-btn layui-btn-primary">重置</button>
 				    {fun=get_btn_back()}
 				 </div>
@@ -146,9 +169,9 @@
 	  	 </form>
 	  	 </div>
 	  </div>
-	</div> 
-	{/if} 
-	
+	</div>
+	{/if}
+
 </div>
 
 {include file='common/foot.html'}

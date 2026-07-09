@@ -1,9 +1,10 @@
 package content
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
-	"pbootcms-go/core/db"
+	"gbootcms/core/db"
 	"regexp"
 	"time"
 )
@@ -24,11 +25,11 @@ func IsValidContentFilename(filename string) bool {
 }
 
 // CheckContentFilename 檢查 filename 是否已被其他內容佔用
-func CheckContentFilename(filename string, extraWhere ...string) bool {
+func CheckContentFilename(ctx context.Context, filename string, extraWhere ...string) bool {
 	if filename == "" {
 		return false
 	}
-	q := db.DB.Table("ay_content").Where("filename = ?", filename)
+	q := db.DB.WithContext(ctx).Table("ay_content").Where("filename = ?", filename)
 	for _, w := range extraWhere {
 		if w != "" {
 			q = q.Where(w)
@@ -41,12 +42,12 @@ func CheckContentFilename(filename string, extraWhere ...string) bool {
 
 // GenerateUniqueContentFilename 內容 filename 重名時自動加 -rand(1,20) 後綴
 // 與 PbootCMS PHP 原文一致（注意：內容用橫線 -，欄目用底線 _）
-func GenerateUniqueContentFilename(filename string, extraWhere ...string) string {
+func GenerateUniqueContentFilename(ctx context.Context, filename string, extraWhere ...string) string {
 	if filename == "" {
 		return ""
 	}
 	for i := 0; i < 100; i++ {
-		if !CheckContentFilename(filename, extraWhere...) {
+		if !CheckContentFilename(ctx, filename, extraWhere...) {
 			return filename
 		}
 		filename = fmt.Sprintf("%s-%d", filename, 1+rand.Intn(20))
@@ -94,3 +95,6 @@ type Content struct {
 	PicsTitle   string    `gorm:"column:picstitle;default:''" json:"picstitle"`
 	URLName     string    `gorm:"column:urlname" json:"urlname"`
 }
+
+// TableName 指定表名（對齊 PbootCMS ay_content）
+func (Content) TableName() string { return "ay_content" }

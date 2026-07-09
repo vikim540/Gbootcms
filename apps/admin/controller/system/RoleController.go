@@ -1,8 +1,9 @@
-﻿package system
+package system
 
 import (
-	"pbootcms-go/apps/admin/model"
-	"pbootcms-go/apps/common"
+	"gbootcms/apps/admin/helper"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -16,11 +17,21 @@ type RoleController struct {
 
 // Index - Role list
 func (rc *RoleController) Index(c *gin.Context) {
+	page, pageSize, offset := rc.Paginate(c)
+	var total int64
+	model.DB.Model(&model.Role{}).Count(&total)
 	var roles []model.Role
-	model.DB.Order("id ASC").Find(&roles)
+	model.DB.Order("id ASC").Offset(offset).Limit(pageSize).Find(&roles)
 	var menus []model.Menu
 	model.DB.Where("status = 1").Order("sorting ASC").Find(&menus)
-	common.Render(c, "system/role.html", gin.H{"roles": roles, "menus": menus})
+	baseURL := "/admin/system/role/index"
+	common.Render(c, "system/role.html", gin.H{
+		"list":     true,
+		"roles":    roles,
+		"menus":    menus,
+		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize": pageSize,
+	})
 }
 
 // Add - Add new role
@@ -33,6 +44,7 @@ func (rc *RoleController) Add(c *gin.Context) {
 			Levels: levels,
 			Status: 1,
 		})
+		rc.LogAction(c, "新增角色成功")
 		rc.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
@@ -55,6 +67,7 @@ func (rc *RoleController) Mod(c *gin.Context) {
 			"name":   c.PostForm("name"),
 			"levels": c.PostForm("levels"),
 		})
+		rc.LogAction(c, "修改角色成功")
 		rc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
@@ -70,5 +83,6 @@ func (rc *RoleController) Mod(c *gin.Context) {
 func (rc *RoleController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	model.DB.Delete(&model.Role{}, idStr)
+	rc.LogAction(c, "刪除角色成功")
 	rc.JSONOKMsg(c, common.NoticeDelete)
 }

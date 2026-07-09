@@ -55,34 +55,31 @@
 		 </div>
 	 </fieldset>
 	 
-	 {if(CMSNAME=='PbootCMS')}
+	 {if(CMSNAME=='Gbootcms')}
 	 <div class="layui-row layui-col-space10">
 	 	<div class="layui-col-xs12 layui-col-md6">
 			<table class="layui-table table-two">
 				  <thead>
 				  	<tr>
-				  		<th colspan="2">系统信息</th>
+				  		<th colspan="2">系統資訊</th>
 				  	</tr>
 				  </thead>
 				  <tbody>
 				     <tr>
-				      	<th width="100">应用版本</th>
-				      	<td>PbootCMS V{APP_VERSION}-{RELEASE_TIME} [{$build_version}]
-				      	 {if(session('ucode')==10001)}
-				      		<a href="javascript:void(0)" onclick="Notice()" class="layui-btn layui-btn-xs" id="check">在线更新</a>
-				         {/if}
+				      	<th width="100">應用版本</th>
+				      	<td>{CMSNAME} V{APP_VERSION}-{RELEASE_TIME} [{$build_version}]
 				      	</td>
 				     </tr>
 				     <tr>
-				      	<th>主机系统</th>
+				      	<th>主機系統</th>
 				      	<td>{$server->php_os}</td>
 				     </tr>
 				     <tr>
-				      	<th>主机地址</th>
+				      	<th>主機地址</th>
 				      	<td>{$server->server_name}（{$server->server_addr}:{$server->server_port}）</td>
 				     </tr>
 				     <tr>
-				      	<th>WEB软件</th>
+				      	<th>WEB軟體</th>
 				      	<td>{$server->server_software}</td>
 				     </tr>
 				     <tr>
@@ -90,15 +87,15 @@
 				      	<td>{$server->php_version}</td>
 				     </tr>
 				     <tr>
-				      	<th>数据库驱动</th>
+				      	<th>資料庫驅動</th>
 				      	<td>{$server->db_driver}</td>
 				     </tr>
 				     <tr>
-				      	<th>文件上传限制</th>
+				      	<th>檔案上傳限制</th>
 				      	<td>{$server->upload_max_filesize}</td>
 				     </tr>
 				     <tr>
-				      	<th>表单提交限制</th>
+				      	<th>表單提交限制</th>
 				      	<td>{$server->post_max_size}</td>
 				     </tr>
 				  </tbody> 
@@ -109,51 +106,29 @@
 			<table class="layui-table table-two">
 				  <thead>
 				  	<tr>
-				  		<th colspan="2">开发信息</th>
+				  		<th colspan="2">開發資訊</th>
 				  	</tr>
 				  </thead>
 				 
 				  <tbody>
 				  	<tr>
-	                    <th>系统名称</th>
-	                    <td>{CMSNAME}企业网站开发建设管理系统</td>
+	                    <th>系統名稱</th>
+	                    <td>{CMSNAME}企業網站開發建設管理系統</td>
 	                </tr>
 	
 	                <tr>
-	                    <th>官方网站</th>
-	                    <td><a href="http://www.pbootcms.com" target="_blank" style="color:#666">www.pbootcms.com</a></td>
-	                </tr>
-	                
-				  	<tr>
-	                    <th>源码下载</th>
-	                    <td>
-	                    	<a href="https://gitee.com/hnaoyun/PbootCMS/" style="color:#666" target="_blank">Gitee</a>
-	                    </td>
-	                </tr>
-	                
-	                <tr>
-	                    <th>系统开发</th>
-	                    <td>星梦</td>
-	                </tr>
-	                
-	                <tr>
-	                    <th>版权协议</th>
-	                    <td><a href="http://www.pbootcms.com/system-usage/277.html" style="color:#666" target="_blank">点击查看</a></td>
+	                    <th>原始碼</th>
+	                    <td>基於 PbootCMS 3.2.12 移植</td>
 	                </tr>
 	               
 	                <tr>
-	                    <th>技术交流群</th>
-	                    <td>88888888</td>
+	                    <th>技術棧</th>
+	                    <td>Go + Gin + GORM + SQLite</td>
 	                </tr>
-	                
+	               
 	                <tr>
-	                    <th>友情贡献者</th>
-	                    <td>
-	                    	感谢交流群各网友对PbootCMS发展的大力支持；
-	                    	感谢LayUI提供的前端框架；
-	                    	感谢百度提供的富文本编辑器；
-	                    	感谢星梦开发团队的日夜奋斗。
-	                    </td>
+	                    <th>前端框架</th>
+	                    <td>LayUI</td>
 	                </tr>
 				  </tbody>
 			</table>
@@ -161,28 +136,4 @@
 	 </div>
 	 {/if}
 </div>
-<script>
-$.ajax({
-    type: 'GET',
-	url: 'https://www.pbootcms.com/index.php?p=/upgrade/check&version={APP_VERSION}.{RELEASE_TIME}.{$revise}&branch={$branch}&snuser={$snuser}&site={$site}',
-	dataType: 'json',
-	success: function (response, status) {
-		 if(response.code==1){
-			 $("#check").html($("#check").html()+'<span class="layui-badge-dot"></span>');
-			 $("#check").attr('onclick',"Notice('update')");
-		 }
-    }
-});
-function Notice(param){
-	if(param === 'update'){
-		layer.alert('已检测到新版本发布，详情请查看<a href="https://www.pbootcms.com/dev-log/" style="color: blue" target="_blank">开发日志</a>',{title:'更新须知'}, function(index){
-			layer.close(index);
-			location.href="{url./admin/Upgrade/index}";
-		});
-	}else{
-		location.href="{url./admin/Upgrade/index}";
-	}
-
-}
-</script>
 {include file='common/foot.html'}

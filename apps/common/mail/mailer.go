@@ -4,12 +4,19 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/smtp"
-	"pbootcms-go/apps/admin/model"
+	"gbootcms/apps/admin/model"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// smtpDialTimeout 撥號超時（10 秒）
+const smtpDialTimeout = 10 * time.Second
+
+// smtpOverallTimeout 整體發送超時（30 秒，含撥號+認證+數據傳輸）
+const smtpOverallTimeout = 30 * time.Second
 
 // SendMail 發送郵件（使用標準庫 net/smtp + crypto/tls）
 // 自動根據 smtp_ssl 配置選擇隱式 SSL（465）或 STARTTLS（587/25）
@@ -37,7 +44,7 @@ func SendMail(to, subject, body string) error {
 
 	from := smtpUsername
 	headers := map[string]string{
-		"From":         fmt.Sprintf("%s <%s>", "GbootCMS", from),
+		"From":         fmt.Sprintf("%s <%s>", model.GetConfigValue("cmsname", "Gbootcms"), from),
 		"To":           to,
 		"Subject":      fmt.Sprintf("=?UTF-8?B?%s?=", encodeBase64(subject)),
 		"Content-Type": "text/html; charset=UTF-8",
@@ -66,13 +73,20 @@ func SendMail(to, subject, body string) error {
 
 // sendMailSSL 使用隱式 TLS 連線發送郵件（port 465）
 func sendMailSSL(addr, host string, auth smtp.Auth, from string, to []string, msg string) error {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12})
+	// 帶超時的撥號，防止 SMTP 不可達時無限阻塞
+	conn, err := net.DialTimeout("tcp", addr, smtpDialTimeout)
 	if err != nil {
-		return fmt.Errorf("TLS 連線失敗: %w", err)
+		return fmt.Errorf("TLS 連線失敗（超時 %s）: %w", smtpDialTimeout, err)
 	}
-	defer conn.Close()
 
-	c, err := smtp.NewClient(conn, host)
+	tlsConn := tls.Client(conn, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12})
+	defer tlsConn.Close()
+
+	// 設定整體超時截止時間（在底層連接上設定）
+	deadline := time.Now().Add(smtpOverallTimeout)
+	tlsConn.SetDeadline(deadline)
+
+	c, err := smtp.NewClient(tlsConn, host)
 	if err != nil {
 		return fmt.Errorf("建立 SMTP 客戶端失敗: %w", err)
 	}
@@ -90,9 +104,9 @@ func sendMailSSL(addr, host string, auth smtp.Auth, from string, to []string, ms
 		return fmt.Errorf("MAIL FROM 失敗: %w", err)
 	}
 
-	for _, addr := range to {
-		if err := c.Rcpt(addr); err != nil {
-			return fmt.Errorf("RCPT TO 失敗 (%s): %w", addr, err)
+	for _, rcpt := range to {
+		if err := c.Rcpt(rcpt); err != nil {
+			return fmt.Errorf("RCPT TO 失敗 (%s): %w", rcpt, err)
 		}
 	}
 
@@ -107,14 +121,26 @@ func sendMailSSL(addr, host string, auth smtp.Auth, from string, to []string, ms
 		return fmt.Errorf("關閉 DATA 失敗: %w", err)
 	}
 
-	return c.Quit()
+	_ = c.Quit()
+	return nil
 }
 
 // sendMailSTARTTLS 使用 STARTTLS 或明文連線發送郵件（port 587/25）
 func sendMailSTARTTLS(addr, host string, port int, auth smtp.Auth, from string, to []string, msg string) error {
-	c, err := smtp.Dial(addr)
+	// 帶超時的撥號
+	conn, err := net.DialTimeout("tcp", addr, smtpDialTimeout)
 	if err != nil {
-		return fmt.Errorf("連線失敗: %w", err)
+		return fmt.Errorf("連線失敗（超時 %s）: %w", smtpDialTimeout, err)
+	}
+
+	// 設定整體超時截止時間（在底層連接上設定）
+	deadline := time.Now().Add(smtpOverallTimeout)
+	conn.SetDeadline(deadline)
+
+	c, err := smtp.NewClient(conn, host)
+	if err != nil {
+		conn.Close()
+		return fmt.Errorf("建立 SMTP 客戶端失敗: %w", err)
 	}
 	defer c.Close()
 
@@ -137,9 +163,9 @@ func sendMailSTARTTLS(addr, host string, port int, auth smtp.Auth, from string, 
 		return fmt.Errorf("MAIL FROM 失敗: %w", err)
 	}
 
-	for _, addr := range to {
-		if err := c.Rcpt(addr); err != nil {
-			return fmt.Errorf("RCPT TO 失敗 (%s): %w", addr, err)
+	for _, rcpt := range to {
+		if err := c.Rcpt(rcpt); err != nil {
+			return fmt.Errorf("RCPT TO 失敗 (%s): %w", rcpt, err)
 		}
 	}
 
@@ -154,7 +180,8 @@ func sendMailSTARTTLS(addr, host string, port int, auth smtp.Auth, from string, 
 		return fmt.Errorf("關閉 DATA 失敗: %w", err)
 	}
 
-	return c.Quit()
+	_ = c.Quit()
+	return nil
 }
 
 // SendNotifyMail 發送通知郵件（留言/表單/評論）
@@ -164,22 +191,76 @@ func SendNotifyMail(formName string, fields []map[string]string) error {
 		return nil
 	}
 
+	// 從 ay_site 表讀取站點信息（復用 model.Site 類型，含 Domain 欄位可替代 main_domain 查詢）
+	var site model.Site
+	model.DB.Limit(1).Find(&site)
+
+	siteTitle := site.Title
+	if siteTitle == "" {
+		siteTitle = model.GetConfigValue("cmsname", "Gbootcms")
+	}
+	siteSubtitle := site.Subtitle
+
+	// 構建 logo 完整 URL（優先用 site.Domain，回退到 main_domain 配置）
+	logoURL := ""
+	if site.Logo != "" {
+		domain := site.Domain
+		if domain == "" {
+			domain = model.GetConfigValue("main_domain", "")
+		}
+		if domain != "" {
+			domain = strings.TrimRight(domain, "/")
+			logoURL = domain + "/" + strings.TrimLeft(site.Logo, "/")
+		}
+	}
+
+	// 根據 formName 生成語義化的通知副標題
+	notifySubtitle := "新提交通知"
+	if strings.Contains(formName, "留言") {
+		notifySubtitle = "您收到一則新留言，請儘速查看"
+	} else if strings.Contains(formName, "表單") {
+		notifySubtitle = "您收到一則新表單提交，請儘速查看"
+	} else if strings.Contains(formName, "評論") {
+		notifySubtitle = "您收到一則新評論，請儘速查看"
+	}
+
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf(`<html><body style="margin:0;padding:0;background:#f4f6f9;">
+	sb.WriteString(`<html><body style="margin:0;padding:0;background:#f4f6f9;">
 <div style="max-width:600px;margin:20px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-  <div style="background:linear-gradient(135deg,#4e73df 0%%,#224abe 100%%);padding:30px 40px;">
-    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:600;">%s</h1>
-    <p style="margin:5px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">系統通知</p>
+
+  <!-- 站點信息 header -->
+  <div style="background:#2d4a8a;padding:25px 40px;">
+    <table width="100%%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td style="vertical-align:middle;">`)
+	if logoURL != "" {
+		sb.WriteString(fmt.Sprintf(`<img src="%s" alt="logo" style="height:36px;max-width:160px;vertical-align:middle;margin-right:12px;">`, logoURL))
+	}
+	sb.WriteString(fmt.Sprintf(`<span style="color:#ffffff;font-size:20px;font-weight:600;vertical-align:middle;">%s</span>
+          <div style="color:#b8d4f0;font-size:12px;margin-top:4px;">%s</div>
+        </td>
+      </tr>
+    </table>
   </div>
-  <div style="padding:30px 40px;">`, formName))
+
+  <!-- 通知內容 header -->
+  <div style="background:#3a5a9e;padding:20px 40px;border-top:1px solid rgba(255,255,255,0.1);">
+    <h1 style="margin:0;color:#ffffff;font-size:18px;font-weight:500;">%s</h1>
+    <p style="margin:6px 0 0;color:#a8c8ec;font-size:13px;">%s</p>
+  </div>
+
+  <!-- 表單欄位 -->
+  <div style="background:#f0f4f8;padding:30px 40px;">`, siteTitle, siteSubtitle, formName, notifySubtitle))
 
 	for _, f := range fields {
-		sb.WriteString(fmt.Sprintf(`<p style="color:#555;font-size:14px;line-height:1.8;margin:0 0 10px;"><strong>%s:</strong> %s</p>`, f["label"], f["value"]))
+		sb.WriteString(fmt.Sprintf(`<p style="color:#555;font-size:14px;line-height:1.8;margin:0 0 10px;background:#fff;padding:8px 12px;border-radius:4px;border-left:3px solid #4e73df;"><strong>%s:</strong> %s</p>`, f["label"], f["value"]))
 	}
 
 	now := time.Now().Format("2006-01-02 15:04:05")
 	sb.WriteString(fmt.Sprintf(`</div>
-  <div style="background:#f8f9fc;padding:20px 40px;text-align:center;">
+
+  <!-- 頁尾 -->
+  <div style="background:#eef2f7;padding:20px 40px;text-align:center;border-top:1px solid #e0e6ed;">
     <p style="margin:0;color:#999;font-size:12px;">發送時間：%s</p>
     <p style="margin:5px 0 0;color:#999;font-size:12px;">此郵件由系統自動發送，請勿回覆</p>
   </div>
@@ -191,7 +272,7 @@ func SendNotifyMail(formName string, fields []map[string]string) error {
 
 // SendTestMail 發送測試郵件（美觀 HTML 模板）
 func SendTestMail(to string) error {
-	siteName := model.GetConfigValue("cmsname", "GbootCMS")
+	siteName := model.GetConfigValue("cmsname", "Gbootcms")
 	now := time.Now().Format("2006-01-02 15:04:05")
 	subject := "【" + siteName + "】測試郵件"
 	body := fmt.Sprintf(`<html><body style="margin:0;padding:0;background:#f4f6f9;">
