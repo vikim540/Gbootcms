@@ -42,8 +42,6 @@ type RoleLevel = system.RoleLevel
 type Syslog = system.Syslog
 type Area = system.Area
 type Config = system.Config
-type Type = system.Type
-type DictType = system.DictType
 type Database = system.Database
 
 // ──────────────────────────────────────────────

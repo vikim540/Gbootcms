@@ -6,7 +6,7 @@
 
 	{include file=comm/position.html}
 
-    <!-- 會員登錄 -->
+    <!-- 會員登入 -->
     <div class="row">
     	<div class="col-lg-3"></div>
     	<div class="col-12 col-lg-6">
@@ -14,14 +14,14 @@
                 <div class="form-group">
                     <label for="username">帳　號</label>
                     <div>
-                        <input type="text" name="username" required id="username" class="form-control" placeholder="請輸入登錄用戶名/郵箱/手機號碼">
+                        <input type="text" name="username" required id="username" class="form-control" placeholder="請輸入登入用戶名/郵箱/手機號碼">
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label for="password">密　碼</label>
                     <div>
-                        <input type="password" name="password" required id="password" class="form-control" placeholder="請輸入登錄密碼">
+                        <input type="password" name="password" required id="password" class="form-control" placeholder="請輸入登入密碼">
                     </div>
                 </div>
 
@@ -40,7 +40,7 @@
                 {/gboot:if}
 
                 <div class="form-group">
-                   <button type="submit" class="btn btn-info mb-2">立即登錄</button>
+                   <button type="submit" class="btn btn-info mb-2">立即登入</button>
 				   <span class="text-secondary ml-3"><a href="{gboot:register}">註冊帳號</a></span>
 				   <span class="text-secondary ml-3"><a href="{gboot:retrieve}">找回密碼</a></span>
                 </div>
@@ -52,7 +52,7 @@
 
 <script>
 
-//ajax登錄
+//ajax登入
 function login(obj){
   var url='{gboot:login}';
   var username=$(obj).find("#username").val();
@@ -70,7 +70,7 @@ function login(obj){
     },
     success: function (response, status) {
       if(response.code){
-    	 alert("登錄成功！");
+    	 alert("登入成功！");
 		 location.href=response.tourl;
       }else{
     	  $('#codeimg').click();

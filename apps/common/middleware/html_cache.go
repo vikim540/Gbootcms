@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ func (w *cacheBodyWriter) Write(b []byte) (int, error) {
 // HTMLCache 動態頁面緩存中間件（對齊 PHP View::cache 邏輯）
 // 當 tpl_html_cache=1 時，快取前台 HTML 響應到 runtime/cache/ 目錄
 // 帶 p（pathinfo）或 s（搜索）參數的請求不快取（對齊 PHP: !query_string('p,s')）
+// 已登入會員不快取（避免個人化內容被快取導致資訊洩露）
 func HTMLCache() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
@@ -48,8 +50,15 @@ func HTMLCache() gin.HandlerFunc {
 			return
 		}
 
+		// 已登入會員不快取（安全：避免個人化內容洩露給其他用戶）
+		if uid := common.GetSessionInt(c, "pboot_uid"); uid > 0 {
+			c.Next()
+			return
+		}
+
 		// 計算快取檔名（對齊 PHP: md5(get_http_url() . REQUEST_URI . lg . wap)）
-		cacheKey := fmt.Sprintf("%s%s%s", c.Request.Host, c.Request.RequestURI, c.GetHeader("Cookie"))
+		// 安全修復：移除 Cookie 頭，避免快取膨脹和 Cookie 洩露
+		cacheKey := fmt.Sprintf("%s%s", c.Request.Host, c.Request.RequestURI)
 		cacheFile := filepath.Join("runtime", "cache", fmt.Sprintf("%x.html", md5.Sum([]byte(cacheKey))))
 
 		// 檢查快取是否存在且未過期

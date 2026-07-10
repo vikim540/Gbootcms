@@ -107,7 +107,7 @@ func (bc *BaseController) BatchSort(c *gin.Context, modelPtr interface{}, sortCo
 	sortList := extractIndexedArray(c, "sorting")
 
 	if len(idList) == 0 {
-		bc.JSONFail(c, "没有排序数据")
+		bc.JSONFail(c, "沒有排序資料")
 		return
 	}
 

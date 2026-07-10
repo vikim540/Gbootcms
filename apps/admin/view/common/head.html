@@ -9,9 +9,7 @@
   <link rel="stylesheet" href="{APP_THEME_DIR}/layui/css/layui.css?v=v2.5.4">
   <link rel="stylesheet" href="{APP_THEME_DIR}/font-awesome/css/font-awesome.min.css?v=v4.7.0" type="text/css">
   <link rel="stylesheet" href="{APP_THEME_DIR}/css/comm.css?v=v3.0.6">
-  <link href="{APP_THEME_DIR}/css/jquery.treetable.css" rel="stylesheet" type="text/css" />
   <script type="text/javascript" src="{APP_THEME_DIR}/js/jquery-1.12.4.min.js"></script>
-  <script type="text/javascript" src="{APP_THEME_DIR}/js/jquery.treetable.js"></script>
 </head>
 
 <body class="layui-layout-body">
@@ -76,7 +74,6 @@
 	          <dd><a href="{url./admin/Index/ucenter}"><i class="fa fa-address-card-o" aria-hidden="true"></i> 密碼修改</a></dd>
 	          <dd><a href="{url./admin/Index/loginOut}"><i class="fa fa-sign-out" aria-hidden="true"></i> 退出登錄</a></dd>
 	          {if(session('ucode')==10001)}
-	          	<dd><a href="{url./admin/Upgrade/index}"><i class="fa fa-cloud-upload" aria-hidden="true"></i> 在線更新</a></dd>
 	          	<dd><a href="{url./admin/Index/clearSession}" class="ajaxlink"><i class="fa fa-trash-o" aria-hidden="true"></i> 清理會話</a></dd>
 	          {/if}
 	        </dl>
@@ -113,7 +110,6 @@
 				{/foreach}
 				
 				{if($value->mcode=='M101' && session('ucode')==10001)}
-					<dd><a href="{url./admin/Upgrade/index}"><i class="fa fa-cloud-upload" aria-hidden="true"></i>在線更新</a></dd>
 				{/if}
 		    {/if}
           </dl>

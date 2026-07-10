@@ -214,9 +214,25 @@ func BuildSortTreeData(sorts []model.ContentSort) []map[string]interface{} {
 	for i, s := range ordered {
 		m := StructToMap(s)
 		m["Son"] = pcodeSet[s.Scode]
+		// 預計算前台 URL（替代原 {php} parserLink 邏輯）
+		m["FrontUrl"] = buildSortFrontURL(s)
 		result[i] = m
 	}
 	return result
+}
+
+// buildSortFrontURL 生成欄目前台連結（對齊 PHP parserLink for list type）
+func buildSortFrontURL(s model.ContentSort) string {
+	if s.Outlink != "" {
+		return s.Outlink
+	}
+	if s.Filename != "" {
+		return "/" + s.Filename + "/"
+	}
+	if s.URLName != "" {
+		return "/" + s.URLName + "/"
+	}
+	return "/sort/" + s.Scode
 }
 
 // AddSortName adds a computed "SortName" field to each content entry.
@@ -224,15 +240,25 @@ func BuildSortTreeData(sorts []model.ContentSort) []map[string]interface{} {
 func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[string]interface{} {
 	sortMap := make(map[string]string)
 	sortURLMap := make(map[string]string)
+	sortFilenameMap := make(map[string]string)
 	for _, s := range sorts {
 		sortMap[s.Scode] = s.Name
 		sortURLMap[s.Scode] = s.URLName
+		sortFilenameMap[s.Scode] = s.Filename
 	}
+
+	// 讀取 URL 規則配置
+	contentPathMode := model.GetConfigValue("url_rule_content_path", "0")
+
 	result := make([]map[string]interface{}, len(contents))
 	for i, c := range contents {
 		m := StructToMap(c)
 		m["Sortname"] = sortMap[c.Scode]
 		m["SortUrlname"] = sortURLMap[c.Scode]
+
+		// 預計算前台 URL（替代原 {php} parserLink 邏輯）
+		m["FrontUrl"] = buildFrontURL(c, sortFilenameMap[c.Scode], sortURLMap[c.Scode], contentPathMode)
+
 		// Format date for display: zero time shows empty string
 		if !c.Date.IsZero() {
 			m["Date"] = c.Date.Format("2006-01-02 15:04:05")
@@ -252,6 +278,44 @@ func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[stri
 		result[i] = m
 	}
 	return result
+}
+
+// buildFrontURL 生成內容前台連結（對齊 PHP parserLink 規則）
+func buildFrontURL(c model.Content, sortFilename, sortURLName, contentPathMode string) string {
+	if c.Outlink != "" {
+		return c.Outlink
+	}
+	// 短路徑模式
+	if contentPathMode == "1" {
+		if c.Filename != "" {
+			return "/" + c.Filename + ".html"
+		}
+		if c.URLName != "" {
+			return "/" + c.URLName + ".html"
+		}
+		return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
+	}
+	// 帶欄目路徑模式
+	sortPath := sortFilename
+	if sortPath == "" {
+		sortPath = sortURLName
+	}
+	if c.Filename != "" {
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.Filename + ".html"
+		}
+		return "/" + c.Filename + ".html"
+	}
+	if c.URLName != "" {
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.URLName + ".html"
+		}
+		return "/" + c.URLName + ".html"
+	}
+	if sortPath != "" {
+		return "/" + sortPath + "/" + strconv.Itoa(int(c.ID)) + ".html"
+	}
+	return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
 }
 
 // BuildPagebarHTML generates pagination HTML for content lists.

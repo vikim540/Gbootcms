@@ -18,12 +18,12 @@ func Init() {
 }
 
 func SeedData() {
-	// 確保 ay_content_ext 基礎表存在（幂等操作，每次啟動都執行）
+	// 確保 ay_content_ext 基礎表存在（冪等操作，每次啟動都執行）
 	content.EnsureContentExtTable()
 
 	var user system.AdminUser
 	if model.DB.Where("1 = 1").First(&user).Error != gorm.ErrRecordNotFound {
-		// 用户表非空：跳过首次种子，但仍要确保菜单是最新版本
+		// 用戶表非空：跳過首次種子，但仍要確保選單是最新版本
 		ensureMenuVersion()
 		ensureMemberConfigs()
 		return
@@ -41,23 +41,30 @@ func SeedData() {
 	seedConfigs()
 }
 
-// ensureMenuVersion 检查菜单数据是否与最新 seedMenus 版本一致。
-// 检测标志：是否存在 mcode='M156'（全局配置）。若不存在则清空 ay_menu 重建。
+// ensureMenuVersion 檢查選單資料是否與最新 seedMenus 版本一致。
+// 偵測標誌：是否存在 mcode='M1008'（移除類型管理後的版本標記）。若不存在則清空重建。
 func ensureMenuVersion() {
 	var count int64
-	model.DB.Model(&system.Menu{}).Where("mcode = ?", "M1006").Count(&count)
+	model.DB.Model(&system.Menu{}).Where("mcode = ?", "M1008").Count(&count)
 	if count > 0 {
-		// 检查是否存在已废弃的M100菜单项，如果存在则删除
-		var m100Count int64
-		model.DB.Model(&system.Menu{}).Where("mcode = ?", "M100").Count(&m100Count)
-		if m100Count > 0 {
-			model.DB.Where("mcode = ?", "M100").Delete(&system.Menu{})
-		}
 		return
 	}
-	// 旧版菜单结构 → 清空重建为 PbootCMS 原版对齐版本
+	// 舊版選單結構 → 清空重建
 	model.DB.Exec("DELETE FROM ay_menu")
 	seedMenus(time.Now())
+	// 寫入版本標記（隱藏選單，不作導航用）
+	model.DB.Create(&system.Menu{
+		Mcode:      "M1008",
+		Pcode:      "",
+		Name:       "版本標記",
+		URL:        "#",
+		Sorting:    0,
+		Status:     0,
+		Type:       0,
+		Shortcut:   0,
+		UpdateUser: "system",
+		UpdateTime: time.Now(),
+	})
 }
 
 func seedAdminUser(now time.Time) {
@@ -65,7 +72,7 @@ func seedAdminUser(now time.Time) {
 		Ucode:      "10001",
 		Username:   "admin",
 		Password:   fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%x", md5.Sum([]byte("admin")))))),
-		Realname:   "管理员",
+		Realname:   "管理員",
 		Rcodes:     "R100",
 		Acodes:     "",
 		Status:     1,
@@ -105,54 +112,53 @@ func seedCompany() {
 }
 
 func seedMenus(now time.Time) {
-	// 与 PbootCMS-3.2.12 原版 ay_menu 表结构 1:1 对齐
-	// 数据来源：PbootCMS-3.2.12/static/backup/sql/pbootcms_v3211.sql
+	// 與 PbootCMS-3.2.12 原版 ay_menu 表結構 1:1 對齊
+	// 資料來源：PbootCMS-3.2.12/static/backup/sql/pbootcms_v3211.sql
 	menus := []system.Menu{
-		// ============ 一级菜单 ============
+		// ============ 一級選單 ============
 		{Mcode: "M156", Pcode: "", Name: "全局配置", URL: "/admin/M156/index", Ico: "fa-globe", Sorting: 200, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M110", Pcode: "", Name: "基础内容", URL: "/admin/M110/index", Ico: "fa-sliders", Sorting: 300, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M130", Pcode: "", Name: "文章内容", URL: "/admin/M130/index", Ico: "fa-file-text-o", Sorting: 400, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M157", Pcode: "", Name: "扩展内容", URL: "/admin/M157/index", Ico: "fa-arrows-alt", Sorting: 500, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M1001", Pcode: "", Name: "会员中心", URL: "/admin/M1001/index", Ico: "fa-user-o", Sorting: 600, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M101", Pcode: "", Name: "系统管理", URL: "/admin/M101/index", Ico: "fa-cog", Sorting: 900, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M110", Pcode: "", Name: "基礎內容", URL: "/admin/M110/index", Ico: "fa-sliders", Sorting: 300, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M130", Pcode: "", Name: "文章內容", URL: "/admin/M130/index", Ico: "fa-file-text-o", Sorting: 400, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M157", Pcode: "", Name: "擴展內容", URL: "/admin/M157/index", Ico: "fa-arrows-alt", Sorting: 500, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M1001", Pcode: "", Name: "會員中心", URL: "/admin/M1001/index", Ico: "fa-user-o", Sorting: 600, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M101", Pcode: "", Name: "系統管理", URL: "/admin/M101/index", Ico: "fa-cog", Sorting: 900, Status: 1, Shortcut: 0, Type: 1},
 
-		// ============ 全局配置 子菜单 (M156) ============
-		{Mcode: "M153", Pcode: "M156", Name: "配置参数", URL: "/admin/Config/index", Ico: "fa-sliders", Sorting: 201, Status: 1, Shortcut: 1, Type: 1},
+		// ============ 全局配置 子選單 (M156) ============
+		{Mcode: "M153", Pcode: "M156", Name: "配置參數", URL: "/admin/Config/index", Ico: "fa-sliders", Sorting: 201, Status: 1, Shortcut: 1, Type: 1},
 		{Mcode: "M155", Pcode: "M156", Name: "模型管理", URL: "/admin/Model/index", Ico: "fa-codepen", Sorting: 204, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M158", Pcode: "M156", Name: "模型字段", URL: "/admin/ExtField/index", Ico: "fa-external-link", Sorting: 205, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M158", Pcode: "M156", Name: "模型欄位", URL: "/admin/ExtField/index", Ico: "fa-external-link", Sorting: 205, Status: 1, Shortcut: 0, Type: 1},
 
-		// ============ 基础内容 子菜单 (M110) ============
-		{Mcode: "M112", Pcode: "M110", Name: "站点信息", URL: "/admin/Site/index", Ico: "fa-cog", Sorting: 301, Status: 1, Shortcut: 1, Type: 1},
-		{Mcode: "M113", Pcode: "M110", Name: "公司信息", URL: "/admin/Company/index", Ico: "fa-copyright", Sorting: 302, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M129", Pcode: "M110", Name: "内容栏目", URL: "/admin/ContentSort/index", Ico: "fa-bars", Sorting: 303, Status: 1, Shortcut: 1, Type: 1},
+		// ============ 基礎內容 子選單 (M110) ============
+		{Mcode: "M112", Pcode: "M110", Name: "站點資訊", URL: "/admin/Site/index", Ico: "fa-cog", Sorting: 301, Status: 1, Shortcut: 1, Type: 1},
+		{Mcode: "M113", Pcode: "M110", Name: "公司資訊", URL: "/admin/Company/index", Ico: "fa-copyright", Sorting: 302, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M129", Pcode: "M110", Name: "內容欄目", URL: "/admin/ContentSort/index", Ico: "fa-bars", Sorting: 303, Status: 1, Shortcut: 1, Type: 1},
 
-		// ============ 文章内容 子菜单 (M130) ============
-		{Mcode: "M131", Pcode: "M130", Name: "栏目", URL: "/admin/Single/index", Ico: "fa-file-o", Sorting: 401, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M132", Pcode: "M130", Name: "列表内容", URL: "/admin/Content/index", Ico: "fa-file-text-o", Sorting: 402, Status: 1, Shortcut: 1, Type: 1},
+		// ============ 文章內容 子選單 (M130) ============
+		{Mcode: "M131", Pcode: "M130", Name: "欄目", URL: "/admin/Single/index", Ico: "fa-file-o", Sorting: 401, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M132", Pcode: "M130", Name: "列表內容", URL: "/admin/Content/index", Ico: "fa-file-text-o", Sorting: 402, Status: 1, Shortcut: 1, Type: 1},
 
-		// ============ 扩展内容 子菜单 (M157) ============
-		{Mcode: "M150", Pcode: "M157", Name: "留言信息", URL: "/admin/Message/index", Ico: "fa-question-circle-o", Sorting: 501, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M151", Pcode: "M157", Name: "轮播图片", URL: "/admin/Slide/index", Ico: "fa-picture-o", Sorting: 502, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M152", Pcode: "M157", Name: "友情链接", URL: "/admin/Link/index", Ico: "fa-link", Sorting: 503, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M160", Pcode: "M157", Name: "自定义表单", URL: "/admin/Form/index", Ico: "fa-plus-square-o", Sorting: 504, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M1000", Pcode: "M157", Name: "文章内链", URL: "/admin/Tags/index", Ico: "fa-random", Sorting: 505, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M1006", Pcode: "M157", Name: "媒体库", URL: "/admin/Media/index", Ico: "fa-photo", Sorting: 506, Status: 1, Shortcut: 0, Type: 1},
+		// ============ 擴展內容 子選單 (M157) ============
+		{Mcode: "M150", Pcode: "M157", Name: "留言資訊", URL: "/admin/Message/index", Ico: "fa-question-circle-o", Sorting: 501, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M151", Pcode: "M157", Name: "輪播圖片", URL: "/admin/Slide/index", Ico: "fa-picture-o", Sorting: 502, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M152", Pcode: "M157", Name: "友情連結", URL: "/admin/Link/index", Ico: "fa-link", Sorting: 503, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M160", Pcode: "M157", Name: "自訂表單", URL: "/admin/Form/index", Ico: "fa-plus-square-o", Sorting: 504, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M1000", Pcode: "M157", Name: "文章內鏈", URL: "/admin/Tags/index", Ico: "fa-random", Sorting: 505, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M1007", Pcode: "M157", Name: "媒體庫", URL: "/admin/Media/index", Ico: "fa-photo", Sorting: 506, Status: 1, Shortcut: 0, Type: 1},
 
-		// ============ 会员中心 子菜单 (M1001) ============
-		{Mcode: "M1002", Pcode: "M1001", Name: "会员等级", URL: "/admin/MemberGroup/index", Ico: "fa-signal", Sorting: 601, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M1003", Pcode: "M1001", Name: "会员字段", URL: "/admin/MemberField/index", Ico: "fa-wpforms", Sorting: 602, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M1004", Pcode: "M1001", Name: "会员管理", URL: "/admin/Member/index", Ico: "fa-users", Sorting: 603, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M1005", Pcode: "M1001", Name: "文章评论", URL: "/admin/MemberComment/index", Ico: "fa-commenting-o", Sorting: 604, Status: 1, Shortcut: 0, Type: 1},
+		// ============ 會員中心 子選單 (M1001) ============
+		{Mcode: "M1002", Pcode: "M1001", Name: "會員等級", URL: "/admin/MemberGroup/index", Ico: "fa-signal", Sorting: 601, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M1003", Pcode: "M1001", Name: "會員欄位", URL: "/admin/MemberField/index", Ico: "fa-wpforms", Sorting: 602, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M1004", Pcode: "M1001", Name: "會員管理", URL: "/admin/Member/index", Ico: "fa-users", Sorting: 603, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M1005", Pcode: "M1001", Name: "文章評論", URL: "/admin/MemberComment/index", Ico: "fa-commenting-o", Sorting: 604, Status: 1, Shortcut: 0, Type: 1},
 
-		// ============ 系统管理 子菜单 (M101) ============
-		{Mcode: "M102", Pcode: "M101", Name: "数据区域", URL: "/admin/Area/index", Ico: "fa-sitemap", Sorting: 901, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M103", Pcode: "M101", Name: "系统菜单", URL: "/admin/Menu/index", Ico: "fa-bars", Sorting: 902, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M104", Pcode: "M101", Name: "系统角色", URL: "/admin/Role/index", Ico: "fa-hand-stop-o", Sorting: 903, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M105", Pcode: "M101", Name: "系统用户", URL: "/admin/User/index", Ico: "fa-users", Sorting: 904, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M106", Pcode: "M101", Name: "系统日志", URL: "/admin/Syslog/index", Ico: "fa-history", Sorting: 905, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M107", Pcode: "M101", Name: "类型管理", URL: "/admin/Type/index", Ico: "fa-tags", Sorting: 906, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M108", Pcode: "M101", Name: "数据库管理", URL: "/admin/Database/index", Ico: "fa-database", Sorting: 907, Status: 1, Shortcut: 0, Type: 1},
-		{Mcode: "M109", Pcode: "M101", Name: "服务器信息", URL: "/admin/Site/server", Ico: "fa-info-circle", Sorting: 908, Status: 1, Shortcut: 0, Type: 1},
+		// ============ 系統管理 子選單 (M101) ============
+		{Mcode: "M102", Pcode: "M101", Name: "資料區域", URL: "/admin/Area/index", Ico: "fa-sitemap", Sorting: 901, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M103", Pcode: "M101", Name: "系統選單", URL: "/admin/Menu/index", Ico: "fa-bars", Sorting: 902, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M104", Pcode: "M101", Name: "系統角色", URL: "/admin/Role/index", Ico: "fa-hand-stop-o", Sorting: 903, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M105", Pcode: "M101", Name: "系統用戶", URL: "/admin/User/index", Ico: "fa-users", Sorting: 904, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M106", Pcode: "M101", Name: "系統日誌", URL: "/admin/Syslog/index", Ico: "fa-history", Sorting: 905, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M108", Pcode: "M101", Name: "資料庫管理", URL: "/admin/Database/index", Ico: "fa-database", Sorting: 907, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M109", Pcode: "M101", Name: "伺服器資訊", URL: "/admin/Site/server", Ico: "fa-info-circle", Sorting: 908, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M1101", Pcode: "M101", Name: "媒體庫", URL: "/admin/content/media/index", Ico: "fa-photo", Sorting: 909, Status: 1, Shortcut: 0, Type: 1},
 	}
 	for _, m := range menus {
@@ -168,7 +174,7 @@ func seedRoles(now time.Time) {
 	model.DB.Create(&system.Role{
 		Code:        "R100",
 		Rcode:       "R100",
-		Name:        "超级管理员",
+		Name:        "超級管理員",
 		Description: "",
 		Levels:      "",
 		Status:      1,
@@ -192,7 +198,7 @@ func seedMemberGroups() {
 func seedContentModels() {
 	models := []content.Model{
 		{Mcode: "3D1", Name: "文章模型", URLName: "list", Status: 1, Type: 2, Issystem: 0},
-		{Mcode: "3D2", Name: "单页模型", URLName: "about", Status: 1, Type: 1, Issystem: 0},
+		{Mcode: "3D2", Name: "單頁模型", URLName: "about", Status: 1, Type: 1, Issystem: 0},
 	}
 	for _, m := range models {
 		model.DB.Create(&m)
@@ -236,7 +242,7 @@ func seedConfigs() {
 		{Name: "comment_verify", Value: "1"},
 		{Name: "comment_anonymous", Value: "0"},
 		{Name: "home_upload_ext", Value: "jpg,jpeg,png,gif,xls,xlsx,doc,docx,ppt,pptx,rar,zip,pdf,txt"},
-		// 搜索引擎推送配置
+		// 搜尋引擎推送配置
 		{Name: "baidu_zz_token", Value: ""},
 		{Name: "baidu_ks_token", Value: ""},
 		{Name: "bing_indexnow_key", Value: ""},
@@ -263,7 +269,7 @@ func seedConfigs() {
 	}
 }
 
-// ensureMemberConfigs 確保會員配置項存在（用於已有數據庫的版本升級）
+// ensureMemberConfigs 確保會員配置項存在（用於已有資料庫的版本升級）
 func ensureMemberConfigs() {
 	memberConfigs := []system.Config{
 		{Name: "register_status", Value: "1"},

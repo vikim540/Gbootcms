@@ -16,6 +16,34 @@ func GetContentExtByContentID(contentID uint) map[string]interface{} {
 	return rows[0]
 }
 
+// GetContentExtByContentIDs 批量查詢多條內容的擴展字段，避免 N+1 查詢。
+// 返回 map[contentID]extData，未命中 ext 的 contentID 不會出現在 map 中。
+func GetContentExtByContentIDs(contentIDs []uint) map[uint]map[string]interface{} {
+	if len(contentIDs) == 0 {
+		return nil
+	}
+	var rows []map[string]interface{}
+	db.DB.Raw("SELECT * FROM ay_content_ext WHERE contentid IN ?", contentIDs).Scan(&rows)
+	result := make(map[uint]map[string]interface{}, len(rows))
+	for _, row := range rows {
+		var cid uint
+		if v, ok := row["contentid"]; ok {
+			switch val := v.(type) {
+			case int64:
+				cid = uint(val)
+			case uint:
+				cid = val
+			case float64:
+				cid = uint(val)
+			}
+		}
+		if cid > 0 {
+			result[cid] = row
+		}
+	}
+	return result
+}
+
 // InsertContentExt 插入擴展數據行（data 必須包含 "contentid"）
 func InsertContentExt(data map[string]interface{}) error {
 	return db.DB.Table("ay_content_ext").Create(data).Error

@@ -149,7 +149,7 @@ func (sg *SingleController) Mod(c *gin.Context) {
 		if v := c.PostForm("picstitle"); v != "" {
 			updates["picstitle"] = v
 		}
-		// 收集擴展字段數據
+		// 收集擴展欄位資料
 		extFields := helper.GetExtFieldsByMcode(mcode)
 		extSvc := svc.ContentService{}
 		extData := extSvc.CollectExtFieldData(c.Request.Context(), extFields,
@@ -184,7 +184,7 @@ func (sg *SingleController) Mod(c *gin.Context) {
 	common.Render(c, "content/single.html", gin.H{
 		"content":    doc,
 		"mod":        true,
-		"model_name": "单页",
+		"model_name": "單頁",
 		"mcode":      mcode,
 		"extfield":   helper.GetExtFieldsByMcode(mcode),
 		"picsList":   splitPics(doc.Pics),

@@ -18,8 +18,9 @@ type Role struct {
 }
 
 // RoleLevel - Role Permission Level Model
+// 注意：原版 PbootCMS 資料表欄位為 `level`（非 `url`），這裡保持與原版一致
 type RoleLevel struct {
 	ID    uint   `gorm:"primaryKey" json:"id"`
 	Rcode string `gorm:"column:rcode" json:"rcode"`
-	URL   string `gorm:"column:url" json:"url"`
+	URL   string `gorm:"column:level" json:"url"`
 }

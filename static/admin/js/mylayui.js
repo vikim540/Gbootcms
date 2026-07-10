@@ -4,16 +4,16 @@ layui.use(['element','upload','laydate','form'], function(){
   var laydate = layui.laydate;
   var form = layui.form;
   
-  //获取hash来切换选项卡，假设当前地址的hash为lay-id对应的值
+  //獲取hash來切換選項卡，假設當前地址的hash為lay-id對應的值
   var layid = location.hash.replace(/^#tab=/, '');
-  element.tabChange('tab', layid); //假设当前地址为：http://a.com#test1=222，那么选项卡会自动切换到“发送消息”这一项
+  element.tabChange('tab', layid); //假設當前地址為：http://a.com#test1=222，那麼選項卡會自動切換到"發送訊息"這一項
   
-  //监听Tab切换，以改变地址hash值
+  //監聽Tab切換，以改變地址hash值
   element.on('tab(tab)', function(){
 	var clayid=this.getAttribute('lay-id');
 	if(clayid){
 		location.hash = 'tab='+ clayid;
-		$('.page').find('a').each(function(index,element){//避免tab翻页问题
+		$('.page').find('a').each(function(index,element){//避免tab翻頁問題
 			var url=$(this).attr('href');
 			if(url.indexOf('tab=')==-1){
 				$(this).attr('href', url+'#tab='+ clayid);
@@ -24,7 +24,7 @@ layui.use(['element','upload','laydate','form'], function(){
 	}
   });
   
-  //跳转
+  //跳轉
 	form.on('select(tourl)', function(data){
 		window.location.href= data.value;
 	}); 
@@ -35,7 +35,7 @@ layui.use(['element','upload','laydate','form'], function(){
 	layer.tips($(this).data('content'), this);
   }) 
  
-  //用户登录验证
+  //用戶登入驗證
   form.on('submit(login-submit)', function(data){
   	var form = $("#dologin");
     var url = form.attr('action');
@@ -119,7 +119,7 @@ layui.use(['element','upload','laydate','form'], function(){
   // 處理所有 POST 表單（包含 layui-form），用 _clicked 按鈕判斷操作類型
   $(document).on('submit', 'form:not(#dologin)', function(e) {
       var $form = $(this);
-      // GET 表單（搜索/篩選）直接原生提交
+      // GET 表單（搜尋/篩選）直接原生提交
       var method = ($form.attr('method') || 'POST').toUpperCase();
       if (method === 'GET') return true;
       // 跳過有 lay-filter 的按鈕（已由 layui 專屬 handler 處理）
@@ -134,7 +134,7 @@ layui.use(['element','upload','laydate','form'], function(){
           var m = this.name.match(/^(.+)\[\d+\]$/);
           if (m) { this.name = m[1] + '[]'; }
       });
-      // 用 FormData 保持 array 字段名原樣（list[] 而非 list[0]）
+      // 用 FormData 保持 array 欄位名原樣（list[] 而非 list[0]）
       var formData = new FormData($form[0]);
       // 手動附加被點擊的 submit 按鈕值（FormData 不包含按鈕）
       if ($btn.length && $btn.attr('name')) {
@@ -162,13 +162,13 @@ layui.use(['element','upload','laydate','form'], function(){
               }
           },
           error: function() {
-              showNotify('请求发生错误', 'error');
+              showNotify('請求發生錯誤', 'error');
           }
       });
       return false;
   });
   
-  // 记录点击的 submit 按钮（用于获取按钮的 name/value）
+  // 記錄點擊的 submit 按鈕（用於取得按鈕的 name/value）
   $(document).on('click', 'button[lay-submit], button[type=submit]', function() {
     $(this).closest('form').find('button[type=submit], button[lay-submit]').removeClass('_clicked');
     $(this).addClass('_clicked');
@@ -211,7 +211,7 @@ layui.use(['element','upload','laydate','form'], function(){
                   },
                   error: function() {
                       layer.closeAll('loading');
-                      showNotify('请求发生错误', 'error');
+                      showNotify('請求發生錯誤', 'error');
                   }
               });
               layer.close(index);
@@ -233,7 +233,7 @@ layui.use(['element','upload','laydate','form'], function(){
                   /* 底部警告區域 */
                   '<div style="padding:16px 24px 22px;display:flex;align-items:flex-start;gap:10px;">' +
                       '<i class="fa fa-info-circle" style="color:#faad14;font-size:16px;flex-shrink:0;margin-top:1px;"></i>' +
-                      '<span style="font-size:13px;line-height:1.6;color:#8c8c8c;">此操作將永久刪除該數據，<span style="color:#ff4d4f;font-weight:600;">不可撤銷</span>。請在操作前確認已備份重要數據。</span>' +
+                      '<span style="font-size:13px;line-height:1.6;color:#8c8c8c;">此操作將永久刪除該資料，<span style="color:#ff4d4f;font-weight:600;">不可撤銷</span>。請在操作前確認已備份重要資料。</span>' +
                   '</div>' +
               '</div>'
       });
@@ -243,56 +243,56 @@ layui.use(['element','upload','laydate','form'], function(){
   var sitedir=$('#sitedir').data('sitedir');
   var uploadurl = $("#preurl").data('preurl')+'/index/upload';
   
-  //执行单图片实例
+  //執行單圖片實例
   var uploadInst = upload.render({
-	elem: '.upload' //绑定元素
-	,url: uploadurl //上传接口
-	,field: 'upload' //字段名称
-	,multiple: false //多文件上传
-	,accept: 'images' //接收文件类型 images（图片）、file（所有文件）、video（视频）、audio（音频）
+	elem: '.upload' //綁定元素
+	,url: uploadurl //上傳接口
+	,field: 'upload' //欄位名稱
+	,multiple: false //多檔案上傳
+	,accept: 'images' //接收檔案類型 images（圖片）、file（所有檔案）、video（影片）、audio（音訊）
 	,acceptMime: 'image/*'
     ,before: function(obj){ 
-       //判断是否需要加水印
+       //判斷是否需要加水印
        if($(this.item).hasClass('watermark')){
-	  	 uploadInst.config.url=uploadurl+'/watermark/1';//改变URL
+	  	 uploadInst.config.url=uploadurl+'/watermark/1';//改變URL
 	   }
-	   layer.load(); //上传loading
+	   layer.load(); //上傳loading
 	}
 	,done: function(res){
 	   var item = this.item;
 	   var des=$(item).data('des');
-	   layer.closeAll('loading'); //关闭loading
+	   layer.closeAll('loading'); //關閉loading
 	   if(res.code==1){
 		   $('#'+des).val(res.data[0]); 
-		   $('#'+des+'_box').html("<dl><dt><img src='"+sitedir+res.data[0]+"' data-url='"+res.data[0]+"' ></dt><dd>删除</dd></dl>"); 
+		   $('#'+des+'_box').html("<dl><dt><img src='"+sitedir+res.data[0]+"' data-url='"+res.data[0]+"' ></dt><dd>刪除</dd></dl>"); 
 		   layer.msg('上傳成功！', {icon: 1}); 
 	   }else{
 		   layer.msg('上傳失敗：'+res.data, {icon: 2}); 
 	   }
 	}
 	,error: function(){
-		layer.closeAll('loading'); //关闭loading
+		layer.closeAll('loading'); //關閉loading
 		layer.msg('上傳發生錯誤!', {icon: 5}); 
 	}
   });
   
-   //执行多图片上传实例
-  var files='';
-  var html='';
-  var html2='';
-  var uploadsInst = upload.render({
-	elem: '.uploads' //绑定元素
-	,url: uploadurl //上传接口
-	,field: 'upload' //字段名称
-	,multiple: true//多文件上传
-	,accept: 'images' //接收文件类型 images（图片）、file（所有文件）、video（视频）、audio（音频）
+   //執行多圖片上傳實例
+   var files='';
+   var html='';
+   var html2='';
+   var uploadsInst = upload.render({
+	elem: '.uploads' //綁定元素
+	,url: uploadurl //上傳接口
+	,field: 'upload' //欄位名稱
+	,multiple: true//多檔案上傳
+	,accept: 'images' //接收檔案類型 images（圖片）、file（所有檔案）、video（影片）、audio（音訊）
 	,acceptMime: 'image/*'
 	,before: function(obj){ 
-	   //判断是否需要加水印
+	   //判斷是否需要加水印
        if($(this.item).hasClass('watermark')){
-	  	 uploadsInst.config.url=uploadurl+'/watermark/1';//改变URL
+	  	 uploadsInst.config.url=uploadurl+'/watermark/1';//改變URL
 	   }
-	   layer.load(); //上传loading
+	   layer.load(); //上傳loading
 	}
 	,done: function(res){
 	   if(res.code==1){
@@ -301,19 +301,19 @@ layui.use(['element','upload','laydate','form'], function(){
 		   }else{
 			   files+=res.data[0];
 		   }
-		   html += "<dl><dt><img src='"+sitedir+res.data[0]+"' data-url='"+res.data[0]+"'></dt><dd>删除</dd>" +
+		   html += "<dl><dt><img src='"+sitedir+res.data[0]+"' data-url='"+res.data[0]+"'></dt><dd>刪除</dd>" +
 		   		"<dt><input type='text' name='picstitle[]' style='width:95%' /></dt>"+		
 		   		"</dl>";
-		   html2 += "<dl><dt><img src='"+sitedir+res.data[0]+"' data-url='"+res.data[0]+"'></dt><dd>删除</dd>" +	"</dl>";
+		   html2 += "<dl><dt><img src='"+sitedir+res.data[0]+"' data-url='"+res.data[0]+"'></dt><dd>刪除</dd>" +	"</dl>";
 	   }else{
-		   layer.msg('有文件上傳失敗：'+res.data, {icon: 2}); 
+		   layer.msg('有檔案上傳失敗：'+res.data, {icon: 2}); 
 	   } 
 	}
   	,allDone: function(obj){
   		var item = this.item;
   	    var des=$(item).data('des');
   	    
-  	    layer.closeAll('loading'); //关闭loading
+  	    layer.closeAll('loading'); //關閉loading
 	    if(files!=''){
 	       if($('#'+des).val()){
 	    	   $('#'+des).val($('#'+des).val()+','+files); 
@@ -325,7 +325,7 @@ layui.use(['element','upload','laydate','form'], function(){
 	       }else{
 	    	   $('#'+des+'_box').append(html2); 
 	       }
-	 	   layer.msg('成功上傳'+obj.successful+'個文件！', {icon: 1}); 
+	 	   layer.msg('成功上傳'+obj.successful+'個檔案！', {icon: 1}); 
 	 	   files='';
 	 	   html='';
 	 	   html2='';
@@ -335,12 +335,12 @@ layui.use(['element','upload','laydate','form'], function(){
 	    
 	 }
 	,error: function(){
-		layer.closeAll('loading'); //关闭loading
+		layer.closeAll('loading'); //關閉loading
 		layer.msg('上傳發生錯誤！', {icon: 5}); 
 	}
   });
 	
-  //图片页面删除功能
+  //圖片頁面刪除功能
   $('.pic').on("click",'dl dd',function(){
 	  var id=$(this).parents('.pic').attr('id');
 	  var url=$(this).siblings('dt').find('img').data('url');
@@ -354,20 +354,20 @@ layui.use(['element','upload','laydate','form'], function(){
 	  $(this).parents('dl').remove();
   });
   
-  //执行附件上传实例
+  //執行附件上傳實例
   var uploadFileInst = upload.render({
-	elem: '.file' //绑定元素
-	,url: uploadurl //上传接口
-	,field: 'upload' //字段名称
-	,multiple: false //多文件上传
-	,accept: 'file' //接收文件类型 images（图片）、file（所有文件）、video（视频）、audio（音频）
+	elem: '.file' //綁定元素
+	,url: uploadurl //上傳接口
+	,field: 'upload' //欄位名稱
+	,multiple: false //多檔案上傳
+	,accept: 'file' //接收檔案類型 images（圖片）、file（所有檔案）、video（影片）、audio（音訊）
 	,before: function(obj){ 
-		layer.load(); //上传loading
+		layer.load(); //上傳loading
 	}
 	,done: function(res){
 	   var item = this.item;
 	   var des=$(item).data('des');
-	   layer.closeAll('loading'); //关闭loading
+	   layer.closeAll('loading'); //關閉loading
 	   if(res.code==1){
 		   $('#'+des).val(res.data[0]); 
 		   layer.msg('上傳成功！', {icon: 1}); 
@@ -376,7 +376,7 @@ layui.use(['element','upload','laydate','form'], function(){
 	   }
 	}
 	,error: function(){
-		layer.closeAll('loading'); //关闭loading
+		layer.closeAll('loading'); //關閉loading
 		layer.msg('上傳發生錯誤！', {icon: 5}); 
 	}
   });
@@ -388,7 +388,7 @@ layui.use(['element','upload','laydate','form'], function(){
   useLayDateMultiple('date','date');
   useLayDateMultiple('datetime','datetime');
 
-  //选择模型切换模板
+  //選擇模型切換模板
    form.on('select(model)', function(data){
 	  var elem = data.elem;
 	  var type = $(elem).find("option:selected").data('type');
@@ -405,7 +405,7 @@ layui.use(['element','upload','laydate','form'], function(){
    
 });
 
-//日期控件函数
+//日期控件函數
 function useLayDateMultiple(cls,type) {
 	layui.use('laydate', function() {
 		var laydate = layui.laydate;

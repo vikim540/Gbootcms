@@ -29,6 +29,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.GET("/index/clearsession", ic.ClearSession)
 		adminGroup.POST("/index/area", ic.Area)
 		adminGroup.GET("/index/checkCode", ic.CheckCode)
+		adminGroup.GET("/index/upload", ic.Upload)
 		adminGroup.POST("/index/upload", ic.Upload)
 		adminGroup.POST("/index/upload/watermark/:flag", ic.Upload)
 
@@ -192,6 +193,8 @@ func SetupAdminRoutes(r *gin.Engine) {
 		db := &system.DatabaseController{}
 		adminGroup.GET("/system/database/index", db.Index)
 		adminGroup.POST("/system/database/mod", db.Mod)
+		adminGroup.GET("/system/database/download", db.DownloadBackup)
+		adminGroup.POST("/system/database/restore", db.RestoreSQLite)
 
 		ar := &system.AreaController{}
 		adminGroup.GET("/system/area/index", ar.Index)
@@ -208,22 +211,6 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.POST("/system/syslog/clear", slc.Clear)
 		adminGroup.POST("/system/syslog/clearspider", slc.ClearSpider)
 		adminGroup.POST("/system/syslog/clearnotify", slc.ClearNotify)
-
-		tp := &system.TypeController{}
-		adminGroup.GET("/system/type/index", tp.Index)
-		adminGroup.GET("/system/type/add", tp.Add)
-		adminGroup.POST("/system/type/add", tp.Add)
-		adminGroup.GET("/system/type/mod/:id", tp.Mod)
-		adminGroup.POST("/system/type/mod/:id", tp.Mod)
-		adminGroup.POST("/system/type/del", tp.Del)
-
-		up := &system.UpgradeController{}
-		adminGroup.GET("/system/upgrade/index", up.Index)
-
-		ie := &system.ImageExtController{}
-		adminGroup.GET("/system/imageExt/index", ie.Index)
-		adminGroup.GET("/system/imageExt/checkDataFile", ie.CheckDataFile)
-		adminGroup.POST("/system/imageExt/doExt", ie.DoExt)
 
 		mb := &member.MemberController{}
 	adminGroup.GET("/member/index", mb.Index)

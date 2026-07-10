@@ -72,14 +72,14 @@
         	<h3><i class="fa fa-commenting-o"></i>在線諮詢<span class="remove"><i class="fa fa-remove"></i></span></h3>
             <p>
             	<a target="_blank" href="http://wpa.qq.com/msgrd?v=3&uin={gboot:companyqq}&site=qq&menu=yes">
-                	<img border="0" src="{gboot:sitetplpath}/images/qq.jpg" alt="點擊這裡给我發消息" title="點擊這裡给我發消息"/>
+                	<img border="0" src="{gboot:sitetplpath}/images/qq.jpg" alt="點擊這裡給我發消息" title="點擊這裡給我發消息"/>
                		 售前諮詢專員
                 </a>
             </p>
              <p>
                 <a target="_blank" href="http://wpa.qq.com/msgrd?v=3&uin={gboot:companyqq}&site=qq&menu=yes">
-                	<img border="0" src="{gboot:sitetplpath}/images/qq.jpg" alt="點擊這裡给我發消息" title="點擊這裡给我發消息"/>
-               		 售後服务專員
+                	<img border="0" src="{gboot:sitetplpath}/images/qq.jpg" alt="點擊這裡給我發消息" title="點擊這裡給我發消息"/>
+               		 售後服務專員
                 </a>
             </p>
         </dt>
@@ -91,7 +91,7 @@
 		<dt style="width:300px;">
         	<h3><i class="fa fa-volume-control-phone"></i>免費通話<span class="remove"><i class="fa fa-remove"></i></span></h3>
             <p>24小時免費諮詢</p>
-            <p>請輸入您的聯繫電話，座機请加區號</p>
+            <p>請輸入您的聯繫電話，座機請加區號</p>
             <form  onsubmit="return subform(this);">
             	<p><input type="text" name="tel" id="tel" autocomplete="off"  placeholder="請輸入您的電話號碼" required maxlength="30"></p>
                 <p><button type="submit">免費通話</button></p>
@@ -141,7 +141,7 @@ function subform(obj){
     },
     success: function (response, status) {
       if(response.code){
-		 alert("您的來電已收到，我們会盡快聯繫您！");
+		 alert("您的來電已收到，我們會盡快聯繫您！");
 		 $(obj)[0].reset(); 
       }else{
     	 alert(response.data);
@@ -154,7 +154,7 @@ function subform(obj){
   return false;
 }
 
-// Markdown 代码块语言標籤 + 复制按鈕
+// Markdown 代碼塊語言標籤 + 複製按鈕
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.md-content pre > code[class*="language-"]').forEach(function(code) {
         var cls = code.className;

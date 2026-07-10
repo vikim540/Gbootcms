@@ -100,19 +100,14 @@
 			                    <td>[value->visits]</td>
 		                        <td>
 		                         	{if(!$value->outlink)}
-			                        	{php}
-			                        		$Parser=new app\home\controller\ParserController();
-			                        		$link=$Parser->parserLink(2,$value->urlname,'content',$value->scode,$value->sortfilename,$value->id,$value->filename);
-			                        	{/php}
-	
-			                        	<input type="hidden" name="urls[[value->id]]" value="{php}echo $link{/php}">
-			                        	<a href="{php}echo $link{/php}" class="layui-btn layui-btn-xs layui-btn-primary"  target="_blank">查看</a>
-		                        	{/if}
-		                            {fun=get_btn_del($value->id)}
-		                            {if(check_level('mod'))}
-		                            	<a href="{url./admin/Content/mod/mcode/'.get('mcode').'/id/'.$value->id.'}{$btnqs}" class="layui-btn layui-btn-xs" >修改</a>
-		                            {/if}
-		                        </td>
+			                        	<input type="hidden" name="urls[[value->id]]" value="[value->FrontUrl]">
+			                        	<a href="[value->FrontUrl]" class="layui-btn layui-btn-xs layui-btn-primary"  target="_blank">查看</a>
+	                        	{/if}
+	                            {fun=get_btn_del($value->id)}
+	                            {if(check_level('mod'))}
+	                            	<a href="{url./admin/Content/mod/mcode/'.get('mcode').'/id/'.$value->id.'}{$btnqs}" class="layui-btn layui-btn-xs" >修改</a>
+	                            {/if}
+	                        </td>
 		                    </tr>
 		                    {/foreach}
 		                </tbody>

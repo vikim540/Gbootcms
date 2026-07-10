@@ -3,70 +3,73 @@
 <div class="layui-body">
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 		  <ul class="layui-tab-title">
-		    <li class="layui-this" lay-id="t1">數據庫管理</li>
+		    <li class="layui-this" lay-id="t1">資料庫管理</li>
 		  </ul>
 		  <div class="layui-tab-content">
 		  	   <div class="layui-tab-item layui-show">
 		  	   		<form action="{url./admin/Database/mod}" method="post" class="layui-form">
-		  	   			<input type="hidden" name="formcheck" value="{$formcheck}" > 
-		  	   		{if([$db]=='mysql')}
+		  	   			<input type="hidden" name="formcheck" value="{$formcheck}">
+
+			  	   	{if([$db]=='sqlite')}
+			  	   		<div class="layui-card">
+			  	   			<div class="layui-card-header">
+				  	   			<b>SQLite 資料庫資訊</b>
+				  	   			{if($db_size)}<span class="layui-badge layui-bg-gray">目前大小：{$db_size}</span>{/if}
+			  	   			</div>
+			  	   			<div class="layui-card-body">
+					  	   		<table class="layui-table">
+					  	   			<thead>
+							            <tr>
+							                <th>選擇</th>
+							                <th>表名稱</th>
+							                <th>行數</th>
+							            </tr>
+							        </thead>
+							        <tbody>
+							        {foreach $tables(key,value,num)}
+							            <tr>
+							                <td><input type="checkbox" class="checkbox checkitem" name="list[]" value="[value->Name]"></td>
+							                <td>[value->Name]</td>
+							                <td>[value->Rows]</td>
+							            </tr>
+							        {/foreach}
+							            <tr>
+							                <td><input type="checkbox" class="checkbox" id="checkall" title="全選"></td>
+							                <td>[num] 張表</td>
+							                <td></td>
+							            </tr>
+							        </tbody>
+						  	   		</table>
+						  	   		{if([fun=check_level('mod')])}
+						  	   			<button class="layui-btn" lay-submit type="submit" name="submit" value="bfsqlite"><i class="fa fa-download"></i> 備份資料庫</button>
+						  	   			<button class="layui-btn layui-btn-warm" lay-submit type="submit" name="submit" value="yh"><i class="fa fa-magic"></i> 壓縮優化</button>
+						  	   		{/if}
+						  	   	</div>
+					  	   	</div>
+					  	   	<hr>
+				  	   	{/if}
+
+			  	   	{if([$db]=='mysql')}
 				  	   	<table class="layui-table">
 				  	   		<thead>
 		                        <tr>
 		                            <th>選擇</th>
 		                            <th>表名稱</th>
-		                            <th>表引擎</th>
-		                            <th>編碼</th>
-		                            <th>版本</th>
 		                            <th>行數</th>
-		                            <th>表創建時間</th>
-		                            <th>最後更新時間</th>
-		                            <th>大小</th>
-		                            <th>多餘</th>
-		                            
 		                        </tr>
 		                    </thead>
-		                    {php}$sum1 = 0; $sum2 = 0;{/php}
 		                    <tbody>
 		                    {foreach $tables(key,value,num)}
 		                        <tr>
 		                            <td><input type="checkbox" class="checkbox checkitem" name="list[]" value="[value->Name]"></td>
 		                            <td>[value->Name]</td>
-		                            <td>[value->Engine]</td>
-		                            <td>[value->Collation]</td>
-		                            <td>[value->Version]</td>
 		                            <td>[value->Rows]</td>
-		                            <td>[value->Create_time]</td>
-		                            <td>[value->Update_time]</td>
-		                            {php}
-		                                $size = round(($value->Data_length + $value->Index_length)/1024,2);
-		                                $sum1 += $size; 
-		                            {/php}
-		                            <td>{php}echo $size{/php} KB</td>
-		                            <td>
-		                            {if($value->Data_free)}
-		                                {php}
-		                                    $free = round($value->Data_free/1024,2);
-		                                    echo $free.' KB';
-		                                    $sum2 += $free; 
-		                                {/php}
-		                            {else}
-		                                -
-		                            {/if}
-		                            </td>
 		                        </tr>
 		                    {/foreach}
 		                        <tr>
 		                            <td><input type="checkbox" class="checkbox" id="checkall" title="全選"></td>
 		                            <td>[num] 張表</td>
 		                            <td></td>
-		                            <td></td>
-		                            <td></td>
-		                            <td></td>
-		                            <td></td>
-		                            <td>總計：</td>
-		                            <td>{php}echo $sum1{/php} KB</td>
-		                            <td>{php}echo $sum2?:0{/php} KB</td>
 		                        </tr>
 		                    </tbody>
 				  	   	</table>
@@ -77,11 +80,80 @@
 			                <button class="layui-btn" lay-submit type="submit" name="submit" value="bfdb">備份數據庫</button>
 			            {/if}
 			  	   	{/if}
-			  	   	{if([$db]=='sqlite')}
-		            	<button class="layui-btn" lay-submit type="submit" name="submit" value="bfsqlite" >備份</button>
-		            	<p class="layui-text">注意：Sqlite數據庫只支持直接備份。</p>
-		            {/if}
 			  	   	</form>
+
+			  	   	{if($backups)}
+				  	   	<hr>
+				  	   	<div class="layui-card">
+				  	   		<div class="layui-card-header"><b>備份歷史</b></div>
+				  	   		<div class="layui-card-body">
+						  	   	<table class="layui-table">
+						  	   		<thead>
+							            <tr>
+							                <th>檔案名稱</th>
+							                <th>大小</th>
+							                <th>備份時間</th>
+							                <th>操作</th>
+							            </tr>
+							        </thead>
+							        <tbody>
+							        {foreach $backups(key,value,num)}
+							            <tr>
+							                <td>[value->Name]</td>
+							                <td>[value->Size]</td>
+							                <td>[value->Time]</td>
+							                <td>
+							                	<a href="/admin/Database/download?file=[value->Path]" class="layui-btn layui-btn-xs layui-btn-primary"><i class="fa fa-download"></i> 下載</a>
+							                	{if([$db]=='sqlite' && strstr($value->Name,'.db'))}
+							                		<button class="layui-btn layui-btn-xs layui-btn-warm" onclick="restoreBackup('[value->Name]')"><i class="fa fa-undo"></i> 恢復</button>
+							                	{/if}
+							                	<button class="layui-btn layui-btn-xs layui-btn-danger" onclick="delBackup('[value->Name]')"><i class="fa fa-trash"></i> 刪除</button>
+							                </td>
+							            </tr>
+							        {/foreach}
+							        </tbody>
+						  	   	</table>
+						  	   	<p class="layui-text" style="color:#999;">提示：恢復操作會用備份檔案覆蓋當前資料庫，恢復後需重啟服務。恢復前系統會自動備份當前資料庫。</p>
+					  	   	</div>
+				  	   	</div>
+				  	   	<form id="delBackupForm" action="{url./admin/Database/mod}" method="post" style="display:none;">
+				  	   		<input type="hidden" name="formcheck" value="{$formcheck}">
+				  	   		<input type="hidden" name="action" value="delbackup">
+				  	   		<input type="hidden" name="file" id="delBackupFile">
+				  	   	</form>
+				  	   	<form id="restoreForm" action="{url./admin/Database/restore}" method="post" style="display:none;">
+				  	   		<input type="hidden" name="formcheck" value="{$formcheck}">
+				  	   		<input type="hidden" name="file" id="restoreFile">
+				  	   	</form>
+				  	   	<script>
+				  	   	function delBackup(filename) {
+				  	   		layui.layer.confirm('確定要刪除備份檔案 ' + filename + ' 嗎？', function(index) {
+				  	   			document.getElementById('delBackupFile').value = filename;
+				  	   			var formData = new FormData(document.getElementById('delBackupForm'));
+				  	   			fetch(document.getElementById('delBackupForm').action, { method: 'POST', body: formData })
+				  	   				.then(r => r.json())
+				  	   				.then(d => {
+				  	   					layui.layer.msg(d.data || d.msg || '操作完成', { icon: d.code == 1 ? 1 : 2 });
+				  	   					if (d.code == 1) setTimeout(function(){ location.reload(); }, 1500);
+				  	   				});
+				  	   			layui.layer.close(index);
+				  	   		});
+				  	   	}
+				  	   	function restoreBackup(filename) {
+				  	   		layui.layer.confirm('確定要從 ' + filename + ' 恢復資料庫嗎？此操作會覆蓋當前資料庫！', function(index) {
+				  	   			document.getElementById('restoreFile').value = filename;
+				  	   			var formData = new FormData(document.getElementById('restoreForm'));
+				  	   			fetch(document.getElementById('restoreForm').action, { method: 'POST', body: formData })
+				  	   				.then(r => r.json())
+				  	   				.then(d => {
+				  	   					layui.layer.msg(d.data || d.msg || '操作完成', { icon: d.code == 1 ? 1 : 2 });
+				  	   					if (d.code == 1) setTimeout(function(){ location.reload(); }, 2000);
+				  	   				});
+				  	   			layui.layer.close(index);
+				  	   		});
+				  	   	}
+				  	   	</script>
+			  	   	{/if}
 			  	</div>
 		  </div>
 	  </div>

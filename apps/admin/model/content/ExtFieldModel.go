@@ -6,7 +6,7 @@ import (
 )
 
 // EnsureContentExtTable 確保 ay_content_ext 基礎表存在（冪等操作）。
-// 僅含基礎列 extid + contentid，動態列由新增字段時按需添加。
+// 僅含基礎列 extid + contentid，動態列由新增欄位時按需添加。
 func EnsureContentExtTable() {
 	db.DB.Exec(`CREATE TABLE IF NOT EXISTS ay_content_ext (
 		extid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +45,7 @@ func AddColumnToContentExt(colName, colType string) error {
 	return db.DB.Exec("ALTER TABLE ay_content_ext ADD COLUMN " + colName + " " + colType).Error
 }
 
-// SqliteColumnTypeForExtType 根據字段類型返回 SQLite 列類型（與 PHP 版一致）
+// SqliteColumnTypeForExtType 根據欄位類型返回 SQLite 列類型（與 PHP 版一致）
 func SqliteColumnTypeForExtType(typ string) string {
 	switch typ {
 	case "2": // 多行文本
@@ -56,7 +56,7 @@ func SqliteColumnTypeForExtType(typ string) string {
 		return "TEXT(10000)"
 	case "10": // 多圖
 		return "TEXT(1000)"
-	default: // 單行文本/單選/多選/圖片/文件/下拉
+	default: // 單行文本/單選/多選/圖片/檔案/下拉
 		return "TEXT(200)"
 	}
 }
@@ -110,7 +110,7 @@ func ScodeMatches(fieldScode, targetScode string) bool {
 	return false
 }
 
-// MigrateScodeFromValue 將舊的 || 格式數據遷移到 scode 列。
+// MigrateScodeFromValue 將舊的 || 格式資料遷移到 scode 列。
 // 對每條記錄：如果 value 含 "||"，將前綴移到 scode 列，value 保留純 options。
 // 冪等操作：已遷移的記錄（scode 已有值或 value 無 ||）不受影響。
 func MigrateScodeFromValue() {
@@ -166,7 +166,7 @@ func GetExtFieldsByModelCode(mcode string) []ExtField {
 	return list
 }
 
-// GetExtFieldsByModelCodeAndScode 按模型代碼和欄目代碼查詢擴展字段。
+// GetExtFieldsByModelCodeAndScode 按模型代碼和欄目代碼查詢擴展欄位。
 // 返回：scode 為空（全展示）的 + scode 列表中包含指定欄目的（支援多選逗號分隔）。
 func GetExtFieldsByModelCodeAndScode(mcode, scode string) []ExtField {
 	all := GetExtFieldsByModelCode(mcode)
@@ -203,13 +203,13 @@ func UpdateExtFieldSingleField(id int, field, value string) error {
 }
 
 func DeleteExtField(id int) error {
-	// ⚠️ 熔断：严禁执行 ALTER TABLE ay_content_ext DROP COLUMN
-	// 仅删除 ay_extfield 表中的字段定义记录，物理表结构不做任何修改
+	// ⚠️ 熔斷：嚴禁執行 ALTER TABLE ay_content_ext DROP COLUMN
+	// 僅刪除 ay_extfield 表中的欄位定義記錄，物理表結構不做任何修改
 	return db.DB.Exec("DELETE FROM ay_extfield WHERE id=?", id).Error
 }
 
-// EnsureExtColumnExists 確保擴展字段的物理列存在於 ay_content_ext 表中。
-// 在新增字段時調用，如果列已存在則跳過。
+// EnsureExtColumnExists 確保擴展欄位的物理列存在於 ay_content_ext 表中。
+// 在新增欄位時調用，如果列已存在則跳過。
 func EnsureExtColumnExists(fieldName, extType string) error {
 	EnsureContentExtTable()
 	if !ColumnExistsInContentExt(fieldName) {

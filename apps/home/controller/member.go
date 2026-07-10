@@ -1,10 +1,8 @@
 package controller
 
 import (
-	"crypto/md5"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,10 +19,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// doubleMD5 雙重 MD5 加密，與 PbootCMS 用戶數據兼容
+// doubleMD5 雙重 MD5 加密，與 PbootCMS 用戶數據兼容（向後兼容用）
 func doubleMD5(s string) string {
-	first := fmt.Sprintf("%x", md5.Sum([]byte(s)))
-	return fmt.Sprintf("%x", md5.Sum([]byte(first)))
+	return common.DoubleMD5(s)
 }
 
 // ─── 會員登錄鎖定（對齊後台 checkLoginBlack/setLoginBlack 邏輯，用 JSON 存儲） ───
@@ -124,18 +121,14 @@ func clearMemberLoginBlack(c *gin.Context) {
 	}
 }
 
-// generateUcode 生成會員編碼（基於最後一條記錄自增）
+// generateUcode 生成會員編碼（併發安全：使用時間戳 + 隨機數）
+// 原版基於最後一條記錄自增，在併發註冊時會產生 race condition。
+// 改用「時間戳尾部 + 密碼學安全隨機數」方案，保證唯一性且無競態。
 func generateUcode(c *gin.Context) string {
-	var lastMember model.Member
-	model.DB.WithContext(c.Request.Context()).Order("id DESC").First(&lastMember)
-	if lastMember.ID == 0 {
-		return "10001"
-	}
-	n, _ := strconv.Atoi(lastMember.Ucode)
-	if n == 0 {
-		return "10001"
-	}
-	return fmt.Sprintf("%d", n+1)
+	// 使用時間戳後 6 位 + 4 位隨機數，總共 10 位
+	ts := time.Now().Unix() % 1000000
+	randPart := common.SecureRandomInt(10000)
+	return fmt.Sprintf("%d%04d", ts, randPart)
 }
 
 // Retrieve 會員找回密碼（對齊 PHP MemberController::retrieve()）
@@ -175,11 +168,12 @@ func (fc *FrontController) Retrieve(c *gin.Context) {
 			return
 		}
 
-		// 更新密碼及郵箱（對齊 PHP: updatePassword 更新 useremail + password，雙重 MD5）
-		updates := map[string]interface{}{
-			"password":  doubleMD5(password),
-			"useremail": email,
-		}
+		// 更新密碼及郵箱（使用 bcrypt 雜湊，向後兼容舊版雙 MD5）
+	hashedPwd, _ := common.HashPassword(password)
+	updates := map[string]interface{}{
+		"password":  hashedPwd,
+		"useremail": email,
+	}
 		model.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates)
 
 		// 清除驗證碼
@@ -230,7 +224,7 @@ func (fc *FrontController) SendMemberEmail(c *gin.Context) {
 	common.SetSession(c, "lastsend", time.Now().Unix())
 
 	// 生成 4 位隨機驗證碼（對齊 PHP: create_code(4)）
-	code := fmt.Sprintf("%04d", rand.Intn(10000))
+	code := fmt.Sprintf("%04d", common.SecureRandomInt(10000))
 	common.SetSession(c, "email_checkcode", code)
 
 	// 發送郵件（對齊 PHP: $mail_subject / $mail_body）
@@ -308,11 +302,18 @@ func (fc *FrontController) Login(c *gin.Context) {
 			return
 		}
 
-		// 驗證密碼（雙重 MD5）
-		if member.Password != doubleMD5(password) {
+		// 驗證密碼（支援 bcrypt 和舊版雙 MD5，自動升級）
+		matched, needUpgrade := common.VerifyPassword(password, member.Password)
+		if !matched {
 			setMemberLoginBlack(c) // 累計失敗次數
 			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "帳號密碼錯誤"})
 			return
+		}
+		// 自動升級舊版雙 MD5 密碼為 bcrypt
+		if needUpgrade {
+			if hashedPwd, err := common.HashPassword(password); err == nil {
+				model.DB.WithContext(c.Request.Context()).Model(&member).Update("password", hashedPwd)
+			}
 		}
 
 		// 檢查帳號狀態
@@ -474,13 +475,14 @@ func (fc *FrontController) Register(c *gin.Context) {
 		gid := fmt.Sprintf("%d", group.ID)
 
 		// 創建會員
+		hashedPwd, _ := common.HashPassword(password)
 		newMember := model.Member{
 			Ucode:        generateUcode(c),
 			Username:     username,
 			Useremail:    useremail,
 			Usermobile:   usermobile,
 			Nickname:     nickname,
-			Password:     doubleMD5(password),
+			Password:     hashedPwd,
 			Status:       status,
 			GID:          gid,
 			Activation:   1,
@@ -548,7 +550,9 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 
 		var member model.Member
 		model.DB.WithContext(c.Request.Context()).First(&member, uid)
-		if member.Password != doubleMD5(opassword) {
+		// 驗證當前密碼（支援 bcrypt 和舊版雙 MD5）
+		matched, _ := common.VerifyPassword(opassword, member.Password)
+		if !matched {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "當前密碼不正確"})
 			return
 		}
@@ -573,7 +577,8 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "確認密碼不正確"})
 				return
 			}
-			updates["password"] = doubleMD5(password)
+			hashedPwd, _ := common.HashPassword(password)
+			updates["password"] = hashedPwd
 		}
 
 		model.DB.WithContext(c.Request.Context()).Model(&model.Member{}).Where("id = ?", uid).Updates(updates)

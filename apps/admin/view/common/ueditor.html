@@ -1,11 +1,11 @@
-<!-- 引入编辑器文件 -->
+<!-- 引入編輯器檔案 -->
 <script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/ueditor/ueditor.config.js"></script>
 <script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/ueditor/ueditor.all.js"> </script>
 <script type="text/javascript" charset="utf-8" src="{APP_THEME_DIR}/extend/ueditor/lang/zh-cn/zh-cn.js"></script>
-<!-- Vditor Markdown 编辑器 -->
+<!-- Vditor Markdown 編輯器 -->
 <link rel="stylesheet" href="{APP_THEME_DIR}/extend/vditor/index.css" />
 <script src="{APP_THEME_DIR}/extend/vditor/index.min.js"></script>
-<!-- Turndown.js: HTML → Markdown 反向转换 -->
+<!-- Turndown.js: HTML → Markdown 反向轉換 -->
 <script src="{APP_THEME_DIR}/extend/vditor/turndown.js"></script>
 
 <style>
@@ -18,7 +18,7 @@
 #vditorWrap { display: none; }
 </style>
 
-<!-- 隐藏字段：保存原始 Markdown 源码，下次编辑时可还原 -->
+<!-- 隱藏欄位：保存原始 Markdown 原始碼，下次編輯時可還原 -->
 <input type="hidden" id="md_source" name="md_source" value="" />
 
 <script>
@@ -26,7 +26,7 @@ var mdMode = false;
 var vditorInstance = null;
 var turndownService = null;
 
-// 初始化 turndown（HTML → Markdown 转换器）
+// 初始化 turndown（HTML → Markdown 轉換器）
 function getTurndown() {
     if (!turndownService && typeof TurndownService !== 'undefined') {
         turndownService = new TurndownService({
@@ -74,7 +74,7 @@ function htmlToMarkdown(html) {
     if (td) {
         try { return td.turndown(html); } catch(e) { /* fallback */ }
     }
-    // fallback: 简单去标签
+    // fallback: 簡單去標籤
     return html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '');
 }
 
@@ -90,11 +90,11 @@ function switchToRich() {
         var html = vditorInstance.getHTML();
         var md = vditorInstance.getValue();
         try { getUE().setContent(html); } catch(e) {}
-        // 保存原始 MD 到隐藏字段
+        // 保存原始 MD 到隱藏欄位
         document.getElementById('md_source').value = md;
     }
 
-    // 隐藏 Vditor，显示 UEditor
+    // 隱藏 Vditor，顯示 UEditor
     document.getElementById('vditorWrap').style.display = 'none';
     var eduiEditor = document.getElementById('editor').parentNode.querySelector('.edui-editor');
     if (eduiEditor) eduiEditor.style.display = '';
@@ -107,11 +107,11 @@ function switchToMD() {
     document.getElementById('mdBtnRich').classList.remove('active');
     document.getElementById('mdBtnMD').classList.add('active');
 
-    // 隐藏 UEditor
+    // 隱藏 UEditor
     var eduiEditor = document.getElementById('editor').parentNode.querySelector('.edui-editor');
     if (eduiEditor) eduiEditor.style.display = 'none';
 
-    // 获取内容：优先用隐藏字段的原始 MD，否则从 UEditor HTML 反向转换
+    // 取得內容：優先用隱藏欄位的原始 MD，否則從 UEditor HTML 反向轉換
     var md = document.getElementById('md_source').value;
     if (!md) {
         var html = '';
@@ -119,14 +119,14 @@ function switchToMD() {
         md = htmlToMarkdown(html);
     }
 
-    // 显示 Vditor
+    // 顯示 Vditor
     document.getElementById('vditorWrap').style.display = 'block';
 
     if (!vditorInstance) {
         initVditor(md);
     } else {
         vditorInstance.setValue(md);
-        // 聚焦编辑器
+        // 聚焦編輯器
         try { vditorInstance.focus(); } catch(e) {}
     }
 }
@@ -134,7 +134,7 @@ function switchToMD() {
 function initVditor(value) {
     vditorInstance = new Vditor('vditorContainer', {
         height: 520,
-        mode: 'ir',         // 即时渲染模式（最丝滑）
+        mode: 'ir',         // 即時渲染模式（最絲滑）
         theme: 'classic',
         outline: { enable: false },
         preview: {
@@ -152,7 +152,7 @@ function initVditor(value) {
             {
                 name: 'back-to-rich',
                 tipPosition: 's',
-                tip: '切回富文本编辑器',
+                tip: '切回富文本編輯器',
                 icon: '<svg viewBox="0 0 32 32" width="14" height="14"><path d="M4 6h24v2H4zm0 8h24v2H4zm0 8h24v2H4z" fill="currentColor"/></svg>',
                 click: function() { switchToRich(); }
             }
@@ -180,7 +180,7 @@ function initVditor(value) {
             },
         },
         after: function() {
-            // Vditor 就绪后聚焦
+            // Vditor 就緒後聚焦
             try { vditorInstance.focus(); } catch(e) {}
         },
     });
@@ -190,7 +190,7 @@ function initVditor(value) {
 $(document).ready(function () {
     var ue = UE.getEditor('editor', { maximumWords: 30000 });
 
-    // 注入模式切换按钮
+    // 注入模式切換按鈕
     var editorEl = document.getElementById('editor');
     if (editorEl) {
         var parent = editorEl.parentNode;
@@ -199,10 +199,10 @@ $(document).ready(function () {
         bar.innerHTML =
             '<button type="button" id="mdBtnRich" class="mode-btn active" onclick="switchToRich()"><i class="fa fa-font"></i> 富文本</button>' +
             '<button type="button" id="mdBtnMD" class="mode-btn" onclick="switchToMD()"><i class="fa fa-code"></i> Markdown</button>' +
-            '<span class="md-hint">切换模式后内容自动同步，Markdown 保存时自动转 HTML</span>';
+            '<span class="md-hint">切換模式後內容自動同步，Markdown 儲存時自動轉 HTML</span>';
         parent.insertBefore(bar, parent.firstChild);
 
-        // 创建 Vditor 容器
+        // 建立 Vditor 容器
         var wrap = document.createElement('div');
         wrap.id = 'vditorWrap';
         wrap.innerHTML = '<div id="vditorContainer"></div>';
@@ -212,7 +212,7 @@ $(document).ready(function () {
 </script>
 
 <script type="text/javascript">
-   <!-- 解决源码模式无法保存 -->
+   <!-- 解決原始碼模式無法儲存 -->
   function editor_init() {
       // LayUI 的 lay-submit 會阻止原生 submit 事件，
       // 所以改用按鈕點擊直接同步編輯器內容
@@ -226,11 +226,11 @@ $(document).ready(function () {
 
   function syncEditorBeforeSubmit() {
       if (mdMode && vditorInstance) {
-          // MD 模式：Markdown → HTML 写入 UEditor
+          // MD 模式：Markdown → HTML 寫入 UEditor
           var html = vditorInstance.getHTML();
           var md = vditorInstance.getValue();
           try { getUE().setContent(html); } catch(e) {}
-          // 同时保存原始 MD 到隐藏字段
+          // 同時保存原始 MD 到隱藏欄位
           document.getElementById('md_source').value = md;
       } else {
           var editor = getUE();
@@ -238,7 +238,7 @@ $(document).ready(function () {
       }
   }
 
-  <!-- 点击侧边栏图片添加到编辑器 -->
+  <!-- 點擊側邊欄圖片新增到編輯器 -->
   $(".addedit").on("click",'img',function(){
       var img = $(this).attr("src");
       if (mdMode && vditorInstance) {

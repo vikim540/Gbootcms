@@ -55,7 +55,7 @@ func (p *TagParser) checkLabelLevel(params map[string]string) bool {
 
 	for key, val := range params {
 		switch key {
-		case "showgcode": // 指定等級顯示，支持逗號隔開
+		case "showgcode": // 指定等級顯示，支援逗號隔開
 			shows := strings.Split(val, ",")
 			if !intInSlice(gcode, shows) {
 				return false
@@ -242,7 +242,7 @@ func (p *TagParser) Render(content string) string {
 	return content
 }
 
-// RenderWithoutInclude 渲染模板但不处理 include 标签（include 已由上层处理）
+// RenderWithoutInclude 渲染模板但不處理 include 標籤（include 已由上層處理）
 func (p *TagParser) RenderWithoutInclude(content string) string {
 	p.preBlocks = nil
 

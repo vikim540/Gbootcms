@@ -447,7 +447,7 @@ pbootcms-go/
 `seed.Init()` → `SeedData()` 邏輯：
 1. 每次啟動冪等呼叫 `content.EnsureContentExtTable()` 確保 `ay_content_ext` 存在
 2. 檢查 `ay_user` 是否非空：非空則跳過首次種子，但仍調 `ensureMenuVersion()` + `ensureMemberConfigs()`
-3. `ensureMenuVersion()`：以 `mcode='M1006'` 為版本標誌，缺失則重建
+3. `ensureMenuVersion()`：以 `mcode='M1007'` 為版本標誌，缺失則重建
 4. `ensureMemberConfigs()`：確保 17 項會員配置存在（用於已有資料庫的版本升級）
 5. 首次種子：管理員 admin/admin、站點信息、36 條菜單、超級管理員角色、2 個會員組、2 個內容模型、29+ 項系統配置
 

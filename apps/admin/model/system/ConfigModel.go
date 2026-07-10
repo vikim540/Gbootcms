@@ -1,6 +1,6 @@
 package system
 
-// Config - System Configuration Model (映射 ay_config 表，与 PbootCMS 原版字段 1:1 对齐)
+// Config - System Configuration Model (映射 ay_config 表，與 PbootCMS 原版欄位 1:1 對齊)
 type Config struct {
 	ID          uint   `gorm:"primaryKey" json:"id"`
 	Name        string `gorm:"column:name" json:"name"`

@@ -16,19 +16,21 @@ import (
 )
 
 type Context struct {
-	Sort        *model.ContentSort
-	Content     *model.Content
-	Site        *model.Site
-	Company     *model.Company
-	Page        map[string]interface{}
-	Member      *model.Member
-	Gcode       int    // 當前訪客的會員等級編號（0=未登入或無等級）
-	Ucode       string // 當前訪客的會員編號
-	Keyword     string
-	CurrentPage int
-	Filters     map[string]string // ext_ 篩選參數 (ext_type=基礎版 等)
-	Ctx         context.Context   // 請求級 context，用於區域數據隔離
-	CurrentPath string            // 當前頁面路徑（已剝離 acode 前綴），用於語言切換保持當前頁
+	Sort         *model.ContentSort
+	Content      *model.Content
+	ContentExt   map[string]interface{}   // 當前內容的擴展字段快取（詳情頁避免重複查詢）
+	sortPathCache map[string]string        // 欄目路徑快取（scode → sortPath），避免重複查詢 ContentSort
+	Site         *model.Site
+	Company      *model.Company
+	Page         map[string]interface{}
+	Member       *model.Member
+	Gcode        int    // 當前訪客的會員等級編號（0=未登入或無等級）
+	Ucode        string // 當前訪客的會員編號
+	Keyword      string
+	CurrentPage  int
+	Filters      map[string]string // ext_ 篩選參數 (ext_type=基礎版 等)
+	Ctx          context.Context   // 請求級 context，用於區域數據隔離
+	CurrentPath  string            // 當前頁面路徑（已剝離 acode 前綴），用於語言切換保持當前頁
 }
 
 // safeFieldRe 擴展字段名白名單正則：只允許 ext_ 前綴 + 字母數字下底線
@@ -825,8 +827,14 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		ctx.Page["last"] = fmt.Sprintf("%spage=%d", basePath, totalPages)
 
 		var sb strings.Builder
+		// 批量預載入擴展字段，避免 N+1 查詢
+		contentIDs := make([]uint, len(contents))
 		for i, c := range contents {
-			data := contentToMap(&c, i)
+			contentIDs[i] = c.ID
+		}
+		extMap := content.GetContentExtByContentIDs(contentIDs)
+		for i, c := range contents {
+			data := contentToMap(&c, i, extMap)
 			row := ReplaceInnerTags(inner, "list", data)
 			sb.WriteString(row)
 		}
@@ -853,9 +861,11 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 		query.Find(&sorts)
 
+		// 批量預載入欄目內容數量，避免 N+1 查詢
+		countMap := buildSortCountMap(ctx.Ctx)
 		var sb strings.Builder
 		for i, s := range sorts {
-			data := sortToMap(ctx.Ctx, &s, i)
+			data := sortToMap(ctx.Ctx, &s, i, countMap)
 			row := ReplaceInnerTags(inner, "nav", data)
 			sb.WriteString(row)
 		}
@@ -870,9 +880,11 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		var sorts []model.ContentSort
 		model.DB.WithContext(ctx.Ctx).Where("scode IN (?)", strings.Split(scode, ",")).Order("sorting ASC").Find(&sorts)
 
+		// 批量預載入欄目內容數量，避免 N+1 查詢
+		countMap := buildSortCountMap(ctx.Ctx)
 		var sb strings.Builder
 		for i, s := range sorts {
-			data := sortToMap(ctx.Ctx, &s, i)
+			data := sortToMap(ctx.Ctx, &s, i, countMap)
 			row := ReplaceInnerTags(inner, "sort", data)
 			sb.WriteString(row)
 		}
@@ -897,7 +909,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			return ""
 		}
 
-		data := contentToMap(&c, 0)
+		data := contentToMap(&c, 0, nil)
 		return ReplaceInnerTags(inner, "content", data)
 	})
 
@@ -1061,7 +1073,8 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			num = n
 		}
 		var contents []model.Content
-		model.DB.WithContext(ctx.Ctx).Where("status = 1 AND keywords != ''").Find(&contents)
+		// 限制最多載入 2000 條記錄，防止大型站點 OOM
+		model.DB.WithContext(ctx.Ctx).Where("status = 1 AND keywords != ''").Order("id DESC").Limit(2000).Find(&contents)
 		tagSet := map[string]bool{}
 		var tagList []string
 		for _, c := range contents {
@@ -1358,8 +1371,14 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		ctx.Page["last"] = fmt.Sprintf("%spage=%d", basePath, totalPages)
 
 		var sb strings.Builder
+		// 批量預載入擴展字段，避免 N+1 查詢
+		contentIDs := make([]uint, len(contents))
 		for i, c := range contents {
-			data := contentToMap(&c, i)
+			contentIDs[i] = c.ID
+		}
+		extMap := content.GetContentExtByContentIDs(contentIDs)
+		for i, c := range contents {
+			data := contentToMap(&c, i, extMap)
 			row := ReplaceInnerTags(inner, "search", data)
 			sb.WriteString(row)
 		}
@@ -1736,7 +1755,8 @@ func getSortField(ctx context.Context, s *model.ContentSort, field string) strin
 // contentURL 生成內容鏈接（對齊 PHP parserLink，支援 url_rule_content_path 配置）
 // url_rule_content_path=0（預設）：帶欄目路徑 /sort-path/content-filename.html
 // url_rule_content_path=1：短路徑 /content-filename.html
-func contentURL(ctx context.Context, c *model.Content) string {
+// 使用 ctx.sortPathCache 快取欄目路徑，避免同一頁面重複查詢 ContentSort
+func contentURL(ctx *Context, c *model.Content) string {
 	if c.Outlink != "" {
 		return c.Outlink
 	}
@@ -1753,16 +1773,24 @@ func contentURL(ctx context.Context, c *model.Content) string {
 	}
 
 	// 帶欄目路徑模式（url_rule_content_path=0，預設）
-	// 查詢欄目的 filename 或 urlname 作為路徑前綴
+	// 查詢欄目的 filename 或 urlname 作為路徑前綴（使用快取避免重複查詢）
 	var sortPath string
 	if c.Scode != "" {
-		var s model.ContentSort
-		if model.DB.WithContext(ctx).Where("scode = ?", c.Scode).First(&s).Error == nil {
-			if s.Filename != "" {
-				sortPath = s.Filename
-			} else if s.URLName != "" {
-				sortPath = s.URLName
+		if ctx.sortPathCache == nil {
+			ctx.sortPathCache = make(map[string]string)
+		}
+		if cached, ok := ctx.sortPathCache[c.Scode]; ok {
+			sortPath = cached
+		} else {
+			var s model.ContentSort
+			if model.DB.WithContext(ctx.Ctx).Where("scode = ?", c.Scode).First(&s).Error == nil {
+				if s.Filename != "" {
+					sortPath = s.Filename
+				} else if s.URLName != "" {
+					sortPath = s.URLName
+				}
 			}
+			ctx.sortPathCache[c.Scode] = sortPath // 快取結果（空字串也表示已查詢過）
 		}
 	}
 
@@ -1881,7 +1909,7 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 	case "id":
 		return strconv.Itoa(int(c.ID))
 	case "link":
-		return contentURL(ctx.Ctx, c)
+		return contentURL(ctx, c)
 	case "istop":
 		return strconv.Itoa(c.IsTop)
 	case "isrecommend":
@@ -1894,24 +1922,28 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 		// 上一篇：同欄目下 ID 小於當前的最大記錄
 		var prev model.Content
 		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ? AND id < ?", c.Scode, c.ID).Order("id desc").First(&prev).Error; err == nil {
-			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(ctx.Ctx, &prev), prev.Title)
+			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(ctx, &prev), prev.Title)
 		}
 		return "沒有了"
 	case "nextcontent":
 		// 下一篇：同欄目下 ID 大於當前的最小記錄
 		var next model.Content
 		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ? AND id > ?", c.Scode, c.ID).Order("id asc").First(&next).Error; err == nil {
-			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(ctx.Ctx, &next), next.Title)
+			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(ctx, &next), next.Title)
 		}
 		return "沒有了"
 	default:
 		if strings.HasPrefix(field, "ext_") {
 			// 從 ay_content_ext 表讀取擴展字段（對齊 PHP: $data->ext_xxx 動態屬性）
-			ext := content.GetContentExtByContentID(c.ID)
-			if ext != nil {
-				if v, ok := ext[field]; ok {
-					return fmt.Sprintf("%v", v)
+			// 使用請求級快取避免同一頁面多次存取 ext_ 欄位時重複查詢
+			if ctx.ContentExt == nil {
+				ctx.ContentExt = content.GetContentExtByContentID(c.ID)
+				if ctx.ContentExt == nil {
+					ctx.ContentExt = map[string]interface{}{} // 標記為已載入但無數據
 				}
+			}
+			if v, ok := ctx.ContentExt[field]; ok {
+				return fmt.Sprintf("%v", v)
 			}
 			return ""
 		}
@@ -1993,7 +2025,9 @@ func commentToMap(c *model.CommentView, index int) map[string]interface{} {
 	}
 }
 
-func contentToMap(c *model.Content, index int) map[string]interface{} {
+// contentToMap 將 Content 模型轉為模板可用的 map。
+// extMap 為批量預載入的擴展字段（避免 N+1），nil 時回退到單條查詢。
+func contentToMap(c *model.Content, index int, extMap map[uint]map[string]interface{}) map[string]interface{} {
 	// URL 生成規則（對齊 PbootCMS PHP）：
 	//   1. 外部鏈接優先
 	//   2. 自定義 URL 名稱 (c.Filename)
@@ -2040,7 +2074,13 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 	}
 
 	// 注入擴展字段（ext_前綴），供列表頁 [list:ext_xxx] 使用
-	ext := content.GetContentExtByContentID(c.ID)
+	// 優先使用批量預載入的 extMap，避免 N+1 查詢
+	var ext map[string]interface{}
+	if extMap != nil {
+		ext = extMap[c.ID]
+	} else {
+		ext = content.GetContentExtByContentID(c.ID)
+	}
 	if ext != nil {
 		for k, v := range ext {
 			if strings.HasPrefix(k, "ext_") {
@@ -2051,7 +2091,7 @@ func contentToMap(c *model.Content, index int) map[string]interface{} {
 	return m
 }
 
-func sortToMap(ctx context.Context, s *model.ContentSort, index int) map[string]interface{} {
+func sortToMap(ctx context.Context, s *model.ContentSort, index int, countMap map[string]int) map[string]interface{} {
 	// URL 生成規則（對齊 PbootCMS PHP）：
 	//   1. 優先用欄目自定義 URL 名稱 (s.Filename) —— 後台「URL名稱」欄位
 	//   2. 退而求其次用模型的 urlname (s.URLName) —— 通常等同於 scode
@@ -2075,11 +2115,18 @@ func sortToMap(ctx context.Context, s *model.ContentSort, index int) map[string]
 		pic = "/" + pic
 	}
 	// 計算該欄目及其子欄目的內容數量
-	childScodes := findAllChildScodes(ctx, s.Scode)
-	var rowCount int64
-	model.DB.WithContext(ctx).Model(&model.Content{}).
-		Where("scode IN ? AND status = 1", childScodes).
-		Count(&rowCount)
+	// 優先使用批量預載入的 countMap，避免 N+1 查詢
+	var rowCount int
+	if countMap != nil {
+		rowCount = countMap[s.Scode]
+	} else {
+		childScodes := findAllChildScodes(ctx, s.Scode)
+		var c int64
+		model.DB.WithContext(ctx).Model(&model.Content{}).
+			Where("scode IN ? AND status = 1", childScodes).
+			Count(&c)
+		rowCount = int(c)
+	}
 	return map[string]interface{}{
 		"n":       index,
 		"i":       index + 1,
@@ -2089,8 +2136,58 @@ func sortToMap(ctx context.Context, s *model.ContentSort, index int) map[string]
 		"ico":     ico,
 		"pic":     pic,
 		"link":    link,
-		"rows":    int(rowCount),
+		"rows":    rowCount,
 	}
+}
+
+// buildSortCountMap 批量預載入所有欄目及其子欄目的內容數量。
+// 一次性載入全部 ContentSort 和內容計數，在記憶體中建構樹狀結構，
+// 將 N 次遞迴查詢降為 2 欝查詢（全部欄目 + 全部內容計數）。
+func buildSortCountMap(ctx context.Context) map[string]int {
+	// 1. 載入所有啟用的欄目
+	var allSorts []model.ContentSort
+	q := model.DB.WithContext(ctx).Where("status = 1")
+	if acode := acodeplugin.GetAcode(ctx); acode != "" {
+		q = q.Where("acode = ?", acode)
+	}
+	q.Find(&allSorts)
+
+	// 2. 建構 parent → children 記憶體映射
+	childrenMap := make(map[string][]string)
+	for _, s := range allSorts {
+		childrenMap[s.Pcode] = append(childrenMap[s.Pcode], s.Scode)
+	}
+
+	// 3. 批量查詢每個 scode 的內容數量（單次 GROUP BY）
+	type scodeCount struct {
+		Scode string
+		Cnt   int64
+	}
+	var counts []scodeCount
+	model.DB.WithContext(ctx).Model(&model.Content{}).
+		Select("scode, count(*) as cnt").
+		Where("status = 1").
+		Group("scode").
+		Scan(&counts)
+	directCount := make(map[string]int)
+	for _, c := range counts {
+		directCount[c.Scode] = int(c.Cnt)
+	}
+
+	// 4. 遞迴計算每個欄目的總數量（自身 + 所有子孫）
+	result := make(map[string]int, len(allSorts))
+	var computeTotal func(scode string) int
+	computeTotal = func(scode string) int {
+		total := directCount[scode]
+		for _, child := range childrenMap[scode] {
+			total += computeTotal(child)
+		}
+		return total
+	}
+	for _, s := range allSorts {
+		result[s.Scode] = computeTotal(s.Scode)
+	}
+	return result
 }
 
 // findAllChildScodes 遞歸查找指定 scode 及其所有子欄目的 scode 列表

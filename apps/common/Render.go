@@ -1,6 +1,8 @@
 package common
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"html"
 	"net/url"
@@ -31,6 +33,13 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 	// Inject session variables (session_xxx format for pongo2)
 	injectSessionData(c, data)
 
+	// RBAC 權限計算（對齊 PbootCMS PHP check_level()）
+	// 超級管理員(uid=1)擁有所有權限，其他用戶根據 session levels 判斷
+	injectCheckLevelPermissions(c, data)
+
+	// CSRF token：per-session 隨機 token（對齊 PbootCMS PHP formcheck）
+	injectFormcheck(c, data)
+
 	// Inject CMS constants
 	data["CmsName"] = model.GetConfigValue("cmsname", "Gbootcms")
 	data["CoreVersion"] = "1.8.1"
@@ -39,10 +48,9 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 	data["SiteDir"] = "/"
 	data["AppThemeDir"] = "/static/admin"
 	data["CoreDir"] = "/static/admin"
-	data["Formcheck"] = "1"
 	data["BuildVersion"] = BuildVersion
 	data["License"] = 3
-	// 使用原始 PbootCMS URL（若经 NoRoute 重写则取请求头中的原始路径，否则取当前路径）
+	// 使用原始 PbootCMS URL（若經 NoRoute 重寫則取請求標頭中的原始路徑，否則取當前路徑）
 	pageURL := c.Request.URL.Path
 	if origPath := c.GetHeader("X-Original-Path"); origPath != "" {
 		pageURL = origPath
@@ -168,13 +176,13 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 	tmpl, err := basic.GetAdminView(tpl)
 	if err != nil {
 		c.Header("Content-Type", "text/html; charset=utf-8")
-		c.String(500, "模板加载失败: %v", err)
+		c.String(500, "模板載入失敗: %v", err)
 		return
 	}
 	output, err := tmpl.Execute(pongo2.Context(data))
 	if err != nil {
 		c.Header("Content-Type", "text/html; charset=utf-8")
-		c.String(500, "模板渲染错误: %v", err)
+		c.String(500, "模板渲染錯誤: %v", err)
 		return
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
@@ -220,6 +228,80 @@ func flattenData(data gin.H) gin.H {
 		result[SnakeToPascal(k)] = v
 	}
 	return result
+}
+
+// injectCheckLevelPermissions 計算模板中 check_level('xxx') 對應的權限布爾值
+// 對齊 PbootCMS PHP check_level()：超級管理員(uid=1)擁有所有權限，
+// 其他用戶根據 session('levels') 中的 URL 判斷是否有權限
+func injectCheckLevelPermissions(c *gin.Context, data gin.H) {
+	adminUID := GetSessionInt(c, "admin_uid")
+	isSuperAdmin := adminUID == 1
+
+	// 取得當前控制器名稱（與模板中 C 變數一致）
+	pageURL := c.Request.URL.Path
+	if origPath := c.GetHeader("X-Original-Path"); origPath != "" {
+		pageURL = origPath
+	}
+	controllerC := extractController(pageURL)
+
+	// 從 session 取得 levels（URL 列表）
+	levelsRaw := GetSession(c, "levels")
+	var levels []string
+	if l, ok := levelsRaw.([]string); ok {
+		levels = l
+	}
+
+	// 常見操作列表
+	actions := []string{"mod", "del", "add", "index"}
+	for _, action := range actions {
+		varKey := "check_level_" + action
+		if isSuperAdmin {
+			data[varKey] = true
+			continue
+		}
+		// 構建 URL 模式：/admin/{controller}/{action}
+		// 原版 ay_role_level 中 URL 格式為 /admin/Content/mod（PascalCase）
+		// Go 版使用小寫，需不區分大小寫比對
+		targetURL := "/admin/" + controllerC + "/" + action
+		permitted := false
+		for _, lvl := range levels {
+			if strings.EqualFold(lvl, targetURL) {
+				permitted = true
+				break
+			}
+		}
+		data[varKey] = permitted
+	}
+}
+
+// injectFormcheck 生成並注入 per-session CSRF token
+// 對齊 PbootCMS PHP: session('formcheck', get_uniqid()) + $this->assign('formcheck', session('formcheck'))
+func injectFormcheck(c *gin.Context, data gin.H) {
+	formcheck := GetSessionString(c, "formcheck")
+	if formcheck == "" {
+		// 生成密碼學安全的隨機 token
+		b := make([]byte, 32)
+		if _, err := rand.Read(b); err != nil {
+			// 降級：使用時間戳（極端情況下也不中斷流程）
+			formcheck = fmt.Sprintf("%x", time.Now().UnixNano())
+		} else {
+			formcheck = hex.EncodeToString(b)
+		}
+		SetSession(c, "formcheck", formcheck)
+	}
+	data["Formcheck"] = formcheck
+}
+
+// VerifyFormcheck 校驗 POST 請求中的 formcheck token
+// 對齊 PbootCMS PHP: session('formcheck') != post('formcheck')
+// 返回 true 表示通過校驗，false 表示 CSRF 攻擊
+func VerifyFormcheck(c *gin.Context) bool {
+	sessionFormcheck := GetSessionString(c, "formcheck")
+	if sessionFormcheck == "" {
+		return false
+	}
+	postFormcheck := c.PostForm("formcheck")
+	return sessionFormcheck == postFormcheck
 }
 
 // MenuNode represents a menu item with children (for sidebar tree rendering).

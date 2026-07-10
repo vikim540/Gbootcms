@@ -30,10 +30,7 @@ func (ac *AdminController) GetSecondMenu(c *gin.Context) gin.H {
 }
 
 // NoAuthCheck - Controllers that skip permission check
-var NoAuthCheckControllers = []string{
-	"Upgrade",
-	"ImageExt",
-}
+var NoAuthCheckControllers = []string{}
 
 // IsNoAuthCheck - Check if controller skips permission check
 func IsNoAuthCheck(controller string) bool {

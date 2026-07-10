@@ -117,10 +117,10 @@ func ClearTemplateCache() {
 }
 
 func compileAdminView(tplPath string) (*pongo2.Template, error) {
-	// 使用adminViewDir加载后台模板
+	// 使用adminViewDir載入後台模板
 	content, err := os.ReadFile(filepath.Join(adminViewDir, tplPath))
 	if err != nil {
-		return nil, fmt.Errorf("读取模板失败 %s: %w", tplPath, err)
+		return nil, fmt.Errorf("讀取模板失敗 %s: %w", tplPath, err)
 	}
 
 	htmlStr := resolveViewIncludes(string(content))
@@ -133,7 +133,7 @@ func compileAdminView(tplPath string) (*pongo2.Template, error) {
 
 	tmpl, err := pongo2.FromString(htmlStr)
 	if err != nil {
-		return nil, fmt.Errorf("Pongo2编译失败 %s: %w", tplPath, err)
+		return nil, fmt.Errorf("Pongo2 編譯失敗 %s: %w", tplPath, err)
 	}
 
 	return tmpl, nil
@@ -150,7 +150,7 @@ func resolveViewIncludes(content string) string {
 				return match
 			}
 			includePath := subs[1]
-			// 使用adminViewDir查找包含文件
+			// 使用adminViewDir查找包含檔案
 			fullPath := filepath.Join(adminViewDir, includePath)
 			data, err := os.ReadFile(fullPath)
 			if err != nil {
@@ -568,9 +568,19 @@ func processPongo2Fun(html string) string {
 		return `<a href="{url.` + inner + `}?` + `{{ Btnqs }}" class="layui-btn layui-btn-xs">` + btnText + `</a>`
 	})
 
-	// check_level('xxx') → true (skip permission check for now)
-	reCheckLevel := regexp.MustCompile(`\{fun=check_level\([^)]*\)\}`)
-	html = reCheckLevel.ReplaceAllString(html, "true")
+	// check_level('xxx') → CheckLevelXxx (boolean variable injected by Render)
+	// 對齊 PbootCMS PHP check_level()：超級管理員(uid=1)擁有所有權限，
+	// 其他用戶根據 session('levels') 中的 URL 判斷是否有權限
+	reCheckLevel := regexp.MustCompile(`check_level\('(\w+)'\)`)
+	html = reCheckLevel.ReplaceAllStringFunc(html, func(match string) string {
+		subs := reCheckLevel.FindStringSubmatch(match)
+		if len(subs) < 2 {
+			return match
+		}
+		action := subs[1]
+		// 轉為 PascalCase 變數名：mod → CheckLevelMod, del → CheckLevelDel
+		return "CheckLevel" + strings.ToUpper(action[:1]) + action[1:]
+	})
 
 	// date('Y-m-d H:i:s') → current datetime
 	reDate := regexp.MustCompile(`\{fun=date\([^)]*\)\}`)

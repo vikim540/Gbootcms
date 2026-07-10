@@ -51,9 +51,9 @@
     toolbars: [
       [
         "fullscreen",   // 全屏
-        "source",       // 源代码
+        // "source",    // 源代碼（已禁用：依賴 third-party/codemirror/，該目錄不存在）
         "|",
-        "undo",         // 撤销
+        "undo",         // 撤銷
         "redo",         // 重做
         "|",
         "bold",         // 加粗
@@ -545,6 +545,13 @@
     //,codeMirrorCssUrl:URL + "third-party/codemirror/codemirror.css"
     //编辑器初始化完成后是否进入源码模式，默认为否。
     //,sourceEditorFirst:false
+
+    // ── 第三方依賴禁用（third-party 目錄不存在，避免 404） ──
+    // 禁用代碼視圖（不載入 CodeMirror）
+    ,sourceEditor: ""
+    // CodeMirror JS/CSS 路徑設為空（third-party/codemirror/ 不存在）
+    ,codeMirrorJsUrl: ""
+    ,codeMirrorCssUrl: ""
 
     //iframeUrlMap
     //dialog内容的路径 ～会被替换成URL,垓属性一旦打开，将覆盖所有的dialog的默认路径

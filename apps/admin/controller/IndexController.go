@@ -2,10 +2,10 @@ package admin
 
 import (
 	"crypto/md5"
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,13 +14,12 @@ import (
 	"gbootcms/apps/common/watermark"
 	"gbootcms/config"
 	basic "gbootcms/core/basic"
+	"gbootcms/core/acodeplugin"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
-
-	"gbootcms/core/acodeplugin"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -65,17 +64,30 @@ func (ic *IndexController) Login(c *gin.Context) {
 	}
 
 	var user model.AdminUser
-	firstHash := md5.Sum([]byte(password))
-	secondHash := md5.Sum([]byte(fmt.Sprintf("%x", firstHash)))
-	encPwd := fmt.Sprintf("%x", secondHash)
 
 	// 登入查詢必須跳過 acode 隔離（用戶可能屬於任何區域）
 	loginCtx := acodeplugin.SkipAcode(c.Request.Context())
-	if err := model.DB.WithContext(loginCtx).Where("username = ? AND password = ? AND status = 1", username, encPwd).First(&user).Error; err != nil {
+	if err := model.DB.WithContext(loginCtx).Where("username = ? AND status = 1", username).First(&user).Error; err != nil {
 		ic.setLoginBlack(c)
-		ic.log(c, "登录失败!")
-		ic.JSONFail(c, "用户名或密码错误！")
+		ic.log(c, "登入失敗！")
+		ic.JSONFail(c, "用戶名或密碼錯誤！")
 		return
+	}
+
+	// 密碼校驗：支援 bcrypt 和舊版雙 MD5（自動升級）
+	matched, needUpgrade := common.VerifyPassword(password, user.Password)
+	if !matched {
+		ic.setLoginBlack(c)
+		ic.log(c, "登入失敗！")
+		ic.JSONFail(c, "用戶名或密碼錯誤！")
+		return
+	}
+
+	// 自動升級舊版雙 MD5 密碼為 bcrypt
+	if needUpgrade {
+		if hashedPwd, err := common.HashPassword(password); err == nil {
+			model.DB.WithContext(loginCtx).Model(&user).Update("password", hashedPwd)
+		}
 	}
 
 	ic.clearLoginBlack(c)
@@ -84,7 +96,9 @@ func (ic *IndexController) Login(c *gin.Context) {
 	secondHashSid := md5.Sum([]byte(fmt.Sprintf("%x", firstHashSid)))
 	sid := fmt.Sprintf("%x", secondHashSid)
 
-	pwsecurity := encPwd != "c3284d0f94606de1fd2af172aba15bf3"
+	// pwsecurity：密碼不為預設弱密碼時為 true
+	defaultPwdHash := common.DoubleMD5("123456")
+	pwsecurity := user.Password != defaultPwdHash
 
 	acodes := strings.Split(user.Acodes, ",")
 	if user.Acodes == "" {
@@ -156,7 +170,7 @@ func (ic *IndexController) Login(c *gin.Context) {
 		"lastlogintime":  time.Now(),
 	})
 
-	ic.log(c, "登录成功!")
+	ic.log(c, "登入成功！")
 	ic.JSONOK(c, "/admin/index/home")
 }
 
@@ -172,7 +186,7 @@ func (ic *IndexController) LoginOut(c *gin.Context) {
 func (ic *IndexController) Home(c *gin.Context) {
 	if c.Query("action") == "moddb" {
 		if ic.modDB(c) {
-			ic.log(c, "自动修改数据库名成功！")
+			ic.log(c, "自動修改資料庫名稱成功！")
 		}
 	}
 
@@ -294,24 +308,28 @@ func (ic *IndexController) UcenterMod(c *gin.Context) {
 	var user model.AdminUser
 	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).First(&user, uid)
 
-	encOld1 := fmt.Sprintf("%x", md5.Sum([]byte(oldPwd)))
-	encOld := fmt.Sprintf("%x", md5.Sum([]byte(encOld1)))
-	if user.Password != encOld {
-		ic.JSONFail(c, "原密码错误！")
+	// 密碼校驗：支援 bcrypt 和舊版雙 MD5
+	matched, _ := common.VerifyPassword(oldPwd, user.Password)
+	if !matched {
+		ic.JSONFail(c, "原密碼錯誤！")
 		return
 	}
 	if newPwd != rePwd {
-		ic.JSONFail(c, "两次密码输入不一致！")
+		ic.JSONFail(c, "兩次密碼輸入不一致！")
 		return
 	}
 	if len(newPwd) < 6 {
-		ic.JSONFail(c, "密码长度不能少于6位！")
+		ic.JSONFail(c, "密碼長度不能少於 6 位！")
 		return
 	}
 
-	encNew1 := fmt.Sprintf("%x", md5.Sum([]byte(newPwd)))
-	encNew := fmt.Sprintf("%x", md5.Sum([]byte(encNew1)))
-	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Model(&user).Update("password", encNew)
+	// 新密碼使用 bcrypt 雜湊
+	hashedPwd, err := common.HashPassword(newPwd)
+	if err != nil {
+		ic.JSONFail(c, "密碼加密失敗，請重試")
+		return
+	}
+	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Model(&user).Update("password", hashedPwd)
 	ic.JSONOKMsg(c, common.NoticePassword)
 }
 
@@ -660,7 +678,53 @@ func buildModelCounts(c *gin.Context) gin.H {
 }
 
 // Upload - 檔案上傳端點（供 layui 上傳元件使用）
+// 同時處理 UEditor 的 GET ?action=config 配置請求
 func (ic *IndexController) Upload(c *gin.Context) {
+	// UEditor 初始化時發送 GET ?action=config 取編輯器配置
+	if c.Request.Method == "GET" && c.Query("action") == "config" {
+		c.JSON(http.StatusOK, gin.H{
+			"imageActionName":       "uploadimage",
+			"imageFieldName":        "upload",
+			"imageMaxSize":          10485760,
+			"imageAllowFiles":       []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico"},
+			"imageCompressEnable":   false,
+			"imageInsertAlign":      "none",
+			"imageUrlPrefix":        "",
+			"scrawlActionName":      "uploadscrawl",
+			"scrawlFieldName":       "upload",
+			"scrawlMaxSize":         10485760,
+			"scrawlUrlPrefix":       "",
+			"snapscreenActionName":  "uploadimage",
+			"snapscreenFieldName":   "upload",
+			"snapscreenUrlPrefix":   "",
+			"catcherActionName":     "catchimage",
+			"catcherFieldName":      "source",
+			"catcherMaxSize":        10485760,
+			"catcherAllowFiles":     []string{".png", ".jpg", ".jpeg", ".gif", ".bmp"},
+			"catcherUrlPrefix":      "",
+			"videoActionName":       "uploadvideo",
+			"videoFieldName":        "upload",
+			"videoMaxSize":          104857600,
+			"videoAllowFiles":       []string{".flv", ".swf", ".mkv", ".avi", ".rm", ".rmvb", ".mpeg", ".mpg", ".ogg", ".ogv", ".mov", ".wmv", ".mp4", ".webm", ".mp3", ".wav", ".mid"},
+			"videoUrlPrefix":        "",
+			"fileActionName":        "uploadfile",
+			"fileFieldName":         "upload",
+			"fileMaxSize":           104857600,
+			"fileAllowFiles":        []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".flv", ".swf", ".mkv", ".avi", ".rm", ".rmvb", ".mpeg", ".mpg", ".ogg", ".ogv", ".mov", ".wmv", ".mp4", ".webm", ".mp3", ".wav", ".mid", ".rar", ".zip", ".tar", ".gz", ".7z", ".bz2", ".cab", ".iso", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".md", ".xml", ".crx"},
+			"fileUrlPrefix":         "",
+			"imageManagerActionName":"listimage",
+			"imageManagerListSize":  20,
+			"imageManagerUrlPrefix": "",
+			"imageManagerInsertAlign":"none",
+			"imageManagerAllowFiles":[]string{".png", ".jpg", ".jpeg", ".gif", ".bmp"},
+			"fileManagerActionName": "listfile",
+			"fileManagerListSize":   20,
+			"fileManagerUrlPrefix":  "",
+			"fileManagerAllowFiles": []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".flv", ".swf", ".mkv", ".avi", ".rm", ".rmvb", ".mpeg", ".mpg", ".ogg", ".ogv", ".mov", ".wmv", ".mp4", ".webm", ".mp3", ".wav", ".mid", ".rar", ".zip", ".tar", ".gz", ".7z", ".bz2", ".cab", ".iso", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".md", ".xml"},
+		})
+		return
+	}
+
 	file, err := c.FormFile("upload")
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "未接收到上傳檔案"})
@@ -704,9 +768,11 @@ func (ic *IndexController) Upload(c *gin.Context) {
 		return
 	}
 
-	// 產生唯一檔名
+	// 產生唯一檔名（使用密碼學安全隨機數）
 	ts := time.Now().Format("20060102150405")
-	randStr := fmt.Sprintf("%04d", rand.Intn(10000))
+	randBytes := make([]byte, 2)
+	rand.Read(randBytes)
+	randStr := fmt.Sprintf("%04d", int(randBytes[0])<<8|int(randBytes[1])%10000)
 	newFilename := ts + "_" + randStr + ext
 	savePath := filepath.Join(uploadDir, newFilename)
 

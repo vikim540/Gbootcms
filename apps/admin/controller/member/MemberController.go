@@ -1,7 +1,6 @@
 package member
 
 import (
-	"crypto/md5"
 	"fmt"
 	"gbootcms/apps/admin/helper"
 	"gbootcms/apps/admin/model"
@@ -109,19 +108,11 @@ func (mb *MemberController) Add(c *gin.Context) {
 			return
 		}
 
-		// 雙MD5密碼
-		firstMd5 := fmt.Sprintf("%x", md5.Sum([]byte(password)))
-		encPwd := fmt.Sprintf("%x", md5.Sum([]byte(firstMd5)))
+		// 使用 bcrypt 雜湊密碼（向後兼容舊版雙 MD5）
+	hashedPwd, _ := common.HashPassword(password)
 
-		// 生成ucode（基於最後一條記錄自增）
-		var lastMember model.Member
-		model.DB.Order("id DESC").First(&lastMember)
-		ucode := "10001"
-		if lastMember.ID > 0 {
-			if n, err := strconv.Atoi(lastMember.Ucode); err == nil {
-				ucode = fmt.Sprintf("%d", n+1)
-			}
-		}
+	// 生成 ucode（時間戳 + 隨機數，併發安全）
+	ucode := fmt.Sprintf("%d%04d", time.Now().Unix()%1000000, common.SecureRandomInt(10000))
 
 		gid := c.PostForm("gid")
 		if gid == "" {
@@ -130,21 +121,25 @@ func (mb *MemberController) Add(c *gin.Context) {
 		score, _ := strconv.Atoi(c.DefaultPostForm("score", "0"))
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 
-		model.DB.Create(&model.Member{
-			Ucode:        ucode,
-			Username:     username,
-			Nickname:     c.PostForm("nickname"),
-			Password:     encPwd,
-			Useremail:    c.PostForm("useremail"),
-			Usermobile:   c.PostForm("usermobile"),
-			Headpic:      c.PostForm("headpic"),
-			GID:          gid,
-			Score:        score,
-			Status:       status,
-			Activation:   1,
-			LoginCount:   0,
-			RegisterTime: time.Now(),
-		})
+		if err := model.DB.Create(&model.Member{
+		Ucode:        ucode,
+		Username:     username,
+		Nickname:     c.PostForm("nickname"),
+		Password:     hashedPwd,
+		Useremail:    c.PostForm("useremail"),
+		Usermobile:   c.PostForm("usermobile"),
+		Headpic:      c.PostForm("headpic"),
+		GID:          gid,
+		Score:        score,
+		Status:       status,
+		Activation:   1,
+		LoginCount:   0,
+		RegisterTime: time.Now(),
+	}).Error; err != nil {
+		mb.LogAction(c, "新增會員失敗")
+		mb.JSONFail(c, "新增失敗："+err.Error())
+		return
+	}
 		mb.LogAction(c, "新增會員成功")
 		mb.JSONOKMsg(c, common.NoticeAdd)
 		return
@@ -192,12 +187,15 @@ func (mb *MemberController) Mod(c *gin.Context) {
 	}
 	id, _ := strconv.Atoi(idStr)
 
-	// 單欄位切換（狀態開關）
+	// 單欄位切換（狀態開關）— 使用 JSON 回應（對齊 class="switch" AJAX 攔截）
 	field := c.Query("field")
 	value := c.Query("value")
 	if field != "" && value != "" {
-		model.DB.Model(&model.Member{}).Where("id = ?", id).Update(field, value)
-		c.Redirect(302, "/admin/member/index")
+		if err := model.DB.Model(&model.Member{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+			mb.JSONFail(c, "操作失敗")
+			return
+		}
+		mb.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -253,10 +251,14 @@ func (mb *MemberController) Mod(c *gin.Context) {
 		}
 		password := c.PostForm("password")
 		if password != "" {
-			pwdMd5 := fmt.Sprintf("%x", md5.Sum([]byte(password)))
-			updates["password"] = fmt.Sprintf("%x", md5.Sum([]byte(pwdMd5)))
+			hashedPwd, _ := common.HashPassword(password)
+			updates["password"] = hashedPwd
 		}
-		model.DB.Model(&model.Member{}).Where("id = ?", id).Updates(updates)
+		if err := model.DB.Model(&model.Member{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		mb.LogAction(c, "修改會員失敗")
+		mb.JSONFail(c, "修改失敗："+err.Error())
+		return
+	}
 		mb.LogAction(c, "修改會員成功")
 		mb.JSONOKMsg(c, common.NoticeModify)
 		return
@@ -309,7 +311,11 @@ func (mb *MemberController) Del(c *gin.Context) {
 		mb.JSONFail(c, "缺少刪除目標ID")
 		return
 	}
-	model.DB.Delete(&model.Member{}, idStr)
+	if err := model.DB.Delete(&model.Member{}, idStr).Error; err != nil {
+		mb.LogAction(c, "刪除會員失敗")
+		mb.JSONFail(c, "刪除失敗："+err.Error())
+		return
+	}
 	mb.LogAction(c, "刪除會員成功")
 	mb.JSONOKMsg(c, common.NoticeDelete)
 }

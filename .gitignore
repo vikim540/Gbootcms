@@ -89,3 +89,8 @@ $RECYCLE.BIN/
 # ===== PowerShell 環境驗證腳本(workspace 級,不入庫) =====
 verify-pwsh.ps1
 setup-pwsh-junction.ps1
+
+# ===== 工具產物 / Tool artifacts =====
+gbootcms-audit-report/
+.trae-html-share-packages/
+data/gbootcms.db

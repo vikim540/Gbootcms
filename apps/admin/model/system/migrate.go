@@ -14,8 +14,6 @@ func AutoMigrate() {
 		&Syslog{},
 		&Area{},
 		&Config{},
-		&Type{},
 		&Database{},
-		&DictType{},
 	)
 }

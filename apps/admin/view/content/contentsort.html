@@ -1,4 +1,6 @@
 {include file='common/head.html'}
+<link href="{APP_THEME_DIR}/css/jquery.treetable.css" rel="stylesheet" type="text/css" />
+<script type="text/javascript" src="{APP_THEME_DIR}/js/jquery.treetable.js"></script>
 
 <div class="layui-body">
 	{if([$list])}
@@ -68,23 +70,19 @@
 		                        <td class="table-input"><input type="text" name="sorting[]" value="[value->sorting]" class="layui-input"></td>
 		                       	<td>
 		                            {if($value->status)}
-		                            <a href="{url./admin/'.C.'/mod/scode/'.$value->scode.'/field/status/value/0}" class="switch"><i class='fa fa-toggle-on' title="点击禁用"></i></a>
+		                            <a href="{url./admin/'.C.'/mod/scode/'.$value->scode.'/field/status/value/0}" class="switch"><i class='fa fa-toggle-on' title="點擊禁用"></i></a>
 		                            {else}
-		                            <a href="{url./admin/'.C.'/mod/scode/'.$value->scode.'/field/status/value/1}" class="switch"><i class='fa fa-toggle-off' title="点击启用"></i></a>
+		                            <a href="{url./admin/'.C.'/mod/scode/'.$value->scode.'/field/status/value/1}" class="switch"><i class='fa fa-toggle-off' title="點擊啟用"></i></a>
 		                            {/if}
 		                        </td>
 		                        <td>
 		                        	{if(!$value->outlink)}
-		                        		{php}
-			                        		$Parser=new app\home\controller\ParserController();
-			                        		$link=$Parser->parserLink($value->type,$value->urlname,'list',$value->scode,$value->filename,'','');
-			                        	{/php}
-			                        	<a href="{php}echo $link{/php}" class="layui-btn layui-btn-xs layui-btn-primary"  target="_blank">查看</a>
-		                        	{/if}
-		                
-		                            {fun=get_btn_del($value->scode,'scode')}
-		                            {fun=get_btn_mod($value->scode,'scode')}
-		                        </td>
+			                        	<a href="[value->FrontUrl]" class="layui-btn layui-btn-xs layui-btn-primary"  target="_blank">查看</a>
+	                        	{/if}
+
+	                            {fun=get_btn_del($value->scode,'scode')}
+	                            {fun=get_btn_mod($value->scode,'scode')}
+	                        </td>
 		                    </tr>
 		                {/foreach}
 		                </tbody>
@@ -97,7 +95,7 @@
 		     			return confirm("您確定要刪除選中的欄目麼？");
 		     		}
 		     		
-		     		$("#sortTable").treetable({ expandable: true,column: 1,indent:20,stringCollapse:'收缩',stringExpand:'展开' });
+		     		$("#sortTable").treetable({ expandable: true,column: 1,indent:20,stringCollapse:'收縮',stringExpand:'展開' });
 		     	</script>
 	  	   		</form>
 	  	    </div>

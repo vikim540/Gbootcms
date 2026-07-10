@@ -44,13 +44,13 @@
                     <h5 class="card-title"><a href="[list:link]">[list:title lencn=12]</a></h5>
                     <p class="card-text">
 	                    {gboot:if([list:istop]==1)}
-	                		<span class="badge badge-danger">{gboot:2if({gboot:acode}=='sc')}置顶{gboot:2else}{gboot:2if({gboot:acode}=='en')}Top{gboot:2else}置頂{/gboot:2if}{/gboot:2if}</span>
+	                		<span class="badge badge-danger">{gboot:2if({gboot:acode}=='sc')}置頂{gboot:2else}{gboot:2if({gboot:acode}=='en')}Top{gboot:2else}置頂{/gboot:2if}{/gboot:2if}</span>
 	                	{/gboot:if}
 	                	{gboot:if([list:isrecommend]==1)}
-	                		<span class="badge badge-warning">{gboot:2if({gboot:acode}=='sc')}推荐{gboot:2else}{gboot:2if({gboot:acode}=='en')}Hot{gboot:2else}推薦{/gboot:2if}{/gboot:2if}</span>
+	                		<span class="badge badge-warning">{gboot:2if({gboot:acode}=='sc')}推薦{gboot:2else}{gboot:2if({gboot:acode}=='en')}Hot{gboot:2else}推薦{/gboot:2if}{/gboot:2if}</span>
 	                	{/gboot:if}
 	                	{gboot:if([list:isheadline]==1)}
-	                		<span class="badge badge-info">{gboot:2if({gboot:acode}=='sc')}头条{gboot:2else}{gboot:2if({gboot:acode}=='en')}News{gboot:2else}頭條{/gboot:2if}{/gboot:2if}</span>
+	                		<span class="badge badge-info">{gboot:2if({gboot:acode}=='sc')}頭條{gboot:2else}{gboot:2if({gboot:acode}=='en')}News{gboot:2else}頭條{/gboot:2if}{/gboot:2if}</span>
 	                	{/gboot:if}
 	                	[list:content drophtml=1 dropblank=1 len=50]
                 	</p>
