@@ -1,0 +1,55 @@
+# =============================================================================
+# .gitattributes — 統一換行符與文件處理規則
+# 確保 Windows / macOS / Linux 跨平台協作時換行符一致
+# =============================================================================
+
+# 預設：所有文字文件使用 LF 換行符（入庫時自動轉換）
+* text=auto eol=lf
+
+# Go 源碼
+*.go text eol=lf
+
+# 前端代碼
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.xml text eol=lf
+*.svg text eol=lf
+
+# 文檔
+*.md text eol=lf
+*.txt text eol=lf
+
+# 腳本
+*.sh text eol=lf
+*.bat text eol=lf
+*.ps1 text eol=lf
+
+# 配置
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.env text eol=lf
+
+# 二進制文件 — 不做換行符轉換
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.db binary
+*.exe binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.7z binary
+*.pdf binary
+*.map binary

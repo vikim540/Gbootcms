@@ -403,6 +403,101 @@ if !member.RegisterTime.IsZero() {
 
 ---
 
+## Git 工作流
+
+### 克隆與首次配置
+
+```powershell
+# 1. 克隆倉庫
+git clone https://github.com/vikim540/Gbootcms.git
+cd Gbootcms
+
+# 2. 設定你的提交者身份（項目級，不影響全域配置）
+git config --local user.name "你的名字"
+git config --local user.email "你的郵箱"
+
+# 3. 安裝依賴
+go mod download
+
+# 4. 編譯運行
+go build -o bin/gbootcms.exe .
+.\bin\gbootcms.exe
+```
+
+### 認證方式
+
+倉庫使用 HTTPS 協議，推送時需要 GitHub 認證：
+
+- **Personal Access Token（推薦）**：在 GitHub Settings → Developer settings → Personal access tokens 建立令牌，推送時用令牌代替密碼
+- **GitHub CLI**：`gh auth login` 按提示完成認證
+- **Credential Manager**：Windows 上 Git 會自動使用 Git Credential Manager 快取憑證
+
+### 日常提交與推送
+
+```powershell
+# 查看變更
+git status
+git diff
+
+# 暫存所有改動（排除 runtime 產物）
+git add -A
+
+# 提交（建議使用 Conventional Commits 格式）
+git commit -m "fix: 簡述修復內容"
+git commit -m "feat: 簡述新增功能"
+git commit -m "refactor: 簡述重構內容"
+
+# 推送
+git push origin main
+```
+
+### 代理注意事項
+
+如果你使用 VPN 或代理訪問 GitHub，需要配置 git 代理：
+
+```powershell
+# 設定代理（替換為你的代理地址和端口）
+git config --global http.proxy http://127.0.0.1:你的端口
+git config --global https.proxy http://127.0.0.1:你的端口
+
+# 移除代理（不用代理時必須移除，否則推送會失敗）
+git config --global --unset http.proxy
+git config --global --unset https.proxy
+```
+
+**新人接手注意**：如果克隆後 `git push` 報連接超時或拒絕連接，先檢查是否有遺留的代理配置：
+```powershell
+git config --global --get http.proxy   # 查看當前代理
+```
+
+### 換行符規則
+
+項目使用 `.gitattributes` 統一換行符為 **LF**。Windows 用戶無需手動處理，git 會自動轉換：
+
+- 入庫時：CRLF → LF（自動）
+- 檢出時：保持 LF（`core.autocrlf=input`）
+
+如果克隆後發現所有文件都被標記為「已修改」，執行：
+```powershell
+git add --renormalize .
+git commit -m "chore: normalize line endings"
+```
+
+### 已入庫的特殊文件
+
+| 文件 | 說明 |
+|------|------|
+| `data/pbootcms.db` | 開發用 SQLite 數據庫（預設帳號 admin/123456），方便新人克隆後直接運行 |
+| `config/config.json` | 配置文件（端口、DB 路徑等），入庫方便快速啟動 |
+| `static/backup/` | 備份目錄，**已加入 .gitignore**，不應入庫 |
+
+### 分支策略
+
+- `main`：穩定分支，所有提交直接推送到 `main`
+- 功能開發時可臨時建立 `feature/xxx` 分支，完成後合併回 `main`
+
+---
+
 ## 文檔索引
 
 | 文檔 | 路徑 | 說明 |

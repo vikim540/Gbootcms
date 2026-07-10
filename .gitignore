@@ -27,6 +27,9 @@ vendor/
 # 運行時上傳的文件不入庫,每個人本地會自動生成
 static/upload/
 
+# 備份目錄（DatabaseController 備份產物，不入庫）
+static/backup/
+
 # ===== 數據庫 / Database =====
 # data/pbootcms.db 納入版本庫(本地開發用,密碼統一為 admin)
 # 仍排除 SQLite WAL 副作用文件,避免每次運行都產生噪音 diff
