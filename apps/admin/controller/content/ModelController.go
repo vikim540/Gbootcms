@@ -68,7 +68,7 @@ func (md *ModelController) Add(c *gin.Context) {
 		// 自動生成 mcode
 		mcode := content.GetNextMcode()
 
-		if err := content.AddModel(mcode, name, urlname, listtpl, contenttpl, "admin", typ, status); err != nil {
+		if err := content.AddModel(mcode, name, urlname, listtpl, contenttpl, md.GetAdminUsername(c), typ, status); err != nil {
 			md.LogAction(c, "新增內容模型失敗")
 			md.JSONFail(c, "新增失敗: "+err.Error())
 			return
@@ -108,7 +108,7 @@ func (md *ModelController) Mod(c *gin.Context) {
 	// === 單字段快速切換（如狀態切換） ===
 	if field != "" && value != "" {
 		if field == "status" {
-			content.UpdateModelSingleField(id, field, value, "admin")
+			content.UpdateModelSingleField(id, field, value, md.GetAdminUsername(c))
 			md.LogAction(c, "修改內容模型成功")
 			md.JSONOKMsg(c, common.NoticeModify)
 			return
@@ -145,7 +145,7 @@ func (md *ModelController) Mod(c *gin.Context) {
 			return
 		}
 
-		if err := content.UpdateModel(id, name, urlname, listtpl, contenttpl, "admin", typ, status); err != nil {
+		if err := content.UpdateModel(id, name, urlname, listtpl, contenttpl, md.GetAdminUsername(c), typ, status); err != nil {
 			md.JSONFail(c, "修改失敗: "+err.Error())
 			return
 		}

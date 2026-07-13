@@ -1,0 +1,74 @@
+{include file=comm/head.html}
+
+<div class="jumbotron jumbotron-fluid mb-2" style="background:#e9ecef url(/static/upload/202606/1523501459462835.jpg);background-size:cover;background-repeat:no-repeat">
+  <div class="container text-light">
+    <h1 class="fs-18 fs-sm-26 wow fadeInDown">我的评论</h1>
+    <p class="fs-14 fs-sm-18 wow fadeInDown">管理您发表的所有评论</p>
+  </div>
+</div>
+
+<div class="container pages">
+
+	{include file=comm/position.html}
+
+	<div class="row mb-5">
+
+        {include file=member/left.html}
+
+        <div class="col-12 col-md-10 mt-3">
+			<table class="table">
+			  <thead>
+			  	<th>序号</th>
+			  	<th>文章</th>
+			  	<th>评论</th>
+			  	<th>状态</th>
+			  	<th>时间</th>
+			  	<th>操作</th>
+			  </thead>
+			  <tbody>
+			  	{gboot:mycomment num=10}
+			    <tr>
+			      <td>[mycomment:i]</td>
+			      <td>[mycomment:title]</td>
+			      <td>[mycomment:comment]</td>
+			      <td>{gboot:if([mycomment:status]==1)}已审核{else}<span style="color:red">待审核</span>{/gboot:if}</td>
+			      <td>[mycomment:date]</td>
+			      <td><span class="del" data-url="[mycomment:delaction]" style="cursor:pointer" >删除</span></td>
+			    </tr>
+			    {/gboot:mycomment}
+			  </tbody>
+			</table>
+			{include file=comm/page.html}
+        </div>
+   </div>
+
+</div>
+
+<script>
+$(".del").on("click",function(){
+
+	 if(!confirm("您确定要删除吗？")){
+		 return;
+	 }
+
+	var url=$(this).data('url');
+	var el=$(this).parents("tr");
+	 $.ajax({
+	    type: 'POST',
+	    url: url,
+	    dataType: 'json',
+	    success: function (response, status) {
+	    	if(response.code==0){
+	    		alert(response.data);
+	    	}else{
+	    		el.remove();
+	    	}
+	    },
+	    error:function(xhr,status,error){
+	      alert('返回数据异常！');
+	    }
+	  });
+});
+</script>
+
+{include file=comm/foot.html}

@@ -39,6 +39,7 @@ type Menu = system.Menu
 type MenuAction = system.MenuAction
 type Role = system.Role
 type RoleLevel = system.RoleLevel
+type RoleArea = system.RoleArea
 type Syslog = system.Syslog
 type Area = system.Area
 type Config = system.Config

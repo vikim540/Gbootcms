@@ -169,7 +169,11 @@ func (fc *FrontController) Retrieve(c *gin.Context) {
 		}
 
 		// 更新密碼及郵箱（使用 bcrypt 雜湊，向後兼容舊版雙 MD5）
-	hashedPwd, _ := common.HashPassword(password)
+	hashedPwd, err := common.HashPassword(password)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "密碼加密失敗，請重試", "tourl": ""})
+		return
+	}
 	updates := map[string]interface{}{
 		"password":  hashedPwd,
 		"useremail": email,
@@ -244,7 +248,7 @@ func (fc *FrontController) renderMemberPage(c *gin.Context, tpl string) {
 	ctx := fc.buildContext(c)
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
-	content := fc.Store.Render(tpl)
+	content := fc.getStore(c).Render(tpl)
 	if !fc.checkMustLogin(c, content) {
 		return
 	}
@@ -323,9 +327,12 @@ func (fc *FrontController) Login(c *gin.Context) {
 		}
 
 		// 登錄成功，清除鎖定記錄
-		clearMemberLoginBlack(c)
+	clearMemberLoginBlack(c)
 
-		// 寫入 Session（保持與 PbootCMS 前台兼容的鍵名）
+	// 防止 Session Fixation：重新生成 session ID（對齊後台管理員登入邏輯）
+	common.RegenerateSessionID(c)
+
+	// 寫入 Session（保持與 PbootCMS 前台兼容的鍵名）
 		common.SetSession(c, "pboot_uid", int(member.ID))
 		common.SetSession(c, "pboot_ucode", member.Ucode)
 		common.SetSession(c, "pboot_username", member.Username)
@@ -475,7 +482,11 @@ func (fc *FrontController) Register(c *gin.Context) {
 		gid := fmt.Sprintf("%d", group.ID)
 
 		// 創建會員
-		hashedPwd, _ := common.HashPassword(password)
+	hashedPwd, err := common.HashPassword(password)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "密碼加密失敗，請重試"})
+		return
+	}
 		newMember := model.Member{
 			Ucode:        generateUcode(c),
 			Username:     username,
@@ -577,7 +588,11 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "確認密碼不正確"})
 				return
 			}
-			hashedPwd, _ := common.HashPassword(password)
+			hashedPwd, err := common.HashPassword(password)
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "密碼加密失敗，請重試"})
+				return
+			}
 			updates["password"] = hashedPwd
 		}
 

@@ -1,0 +1,138 @@
+{include file=comm/head.html}
+
+{include file=comm/top.html}
+
+<div class="container pages">
+
+	{include file=comm/position.html}
+
+    <!-- 會員找回密碼 -->
+    <div class="row">
+    	<div class="col-lg-3"></div>
+    	<div class="col-12 col-lg-6">
+        	<form class="my-4" onsubmit="return retrieve(this);">
+                <div class="form-group">
+                    <label for="username">Account</label>
+                    <input type="text" name="username" required id="username" class="form-control" placeholder="Please enter registered account">
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="text" name="email" required id="email" class="form-control" placeholder="Please enter registered email">
+                    <div id="emailnote"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="checkcode">Email Captcha</label>
+                    <div class="row">
+                        <div class="col-6">
+                            <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="Please enter captcha">
+                        </div>
+                        <div class="col-6">
+                            <button type="button" class="btn btn-info mb-2" id="sendcode" onclick="sendEmail()">Send</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">New Password</label>
+                    <div class="row">
+                        <div class="col-6">
+                            <input type="password" name="password" required id="password" class="form-control" placeholder="Please enter new password">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                   <button type="submit" class="btn btn-info mb-2">Confirm Reset</button>
+				   <span class="text-secondary ml-3"><a href="{gboot:login}">Back to Login</a></span>
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-3"></div>
+    </div>
+</div>
+
+<script>
+// 找回密碼
+function retrieve(obj){
+  var url = '/retrieve';
+  var username = $(obj).find("#username").val();
+  var email = $(obj).find("#email").val();
+  var checkcode = $(obj).find("#checkcode").val();
+  var password = $(obj).find("#password").val();
+
+  $.ajax({
+    type: 'POST',
+    url: url,
+    dataType: 'json',
+    data: {
+      username: username,
+      email: email,
+      checkcode: checkcode,
+      password: password
+    },
+    success: function (response) {
+      if(response.code){
+        alert("Password set successfully!");
+        location.href = response.tourl;
+      } else {
+        alert(response.data || response.msg);
+      }
+    },
+    error:function(){
+      alert('Data error!');
+    }
+  });
+  return false;
+}
+
+// 發送郵箱驗證碼
+function sendEmail(){
+  var email = $("#email").val();
+  if(!email){
+    $("#emailnote").text("Please enter registered email!");
+    return false;
+  }
+  var btn = $("#sendcode");
+  btn.attr("disabled", true);
+  btn.text("Sending...");
+
+  $.ajax({
+    type: 'POST',
+    url: '/member/sendemail',
+    dataType: 'json',
+    data: {
+      retrieve: 1,
+      to: email
+    },
+    success: function(response){
+      if(response.code){
+        alert(response.data);
+        var count = 60;
+        var timer = setInterval(function(){
+          count--;
+          btn.text("Resend in " + count + "s");
+          if(count <= 0){
+            clearInterval(timer);
+            btn.attr("disabled", false);
+            btn.text("Send");
+          }
+        }, 1000);
+      } else {
+        alert(response.data || response.msg);
+        btn.attr("disabled", false);
+        btn.text("Send");
+      }
+    },
+    error: function(){
+      alert("Data error!");
+      btn.attr("disabled", false);
+      btn.text("Send");
+    }
+  });
+  return false;
+}
+</script>
+
+{include file=comm/foot.html}

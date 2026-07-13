@@ -59,27 +59,44 @@ var pbootToGoRouteMap = map[string]string{
 
 // RewriteAdminPath 把 PbootCMS 原版 admin URL 重寫到 Go 版實際路由路徑
 // 例: /admin/Config/index → /admin/system/config/index
-// 不匹配時原樣返回。
+// 注意：只對前綴（控制器名）做大小寫歸一化，保留路徑參數的原始大小寫
+// （如 rcode=R102 不會被轉成 r102）。
+// 未在映射表中的前綴（如 /admin/content、/admin/member 等原生 Go 路由）
+// 也會將控制器部分轉為小寫，以匹配 Gin 的大小寫敏感路由。
 func RewriteAdminPath(path string) string {
 	lower := strings.ToLower(path)
 	if !strings.HasPrefix(lower, "/admin/") {
 		return path
 	}
 
-	parts := strings.SplitN(lower, "/", 4)
-	if len(parts) < 3 {
+	// 用小寫版本匹配前綴（控制器名大小寫不敏感）
+	lowerParts := strings.SplitN(lower, "/", 4)
+	if len(lowerParts) < 3 {
 		return path
 	}
-	prefix := "/admin/" + parts[2]
+	prefix := "/admin/" + lowerParts[2]
 
 	target, ok := pbootToGoRouteMap[prefix]
 	if !ok {
-		return path
+		// 未在映射表中：可能是原生 Go 路由（如 /admin/content/index）
+		// 將控制器部分轉為小寫以匹配 Gin 路由，保留其餘路徑參數的原始大小寫
+		origParts := strings.SplitN(path, "/", 4)
+		remaining := ""
+		if len(origParts) >= 4 {
+			remaining = "/" + origParts[3]
+		}
+		result := "/admin/" + lowerParts[2] + remaining
+		if result == path {
+			return path // 已經是小寫，無需重寫
+		}
+		return result
 	}
 
+	// 用原始路徑提取剩餘部分（保留參數大小寫）
+	origParts := strings.SplitN(path, "/", 4)
 	remaining := ""
-	if len(parts) >= 4 {
-		remaining = "/" + parts[3]
+	if len(origParts) >= 4 {
+		remaining = "/" + origParts[3]
 	}
 	return target + remaining
 }

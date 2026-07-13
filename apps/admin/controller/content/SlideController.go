@@ -68,19 +68,20 @@ func (sl *SlideController) Add(c *gin.Context) {
 			gid = maxGID + 1
 		}
 		now := time.Now().Format("2006-01-02 15:04:05")
-		model.DB.WithContext(c.Request.Context()).Create(&model.Slide{
-			GID:        gid,
-			Pic:        c.PostForm("pic"),
-			PicMobile:  c.PostForm("pic_mobile"),
-			Link:       c.PostForm("link"),
-			Title:      c.PostForm("title"),
-			Subtitle:   c.PostForm("subtitle"),
-			Sorting:    sorting,
-			CreateUser: "admin",
-			UpdateUser: "admin",
-			CreateTime: now,
-			UpdateTime: now,
-		})
+	username := sl.GetAdminUsername(c)
+	model.DB.WithContext(c.Request.Context()).Create(&model.Slide{
+		GID:        gid,
+		Pic:        c.PostForm("pic"),
+		PicMobile:  c.PostForm("pic_mobile"),
+		Link:       c.PostForm("link"),
+		Title:      c.PostForm("title"),
+		Subtitle:   c.PostForm("subtitle"),
+		Sorting:    sorting,
+		CreateUser: username,
+		UpdateUser: username,
+		CreateTime: now,
+		UpdateTime: now,
+	})
 		sl.LogAction(c, "新增輪播圖成功")
 		sl.JSONOKMsg(c, common.NoticeAdd)
 		return
@@ -122,6 +123,7 @@ func (sl *SlideController) Mod(c *gin.Context) {
 		gid, _ := strconv.Atoi(c.DefaultPostForm("gid", "1"))
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		now := time.Now().Format("2006-01-02 15:04:05")
+		username := sl.GetAdminUsername(c)
 		model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"gid":         gid,
 			"pic":         c.PostForm("pic"),
@@ -130,7 +132,7 @@ func (sl *SlideController) Mod(c *gin.Context) {
 			"title":       c.PostForm("title"),
 			"subtitle":    c.PostForm("subtitle"),
 			"sorting":     sorting,
-			"update_user": "admin",
+			"update_user": username,
 			"update_time": now,
 		})
 		sl.LogAction(c, "修改輪播圖成功")
@@ -162,7 +164,10 @@ func (sl *SlideController) Del(c *gin.Context) {
 	if idStr != "" {
 		id, _ := strconv.Atoi(idStr)
 		if id > 0 {
-			model.DB.WithContext(c.Request.Context()).Delete(&model.Slide{}, id)
+			if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Slide{}, id).Error; err != nil {
+				sl.JSONFail(c, "刪除失敗："+err.Error())
+				return
+			}
 		}
 	}
 	sl.LogAction(c, "刪除輪播圖成功")

@@ -28,8 +28,8 @@
 	                        <td>[value->name]</td>
 	                        <td>[value->rcode]</td>
 	                        <td>[value->description]</td>
-	                        <td>[value->create_time]</td>
-	                        <td>[value->update_time]</td>
+	                        <td>[value->create_time_str]</td>
+	                        <td>[value->update_time_str]</td>
 	                        <td>
 	                        	{if($value->id!=1)}
 	                           		{fun=get_btn_del($value->rcode,'rcode')}
@@ -44,7 +44,7 @@
 	  	   </div>
 	  	   
 	  	   <div class="layui-tab-item">
-	  	   		<form action="{url./admin/Role/add}" method="post" class="layui-form">
+	  	   		<form action="/admin/role/add" method="post" class="layui-form">
 	  	   			<input type="hidden" name="formcheck" value="{$formcheck}" > 
 	  	   			<div class="layui-form-item">
 	                     <label class="layui-form-label">角色名稱</label>
@@ -63,14 +63,14 @@
 	                <div class="layui-form-item">
 					    <label class="layui-form-label">管轄區域</label>
 					    <div class="layui-input-block">
-					      {$area_checkbox}
+					      {{ AreaCheckbox|safe }}
 					    </div>
 					 </div>
 					 
 					 <div class="layui-form-item">
 					    <label class="layui-form-label">角色權限</label>
 					    <div class="layui-input-block" id="selectitem">
-					      {$menu_list}
+					      {{ MenuList|safe }}
 					    </div>
 					 </div>
 					 
@@ -94,7 +94,7 @@
 	  </ul>
 	  <div class="layui-tab-content">
 	  	   <div class="layui-tab-item layui-show">
-	  	  		<form action="{url./admin/Role/mod/rcode/'.[$get.rcode].'}{$backurl}" method="post" class="layui-form">
+	  	  		<form action="/admin/role/mod/rcode/{{ Role.Rcode }}" method="post" class="layui-form">
 	  	  			<input type="hidden" name="formcheck" value="{$formcheck}" > 
 	  	  			<div class="layui-form-item">
 	                     <label class="layui-form-label">角色名稱</label>
@@ -113,14 +113,14 @@
 	                <div class="layui-form-item">
 					    <label class="layui-form-label">管轄區域</label>
 					    <div class="layui-input-block">
-					      {$area_checkbox}
+					      {{ AreaCheckbox|safe }}
 					    </div>
 					 </div>
 					 
 					 <div class="layui-form-item">
 					    <label class="layui-form-label">角色權限</label>
 					    <div class="layui-input-block" id="selectitem">
-					      {$menu_list}
+					      {{ MenuList|safe }}
 					    </div>
 					 </div>
 					 

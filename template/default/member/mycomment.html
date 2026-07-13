@@ -54,7 +54,7 @@ $(".del").on("click",function(){
 	var url=$(this).data('url');
 	var el=$(this).parents("tr");
 	 $.ajax({
-	    type: 'GET',
+	    type: 'POST',
 	    url: url,
 	    dataType: 'json',
 	    success: function (response, status) {

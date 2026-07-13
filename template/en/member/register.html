@@ -1,0 +1,97 @@
+{include file=comm/head.html}
+
+{include file=comm/top.html}
+
+<div class="container pages">
+
+	{include file=comm/position.html}
+
+    <!-- 會員註冊 -->
+    <div class="row">
+    	<div class="col-lg-3"></div>
+    	<div class="col-12 col-lg-6">
+        	<form class="my-4" onsubmit="return register(this);">
+                <div class="form-group">
+                    <label for="username">Account</label>
+                    <input type="text" name="username" required id="username" class="form-control" placeholder="Please enter account">
+                </div>
+
+                <div class="form-group">
+                    <label for="nickname">Nickname</label>
+                    <input type="text" name="nickname" required id="nickname" class="form-control" placeholder="Please enter nickname">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" name="password" required id="password" class="form-control" placeholder="Please enter password">
+                </div>
+
+                <div class="form-group">
+                    <label for="rpassword">Confirm Password</label>
+                    <input type="password" name="rpassword" required id="rpassword" class="form-control" placeholder="Please enter password again">
+                </div>
+
+                {gboot:if({gboot:registercodestatus})}
+                <div class="form-group">
+                    <label for="checkcode">Captcha</label>
+                    <div class="row">
+                        <div class="col-6">
+                            <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="Please enter captcha">
+                        </div>
+                        <div class="col-6">
+                            <img title="Click to refresh" style="height:33px;" id="codeimg" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
+                        </div>
+                    </div>
+                </div>
+                {/gboot:if}
+
+                <div class="form-group">
+                   <button type="submit" class="btn btn-info mb-2">Register Now</button>
+                   <span class="text-secondary ml-3">Already have an account? <a href="{gboot:login}">Login now</a></span>
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-3"></div>
+    </div>
+</div>
+
+<script>
+
+//ajax註冊
+function register(obj){
+  var url='{gboot:register}';
+  var username=$(obj).find("#username").val();
+  var nickname=$(obj).find("#nickname").val();
+  var password=$(obj).find("#password").val();
+  var rpassword=$(obj).find("#rpassword").val();
+  var checkcode=$(obj).find("#checkcode").val();
+
+  $.ajax({
+    type: 'POST',
+    url: url,
+    dataType: 'json',
+    data: {
+    	username: username,
+    	nickname: nickname,
+    	password: password,
+    	rpassword: rpassword,
+    	checkcode: checkcode
+    },
+    success: function (response, status) {
+      if(response.code){
+    	 alert(response.msg);
+		 location.href= response.tourl;
+      }else{
+    	 $('#codeimg').click();
+    	 alert(response.data || response.msg);
+      }
+    },
+    error:function(xhr,status,error){
+      alert('Data error!');
+    }
+  });
+  return false;
+}
+</script>
+
+{include file=comm/foot.html}

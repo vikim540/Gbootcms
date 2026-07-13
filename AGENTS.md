@@ -156,6 +156,12 @@ gbootcms/
 18. **首頁 banner 高度限制** — `.swiper-container` 最大高度 400px + `overflow: hidden`
 19. **自定義表單 table_name 前綴** — `ay_diy_` 而非 `form_data_`
 20. **前台模板標籤前綴** — `{gboot:xxx}` 而非 `{pboot:xxx}`
+21. **用戶輸入必須過濾** — 富文字內容經 `common.FilterUserInput()` 處理（XSS 防護）
+22. **動態 SQL 標識符必須驗證** — 表名用 `CheckVarType()`，欄位名用 `CheckColumnName()` 白名單驗證
+23. **會員登入必須重新生成 Session ID** — 呼叫 `common.RegenerateSessionID(c)` 防 Session Fixation
+24. **刪除操作必須用 POST** — GET 刪除有 CSRF 風險
+25. **AJAX 攔截回應雙欄位** — `auth.go` 中 AJAX 回應必須同時包含 `data` + `msg`
+26. **通知文案不加感嘆號** — 統一風格，所有通知訊息不帶 `！`
 
 ---
 
@@ -363,6 +369,12 @@ if !member.RegisterTime.IsZero() {
 | 16 | 前台缺少權限檢查 | 必須呼叫 `checkSortPermission` / `checkContentPermission` |
 | 17 | POST body 中用 `c.Query` 讀 backurl | 用 `c.DefaultPostForm` 讀取 |
 | 18 | Layui `form.on('submit')` 攔截非 `lay-submit` 按鈕 | 改用 jQuery `$(document).on('submit')` |
+| 19 | 用戶輸入未過濾直接存入 DB | 必須經過 `common.FilterUserInput()`（XSS 防護） |
+| 20 | 動態 SQL 表名/欄位名未驗證 | 必須用 `CheckVarType()` / `CheckColumnName()` 白名單驗證 |
+| 21 | 會員登入未重新生成 Session ID | 必須呼叫 `common.RegenerateSessionID(c)` |
+| 22 | AJAX 攔截回應只有 `msg` 缺少 `data` | 必須同時包含 `data` + `msg` |
+| 23 | 刪除操作用 GET 請求 | 刪除操作必須用 POST（防 CSRF） |
+| 24 | 通知文案帶感嘆號 | 通知文案**不加感嘆號** |
 
 ---
 
@@ -370,7 +382,8 @@ if !member.RegisterTime.IsZero() {
 
 ### 後台管理
 
-- 管理員登入/登出（密碼雙 MD5 + 驗證碼 + 登入鎖定）
+- 管理員登入/登出（密碼 bcrypt + 雙 MD5 向後相容 + 驗證碼 + 登入鎖定）
+- 安全防護：XSS 過濾（FilterUserInput）、SQL 注入防護（標識符白名單）、CSRF token、Session TTL、Session Fixation 防護
 - 內容管理：文章/產品增刪改查、批量排序、擴展字段、ext_ 前綴自定義字段
 - 欄目管理：樹形結構、自定義 URL、模板選擇
 - 單頁管理、站點信息、公司信息

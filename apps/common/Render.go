@@ -133,7 +133,14 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 	uid := GetSessionInt(c, "admin_uid")
 	if uid > 0 {
 		if _, exists := data["MenuTree"]; !exists {
-			data["MenuTree"] = buildMenuTree()
+			// 獲取用戶權限 levels（用於非超級管理員的菜單過濾）
+			var levels []string
+			if uid != 1 {
+				if l, ok := GetSession(c, "levels").([]string); ok {
+					levels = l
+				}
+			}
+			data["MenuTree"] = buildMenuTree(uid, levels)
 		}
 		if _, exists := data["MenuModels"]; !exists {
 			data["MenuModels"] = buildMenuModels()
@@ -325,9 +332,34 @@ type ContentModelNode struct {
 }
 
 // buildMenuTree builds the sidebar menu tree from the ay_menu table.
-func buildMenuTree() []MenuNode {
+// 對齊 PbootCMS PHP IndexModel::getUserMenu():
+//   - 超級管理員(uid=1)：載入全部啟用菜單
+//   - 普通用戶：只載入 URL 在用戶 session levels 中的菜單
+func buildMenuTree(uid int, levels []string) []MenuNode {
 	var menus []model.Menu
-	model.DB.Where("status = 1").Order("sorting ASC, id ASC").Find(&menus)
+	query := model.DB.Where("status = 1").Order("sorting ASC, id ASC")
+
+	if uid != 1 && len(levels) > 0 {
+		// 非超級管理員：查詢全部後在記憶體中按權限過濾（不區分大小寫）
+		query.Find(&menus)
+		levelSet := make(map[string]bool)
+		for _, l := range levels {
+			levelSet[strings.ToLower(strings.TrimSpace(l))] = true
+		}
+		filtered := make([]model.Menu, 0, len(menus))
+		for _, m := range menus {
+			if levelSet[strings.ToLower(m.URL)] {
+				filtered = append(filtered, m)
+			}
+		}
+		menus = filtered
+	} else if uid == 1 {
+		// 超級管理員：載入全部
+		query.Find(&menus)
+	} else {
+		// 無權限用戶：返回空
+		return []MenuNode{}
+	}
 
 	menuMap := make(map[string][]MenuNode)
 	for _, m := range menus {

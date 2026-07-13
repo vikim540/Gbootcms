@@ -161,6 +161,12 @@ mg.JSONOKMsg(c, "新增成功")
 | 23 | pongo2 `{foreach $value->Field(key,value)}` 不支援 | `reForeach` 正則只匹配 `$varName`，不支援 `->`；必須在 controller 預計算為字串 | 高 |
 | 24 | layui `form.on('submit()')` 攔截非 `lay-submit` 按鈕導致批量操作失敗 | 改用 jQuery `$(document).on('submit')` 統一攔截 | 高 |
 | 25 | ExtField 同模型下 field 名稱重複導致數據覆蓋 | `ay_content_ext` 每列對應一個 field 名，重複會共用同一列；必須用 `CheckFieldUnique` 檢查 | 高 |
+| 26 | 用戶輸入未過濾直接存入 DB | 必須經過 `common.FilterUserInput()`（XSS 防護） | 高 |
+| 27 | 動態 SQL 表名/欄位名未驗證 | 必須用 `CheckVarType()` / `CheckColumnName()` 白名單驗證 | 高 |
+| 28 | 會員登入未重新生成 Session ID | 必須呼叫 `common.RegenerateSessionID(c)`（防 Session Fixation） | 高 |
+| 29 | AJAX 攔截回應只有 `msg` 缺少 `data` | `auth.go` 中 AJAX 回應必須同時包含 `data` + `msg` | 高 |
+| 30 | 刪除操作用 GET 請求 | 刪除操作必須用 POST（防 CSRF） | 高 |
+| 31 | 通知文案帶感嘆號 | 統一風格，通知文案**不加感嘆號** | 中 |
 
 ### 1.4 路由大小寫陷阱（Gin + 模板引擎）
 
@@ -399,6 +405,80 @@ func SetSession(c *gin.Context, key string, value interface{}) {
 ```
 
 在所有渲染方法中，`checkMustLogin` 在 `p.Render` 之前檢查。登入後標籤本身回傳空字串（不影響渲染）。
+
+### 1.13 安全防護速查（XSS / SQL注入 / Session / CSRF）
+
+> 對齊 PbootCMS PHP `escape_string()` + `filter()` + `checkKey()`，使用 Go stdlib 等價方案。
+
+#### XSS 防護
+
+```go
+import "gbootcms/apps/common"
+
+// 用戶輸入經過 FilterUserInput 處理（對齊 PbootCMS filter()）
+// 1. 清除 hex 括號 x3c/x3e
+// 2. 過濾 {gboot:if} / {gboot:sql} 標籤
+// 3. HTML 轉義（html.EscapeString = PHP htmlspecialchars(ENT_QUOTES, UTF-8)）
+comment := common.FilterUserInput(c.PostForm("comment"))
+```
+
+> **規則**：所有用戶提交的富文字內容（評論、留言）必須經過 `FilterUserInput`。
+
+#### SQL 注入防護
+
+```go
+// 動態表名/欄位名必須用白名單正則驗證（對齊 PbootCMS checkKey()）
+if !common.CheckVarType(tableName) {
+    return fmt.Errorf("非法表名")
+}
+if !common.CheckColumnName(fieldName) {
+    return fmt.Errorf("非法欄位名")
+}
+// GORM 參數化查詢已防護值注入，只需驗證標識符
+db.Where("id = ?", id).Find(&items)
+```
+
+| 函數 | 正則 | 用途 |
+|------|------|------|
+| `CheckIdentifier` | `^[\w\.\-]+$` | 通用 SQL 識別符 |
+| `CheckVarType` | `^[\w\-\.]+$` | 表名驗證（對齊 PbootCMS var 類型） |
+| `CheckColumnName` | `^[a-zA-Z][\w]+$` | 欄位名驗證（必須字母開頭） |
+
+#### Session 安全
+
+| 防護項 | 實現 | 位置 |
+|--------|------|------|
+| Session Fixation | 會員登入時 `RegenerateSessionID(c)` | `member.go` Login |
+| Cookie HttpOnly | `HttpOnly: true`（防 XSS 竊取） | `session.go` SetCookie |
+| Session TTL | 24h 最大生命週期 + 2h 閒置超時 + 10min 清理週期 | `session.go` sessionEntry |
+| 過期清理 | `cleanupExpiredSessions()` 後台協程 | `session.go` init() |
+
+#### CSRF 防護
+
+| 防護項 | 實現 | 位置 |
+|--------|------|------|
+| 後台表單 | 32字節 `crypto/rand` token + POST 中間件驗證 | `auth.go` + `formcheck` |
+| 評論刪除 | 僅允許 `POST`（GET 返回 404） | `main.go` 路由 + `comment.go` |
+| 上傳豁免 | `csrfExemptPaths` 白名單 | `auth.go` |
+
+#### 權限控制
+
+| 防護項 | 實現 | 位置 |
+|--------|------|------|
+| clearsession 權限 | **不在** `publicPermPaths` 中，需特定權限 | `auth.go` |
+| 非標準動作 | 附屬於控制器 `index` 瀏覽權限 | `auth.go` |
+| 評論刪除 | 驗證 `uid` 所有權（`WHERE id=? AND uid=?`） | `comment.go` Del |
+| 密碼儲存 | bcrypt + 雙 MD5 向後相容 + 登入自動升級 | `common` HashPassword |
+
+#### AJAX 回應格式規則
+
+| 場景 | 回應方式 | 前端讀取 | 顯示方式 |
+|------|---------|---------|---------|
+| ajaxlink 連結 | `JSONOK(c, data)` | `response.data` | `layer.msg()` |
+| 表單提交 | `JSONOKMsg` / `JSONFail` | `res.msg` | `showNotify()` |
+| 權限攔截 | 雙欄位 `data` + `msg` | 視場景 | 視場景 |
+
+> **規則**：`auth.go` 中的 AJAX 攔截回應必須同時包含 `data` 和 `msg` 欄位，通知文案**不加感嘆號**。
 
 ---
 

@@ -40,7 +40,7 @@ func (lb *LabelController) Index(c *gin.Context) {
 
 		log.Printf("[LabelController.Index] POST fields count: %d", len(postForm))
 
-		updated := content.BatchUpdateLabelValues(postForm, "admin")
+		updated := content.BatchUpdateLabelValues(postForm, lb.GetAdminUsername(c))
 		lb.JSONOKMsg(c, common.NoticeLabelSaved(updated))
 		return
 	}
@@ -58,12 +58,12 @@ func (lb *LabelController) Add(c *gin.Context) {
 			}
 		}
 		err := content.AddLabelFull(
-			c.PostForm("name"),
-			c.PostForm("value"),
-			c.PostForm("description"),
-			"admin",
-			typ,
-		)
+		c.PostForm("name"),
+		c.PostForm("value"),
+		c.PostForm("description"),
+		lb.GetAdminUsername(c),
+		typ,
+	)
 		if err != nil {
 			lb.JSONFail(c, "Add failed: "+err.Error())
 			return
@@ -86,7 +86,7 @@ func (lb *LabelController) Mod(c *gin.Context) {
 			id,
 			c.PostForm("name"),
 			c.PostForm("value"),
-			"admin",
+			lb.GetAdminUsername(c),
 		)
 		if err != nil {
 			lb.JSONFail(c, "Modify failed: "+err.Error())

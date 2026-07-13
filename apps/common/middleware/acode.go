@@ -12,26 +12,42 @@ import (
 	"gorm.io/gorm"
 )
 
-// defaultAcodeCache 緩存默認區域，避免每次請求都查 DB
+// defaultAcodeCache 緩存默認區域，避免每次請求都查 DB（動態刷新）
 var (
-	defaultAcodeCache     string
-	defaultAcodeCacheOnce sync.Once
+	defaultAcodeCache   string
+	defaultAcodeCacheMu sync.RWMutex
 )
 
 // GetDefaultAcode 從 DB 查詢默認區域（is_default=1），緩存結果
 // 供控制器層判斷是否需要為重定向 URL 添加語言前綴
 func GetDefaultAcode() string {
-	defaultAcodeCacheOnce.Do(func() {
-		skipCtx := acodeplugin.SkipAcode(context.Background())
-		var area model.Area
-		if err := model.DB.WithContext(skipCtx).Where("is_default = '1'").First(&area).Error; err == nil {
-			defaultAcodeCache = area.Acode
-		}
-		if defaultAcodeCache == "" {
-			defaultAcodeCache = "sc" // 回退默認值
-		}
-	})
-	return defaultAcodeCache
+	defaultAcodeCacheMu.RLock()
+	cached := defaultAcodeCache
+	defaultAcodeCacheMu.RUnlock()
+	if cached != "" {
+		return cached
+	}
+	// 首次或快取被刷新後重新載入
+	skipCtx := acodeplugin.SkipAcode(context.Background())
+	var area model.Area
+	result := ""
+	if err := model.DB.WithContext(skipCtx).Where("is_default = '1'").First(&area).Error; err == nil {
+		result = area.Acode
+	}
+	if result == "" {
+		result = "cn" // 回退默認值（對齊 PbootCMS 原版）
+	}
+	defaultAcodeCacheMu.Lock()
+	defaultAcodeCache = result
+	defaultAcodeCacheMu.Unlock()
+	return result
+}
+
+// RefreshDefaultAcode 清除默認區域快取（管理員修改區域後呼叫）
+func RefreshDefaultAcode() {
+	defaultAcodeCacheMu.Lock()
+	defaultAcodeCache = ""
+	defaultAcodeCacheMu.Unlock()
 }
 
 // InjectAcode 從 URL 前綴、session（後台）或域名匹配（前台）提取當前 acode，

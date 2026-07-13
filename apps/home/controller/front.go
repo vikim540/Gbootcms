@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
@@ -34,9 +35,6 @@ const rateLimitTTL = 10 * time.Minute
 // messageRateLimit 留言防頻繁提交：IP → 上次提交時間（併發安全）
 var messageRateLimit sync.Map
 
-// gboot:if 安全過濾正則（遞歸清除模板標籤注入）
-var gbootIfRegex = regexp.MustCompile(`(?i)gboot:if`)
-
 // cleanupRateLimit 清理過期的頻率限制條目，防止內存洩漏
 func cleanupRateLimit() {
 	now := time.Now()
@@ -51,11 +49,58 @@ func cleanupRateLimit() {
 // parseUserOS 和 parseUserBrowser 已合併到 common.ParseUserAgent（消除重複造輪子）
 
 type FrontController struct {
-	Store *parser.TemplateStore
+	Store  *parser.TemplateStore // 預設模板（default）
+	stores map[string]*parser.TemplateStore // 各語言模板（按 theme 目錄名索引）
+	mu     sync.RWMutex
 }
 
 func NewFrontController(store *parser.TemplateStore) *FrontController {
-	return &FrontController{Store: store}
+	return &FrontController{Store: store, stores: make(map[string]*parser.TemplateStore)}
+}
+
+// getStore 根據當前請求的 acode 取得對應的 TemplateStore
+// 邏輯：acode → 查 ay_site.theme → 如果 theme 目錄有對應 TemplateStore 則用它，否則用 default
+func (fc *FrontController) getStore(c *gin.Context) *parser.TemplateStore {
+	acode := acodeplugin.GetAcode(c.Request.Context())
+	if acode == "" {
+		return fc.Store
+	}
+
+	// 查詢當前 acode 對應的 theme
+	var site model.Site
+	if model.DB.WithContext(c.Request.Context()).First(&site).Error != nil {
+		return fc.Store
+	}
+	theme := site.Theme
+	if theme == "" || theme == "default" {
+		return fc.Store
+	}
+
+	// 檢查是否已有快取的 store
+	fc.mu.RLock()
+	s, ok := fc.stores[theme]
+	fc.mu.RUnlock()
+	if ok {
+		return s
+	}
+
+	// 嘗試載入該 theme 的模板目錄
+	themeDir := "template/" + theme
+	if _, err := os.Stat(themeDir); os.IsNotExist(err) {
+		// theme 目錄不存在，fallback 到 default
+		return fc.Store
+	}
+
+	tagParser := parser.New()
+	newStore, err := parser.NewTemplateStore(themeDir, tagParser)
+	if err != nil || newStore == nil {
+		return fc.Store
+	}
+
+	fc.mu.Lock()
+	fc.stores[theme] = newStore
+	fc.mu.Unlock()
+	return newStore
 }
 
 // langPath 根據當前請求的語言區域，為路徑添加語言前綴
@@ -108,7 +153,7 @@ func (fc *FrontController) Index(c *gin.Context) {
 	ctx := fc.buildContext(c)
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
-	content := fc.Store.Render("index.html")
+	content := fc.getStore(c).Render("index.html")
 	if !fc.checkMustLogin(c, content) {
 		return
 	}
@@ -123,9 +168,19 @@ func (fc *FrontController) ListPage(c *gin.Context) {
 	path = trimSuffix(path)
 
 	// 優先查 filename（欄目自定義 URL 名稱），fallback 查 urlname（向後兼容）
+	// 手動添加 acode 過濾（AcodePlugin 對 .First() 不可靠）
+	acode := acodeplugin.GetAcode(c.Request.Context())
 	var sort content.ContentSort
-	if err := model.DB.WithContext(c.Request.Context()).Where("filename = ?", path).First(&sort).Error; err != nil {
-		if err2 := model.DB.WithContext(c.Request.Context()).Where("urlname = ?", path).First(&sort).Error; err2 != nil {
+	sortQuery := model.DB.WithContext(c.Request.Context()).Where("filename = ?", path)
+	if acode != "" {
+		sortQuery = sortQuery.Where("acode = ?", acode)
+	}
+	if err := sortQuery.First(&sort).Error; err != nil {
+		urlnameQuery := model.DB.WithContext(c.Request.Context()).Where("urlname = ?", path)
+		if acode != "" {
+			urlnameQuery = urlnameQuery.Where("acode = ?", acode)
+		}
+		if err2 := urlnameQuery.First(&sort).Error; err2 != nil {
 			c.String(http.StatusNotFound, "404")
 			return
 		}
@@ -148,7 +203,7 @@ func (fc *FrontController) ListPage(c *gin.Context) {
 	if tpl == "" {
 		tpl = "list.html"
 	}
-	content := fc.Store.Render(tpl)
+	content := fc.getStore(c).Render(tpl)
 	if !fc.checkMustLogin(c, content) {
 		return
 	}
@@ -170,12 +225,30 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 	}
 
 	// 優先查 filename（自定義 URL 名稱），fallback 查 urlname
+	// 手動添加 acode 過濾（AcodePlugin 對 .First() 不可靠）
+	ctAcode := acodeplugin.GetAcode(c.Request.Context())
 	var ct content.Content
-	if err := model.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1", path).First(&ct).Error; err != nil {
-		if err2 := model.DB.WithContext(c.Request.Context()).Where("urlname = ? AND status = 1", path).First(&ct).Error; err2 != nil {
+	ctQuery := model.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1", path)
+	if ctAcode != "" {
+		ctQuery = ctQuery.Where("acode = ?", ctAcode)
+	}
+	if err := ctQuery.First(&ct).Error; err != nil {
+		ctFallback := model.DB.WithContext(c.Request.Context()).Where("urlname = ? AND status = 1", path)
+		if ctAcode != "" {
+			ctFallback = ctFallback.Where("acode = ?", ctAcode)
+		}
+		if err2 := ctFallback.First(&ct).Error; err2 != nil {
 			var sort content.ContentSort
-			if err3 := model.DB.WithContext(c.Request.Context()).Where("filename = ?", path).First(&sort).Error; err3 != nil {
-				if err4 := model.DB.WithContext(c.Request.Context()).Where("urlname = ?", path).First(&sort).Error; err4 != nil {
+			sortQuery := model.DB.WithContext(c.Request.Context()).Where("filename = ?", path)
+			if ctAcode != "" {
+				sortQuery = sortQuery.Where("acode = ?", ctAcode)
+			}
+			if err3 := sortQuery.First(&sort).Error; err3 != nil {
+				sortFallback := model.DB.WithContext(c.Request.Context()).Where("urlname = ?", path)
+				if ctAcode != "" {
+					sortFallback = sortFallback.Where("acode = ?", ctAcode)
+				}
+				if err4 := sortFallback.First(&sort).Error; err4 != nil {
 					c.String(http.StatusNotFound, "404")
 					return
 				}
@@ -187,7 +260,11 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 
 	// 查欄目並做欄目權限檢查
 	var sort content.ContentSort
-	if model.DB.WithContext(c.Request.Context()).Where("scode = ?", ct.Scode).First(&sort).Error == nil {
+	sortQ := model.DB.WithContext(c.Request.Context()).Where("scode = ?", ct.Scode)
+	if ctAcode != "" {
+		sortQ = sortQ.Where("acode = ?", ctAcode)
+	}
+	if sortQ.First(&sort).Error == nil {
 		if !fc.checkSortPermission(c, &sort) {
 			return
 		}
@@ -214,7 +291,7 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 	if ctx.Sort != nil && ctx.Sort.ContentTpl != "" {
 		tpl = ctx.Sort.ContentTpl
 	}
-	html := fc.Store.Render(tpl)
+	html := fc.getStore(c).Render(tpl)
 	html = p.Render(html)
 	html = postRender(html, c.Request.Context())
 
@@ -230,7 +307,7 @@ func (fc *FrontController) Search(c *gin.Context) {
 	}
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
-	content := fc.Store.Render("search.html")
+	content := fc.getStore(c).Render("search.html")
 	if !fc.checkMustLogin(c, content) {
 		return
 	}
@@ -244,7 +321,7 @@ func (fc *FrontController) Tags(c *gin.Context) {
 	ctx := fc.buildContext(c)
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
-	content := fc.Store.Render("tags.html")
+	content := fc.getStore(c).Render("tags.html")
 	if !fc.checkMustLogin(c, content) {
 		return
 	}
@@ -276,9 +353,9 @@ func (fc *FrontController) Message(c *gin.Context) {
 			return
 		}
 
-		// pboot:if 安全過濾
+		// XSS 安全過濾（對齊 PbootCMS PHP filter()：過濾 gboot:if/sql 標籤 + HTML 轉義）
 		filterGbootIf := func(s string) string {
-			return gbootIfRegex.ReplaceAllString(s, "")
+			return common.FilterUserInput(s)
 		}
 
 		// 區分 fcode：fcode=1 或無 fcode → 留言(ay_message)，fcode≥2 → 自定義表單(ay_diy_*)
@@ -375,7 +452,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 	ctx := fc.buildContext(c)
 	p := parser.New()
 	parser.RegisterAllProviders(p, ctx)
-	content := fc.Store.Render("message.html")
+	content := fc.getStore(c).Render("message.html")
 	if !fc.checkMustLogin(c, content) {
 		return
 	}
@@ -443,9 +520,21 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 		notifyFields = append(notifyFields, map[string]string{"label": f.Description, "value": val})
 	}
 
-	// 動態 INSERT（參數化查詢）
-	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-		tableName, strings.Join(cols, ","), strings.Join(placeholders, ","))
+	// 動態 INSERT（參數化查詢值，表名/欄位名驗證）
+	// SQL 注入防護：驗證表名和欄位名（對齊 PbootCMS PHP checkKey）
+	safeTableRegex := regexp.MustCompile(`^[\w]+$`)
+	if !safeTableRegex.MatchString(tableName) {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+		return
+	}
+	for _, col := range cols {
+		if !safeTableRegex.MatchString(col) {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+			return
+		}
+	}
+	sql := fmt.Sprintf("INSERT INTO `%s` (%s) VALUES (%s)",
+		tableName, "`"+strings.Join(cols, "`,`")+"`", strings.Join(placeholders, ","))
 	if err := model.DB.Exec(sql, vals...).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
 		return
@@ -616,7 +705,7 @@ func (fc *FrontController) ContentByID(c *gin.Context) {
 	if sort.ID != 0 && sort.ContentTpl != "" {
 		tpl = sort.ContentTpl
 	}
-	html := fc.Store.Render(tpl)
+	html := fc.getStore(c).Render(tpl)
 	html = p.Render(html)
 	html = postRender(html, c.Request.Context())
 	c.Header("Content-Type", "text/html; charset=utf-8")
@@ -717,7 +806,7 @@ func (fc *FrontController) renderSortPage(c *gin.Context, sort *content.ContentS
 		tpl = "list.html"
 	}
 
-	content := fc.Store.Render(tpl)
+	content := fc.getStore(c).Render(tpl)
 	if !fc.checkMustLogin(c, content) {
 		return
 	}
@@ -1001,3 +1090,4 @@ func rewriteLangLinks(htmlContent string, ctx context.Context) string {
 }
 
 // === 以下驗證碼繪製輔助函數已移至 apps/common/captcha.go 統一管理 ===
+

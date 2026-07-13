@@ -1,0 +1,28 @@
+{include file=comm/head.html}
+
+{include file=comm/top.html}
+
+<div class="container pages">    
+
+  	 {include file=comm/position.html}
+
+	 <!-- 列表內容 -->
+	 <div class="row">
+     {gboot:list num=10 order=date}
+     	<div class="mb-3 col-12 col-sm-6 col-lg-3">
+	      	<div class="card bg-light">
+			  <div class="card-header">Job Position: [list:title]</div>
+			  <div class="card-body">
+			    <p class="card-text">[list:content drophtml=1 dropblank=1 lencn=50]</p>
+			    <a class="btn btn-info mt-2" href="[list:link]">View Details</a>
+			  </div>
+			   <div class="card-footer">Publish Date: [list:date style=Y-m-d]</div>
+			</div>
+		</div>
+     {/gboot:list}
+     </div>
+
+ 	 {include file=comm/page.html}
+</div>
+
+{include file=comm/foot.html}

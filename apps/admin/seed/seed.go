@@ -24,6 +24,7 @@ func SeedData() {
 	var user system.AdminUser
 	if model.DB.Where("1 = 1").First(&user).Error != gorm.ErrRecordNotFound {
 		// 用戶表非空：跳過首次種子，但仍要確保選單是最新版本
+		ensureArea()
 		ensureMenuVersion()
 		ensureMemberConfigs()
 		return
@@ -32,6 +33,7 @@ func SeedData() {
 	now := time.Now()
 
 	seedAdminUser(now)
+	seedArea()
 	seedSite()
 	seedCompany()
 	seedMenus(now)
@@ -39,6 +41,25 @@ func SeedData() {
 	seedMemberGroups()
 	seedContentModels()
 	seedConfigs()
+}
+
+// ensureArea 確保至少有一個確保至少有一個預設區域（冪等操作，每次啟動都執行）
+func ensureArea() {
+	var count int64
+	model.DB.Model(&system.Area{}).Count(&count)
+	if count > 0 {
+		return
+	}
+	// 表為空 → 創建預設區域（對齊 PbootCMS 原版：acode=cn, name=中文, is_default=1）
+	seedArea()
+}
+
+func seedArea() {
+	model.DB.Create(&system.Area{
+		Acode:     "cn",
+		Name:      "中文",
+		IsDefault: "1",
+	})
 }
 
 // ensureMenuVersion 檢查選單資料是否與最新 seedMenus 版本一致。

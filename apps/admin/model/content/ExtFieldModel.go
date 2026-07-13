@@ -1,9 +1,22 @@
 package content
 
 import (
+	"fmt"
 	"gbootcms/core/db"
+	"regexp"
 	"strings"
 )
+
+// identifierRegex SQL 識別符白名單（對齊 PbootCMS PHP checkKey: /^[\w\.\-]+$/）
+var identifierRegex = regexp.MustCompile(`^[\w\.\-]+$`)
+
+// isSafeIdentifier 驗證 SQL 識別符是否安全
+func isSafeIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	return identifierRegex.MatchString(s)
+}
 
 // EnsureContentExtTable 確保 ay_content_ext 基礎表存在（冪等操作）。
 // 僅含基礎列 extid + contentid，動態列由新增欄位時按需添加。
@@ -199,6 +212,10 @@ func UpdateExtField(id int, mcode, name, field, typ, value, scode string, requir
 }
 
 func UpdateExtFieldSingleField(id int, field, value string) error {
+	// SQL 注入防護：驗證欄位名（對齊 PbootCMS PHP checkKey）
+	if !isSafeIdentifier(field) {
+		return fmt.Errorf("非法欄位名: %s", field)
+	}
 	return db.DB.Exec("UPDATE ay_extfield SET "+field+" = ? WHERE id=?", value, id).Error
 }
 

@@ -5,6 +5,7 @@ import (
 	"gbootcms/apps/admin/helper"
 	sysModel "gbootcms/apps/admin/model/system"
 	"gbootcms/apps/common"
+	"gbootcms/apps/common/middleware"
 	"regexp"
 	"strings"
 	"time"
@@ -183,10 +184,11 @@ func (ar *AreaController) Add(c *gin.Context) {
 			UpdateUser: username,
 		}
 		if err := sysModel.AddArea(area); err != nil {
-			ar.JSONFail(c, "新增失敗！")
-			return
-		}
-		ar.LogAction(c, "新增數據區域"+acode+"成功")
+		ar.JSONFail(c, "新增失敗！")
+		return
+	}
+	refreshAreaCache()
+	ar.LogAction(c, "新增數據區域"+acode+"成功")
 		c.JSON(200, gin.H{"code": 1, "data": common.NoticeAdd, "msg": common.NoticeAdd, "tourl": "/admin/Area/index"})
 		return
 	}
@@ -264,10 +266,11 @@ func (ar *AreaController) Mod(c *gin.Context) {
 			"update_time": time.Now().Format("2006-01-02 15:04:05"),
 		}
 		if err := sysModel.ModArea(acode, updates); err != nil {
-			ar.JSONFail(c, "修改失敗！")
-			return
-		}
-		ar.LogAction(c, "修改數據區域"+acode+"成功")
+		ar.JSONFail(c, "修改失敗！")
+		return
+	}
+	refreshAreaCache()
+	ar.LogAction(c, "修改數據區域"+acode+"成功")
 		c.JSON(200, gin.H{"code": 1, "data": common.NoticeModify, "msg": common.NoticeModify, "tourl": "/admin/Area/index"})
 		return
 	}
@@ -324,6 +327,7 @@ func (ar *AreaController) Del(c *gin.Context) {
 		ar.JSONFail(c, "刪除失敗，請核對是否為默認區域！")
 		return
 	}
+	refreshAreaCache()
 	ar.LogAction(c, "刪除數據區域"+acode+"成功")
 	c.JSON(200, gin.H{"code": 1, "data": common.NoticeDelete, "msg": common.NoticeDelete, "tourl": "/admin/Area/index"})
 }
@@ -337,3 +341,8 @@ func injectGetFlat(data gin.H, params map[string]string) {
 
 // unused import guard
 var _ = strings.TrimSpace
+
+// refreshAreaCache 刷新區域相關快取（validAcodes + defaultAcode）
+func refreshAreaCache() {
+	middleware.RefreshDefaultAcode()
+}

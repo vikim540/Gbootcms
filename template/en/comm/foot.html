@@ -1,0 +1,172 @@
+
+<div class="footer mt-3 pt-5 border-top text-secondary bg-light">
+	<div class="container">
+    	<div class="row pb-5">
+            <div class="col-12 col-md-5">
+            	<h5>{gboot:companyname}</h5>
+                <ul class="lh-2">
+                	<li>Business License: {gboot:companyblicense}  </li>
+                    <li>Filing No.: <a href="http://beian.miit.gov.cn/" target="_blank">{gboot:siteicp}</a> </li>
+                    <li>Address: {gboot:companyaddress} </li>
+                </ul>
+            </div>
+            <div class="col-12 col-md-5">
+            	<div class="mt-4 d-block d-md-none"></div>
+                
+            	<h5>Contact Us</h5>
+                <ul class="lh-2">
+                    <li>Phone: {gboot:companyphone} </li>
+                    <li>Email: {gboot:companyemail} </li>
+                    <li>Q&nbsp;&nbsp;Q: {gboot:companyqq} </li>
+                </ul>
+            </div>
+            <div class="col-12 col-md-2 text-center d-none d-md-block">
+            	<p class="code">{gboot:qrcode string={gboot:httpurl}} </p>
+                <p class="small">Scan for mobile access</p>
+            </div>
+        </div>
+	</div>
+
+	<div class="container pt-3 pb-3 border-top">
+		<div class="row">
+			<div class="col-12 col-md-6">
+				<span class="text-secondary small">Links:</span>
+				{gboot:link num=20}
+					<a href="[link:link]" target="_blank" class="text-secondary small me-2">[link:title]</a>
+				{/gboot:link}
+			</div>
+		 
+		</div>
+	</div>
+
+    <div class="copyright border-top lh-3 text-center  d-none d-md-block">
+    	{gboot:sitecopyright}
+    	<br><span class="small">Download: {label:downlink}</span>
+    </div>
+</div>
+
+<!-- 佔位 -->
+<div style="height:49px;" class="d-block d-sm-none"></div>
+
+<!-- 手機底部導航 -->
+<div class="container-fluid bg-info fixed-bottom d-block d-sm-none">
+    <div class="row">
+        <div class="col-4 p-0 text-center border-right">
+            <a href="tel:{gboot:companymobile}" class="text-light d-block pt-3 pb-3"><i class="fa fa-phone" aria-hidden="true"></i> Phone Consultation</a>
+        </div>
+        <div class="col-4 p-0 text-center border-right">
+            <a target="_blank" href="http://wpa.qq.com/msgrd?v=3&uin={gboot:companyqq}&site=qq&menu=yes" class="text-light d-block pt-3 pb-3"><i class="fa fa-qq" aria-hidden="true"></i> Online Consultation</a>
+        </div>
+        <div class="col-4 p-0 text-center">
+			{gboot:sort scode=1}
+            <a href="[sort:link]" class="text-light d-block pt-3 pb-3"><i class="fa fa-location-arrow" aria-hidden="true"></i> [sort:name]</a>
+			{/gboot:sort}
+        </div>
+    </div>
+</div>
+
+<!-- 在線客服 -->
+<div class="online d-none d-md-block">
+	<dl>
+		<dt style="width:150px;">
+        	<h3><i class="fa fa-commenting-o"></i>Online Consultation<span class="remove"><i class="fa fa-remove"></i></span></h3>
+            <p>
+            	<a target="_blank" href="http://wpa.qq.com/msgrd?v=3&uin={gboot:companyqq}&site=qq&menu=yes">
+                	<img border="0" src="{gboot:sitetplpath}/images/qq.jpg" alt="Click here to send me a message" title="Click here to send me a message"/>
+               		 Pre-sales Specialist
+                </a>
+            </p>
+             <p>
+                <a target="_blank" href="http://wpa.qq.com/msgrd?v=3&uin={gboot:companyqq}&site=qq&menu=yes">
+                	<img border="0" src="{gboot:sitetplpath}/images/qq.jpg" alt="Click here to send me a message" title="Click here to send me a message"/>
+               		 After-sales Service Specialist
+                </a>
+            </p>
+        </dt>
+		<dd><i class="fa fa-commenting-o"></i></dd>
+		<dd>Online Consultation</dd>
+	</dl>
+    
+	<dl>
+		<dt style="width:300px;">
+        	<h3><i class="fa fa-volume-control-phone"></i>Free Call<span class="remove"><i class="fa fa-remove"></i></span></h3>
+            <p>24-hour free consultation</p>
+            <p>Please enter your contact phone number, add area code for landline</p>
+            <form  onsubmit="return subform(this);">
+            	<p><input type="text" name="tel" id="tel" autocomplete="off"  placeholder="Please enter your phone number" required maxlength="30"></p>
+                <p><button type="submit">Free Call</button></p>
+            </form>
+        </dt>
+		<dd><i class="fa fa-volume-control-phone" aria-hidden="true"></i></dd>
+		<dd>Free Call</dd>
+	</dl>
+    
+    <dl>
+		<dt style="width:200px;">
+        	<h3><i class="fa fa-weixin" aria-hidden="true"></i>Scan WeChat<span class="remove"><i class="fa fa-remove"></i></span></h3>
+           	<p><img src="{gboot:companyweixin} " width="100%"></p>
+        </dt>
+		<dd><i class="fa fa-weixin" aria-hidden="true"></i></dd>
+		<dd>WeChat Contact</dd>
+	</dl>
+    
+	<dl class="scroll-top">
+		<dd><i class="fa fa-chevron-up"></i></dd>
+		<dd>Back to Top</dd>
+	</dl>
+</div>
+
+<script src="{gboot:sitetplpath}/js/popper.min.js"></script>
+<script src="{gboot:sitetplpath}/bootstrap/js/bootstrap.min.js"></script>
+<script src="{gboot:sitetplpath}/js/wow.min.js"></script>
+<script src="{gboot:sitetplpath}/js/aoyun.js?v=v1.2.2"></script>
+<script>
+//ajax提交表單
+function subform(obj){
+  var url='{gboot:form fcode=2}';
+  var tel=$(obj).find("#tel").val();
+  
+  var reg = /^(1|0)[\d\-]+$/;   
+  if (!reg.test(tel)) {
+	  alert('Invalid phone number!');
+	  return false;
+  }
+  
+  $.ajax({
+    type: 'POST',
+    url: url,
+    dataType: 'json',
+    data: {
+    	tel: tel
+    },
+    success: function (response, status) {
+      if(response.code){
+		 alert("Your call request has been received, we will contact you soon!");
+		 $(obj)[0].reset(); 
+      }else{
+    	 alert(response.data);
+      }
+    },
+    error:function(xhr,status,error){
+      alert('Data error!');
+    }
+  });
+  return false;
+}
+
+// Markdown 代碼塊語言標籤 + 複製按鈕
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.md-content pre > code[class*="language-"]').forEach(function(code) {
+        var cls = code.className;
+        var lang = cls.replace('language-', '').trim();
+        if (lang) {
+            code.parentElement.setAttribute('data-lang', lang);
+        }
+    });
+});
+</script>
+
+{gboot:sitestatistical}
+
+</body>
+</html>

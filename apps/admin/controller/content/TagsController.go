@@ -97,7 +97,11 @@ func (tg *TagsController) Del(c *gin.Context) {
 		tg.JSONFail(c, "參數錯誤")
 		return
 	}
-	model.DB.WithContext(c.Request.Context()).Delete(&model.Tags{}, idStr)
+	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Tags{}, idStr).Error; err != nil {
+		tg.LogAction(c, "刪除文章內鏈失敗")
+		tg.JSONFail(c, "刪除失敗："+err.Error())
+		return
+	}
 	tg.LogAction(c, "刪除文章內鏈成功")
 	tg.JSONOKMsg(c, common.NoticeDelete)
 }

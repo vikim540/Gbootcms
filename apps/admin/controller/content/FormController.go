@@ -174,6 +174,11 @@ func (fm *FormController) Add(c *gin.Context) {
 			fm.JSONFail(c, "表名稱不能為空")
 			return
 		}
+		// SQL 注入防護：驗證表名只含字母、數字、下劃線、橫線、點（對齊 PbootCMS PHP var 類型驗證）
+		if !common.CheckVarType(tableNameInput) {
+			fm.JSONFail(c, "表名稱只能包含字母、數字、下劃線、橫線")
+			return
+		}
 
 		// 生成 fcode（取最大值+1）
 		var maxFcode int
@@ -238,6 +243,11 @@ func (fm *FormController) Add(c *gin.Context) {
 
 	if name == "" {
 		fm.JSONFail(c, "字段名稱不能為空")
+		return
+	}
+	// SQL 注入防護：驗證欄位名必須以字母開頭（對齊 PbootCMS PHP MemberField 驗證）
+	if !common.CheckColumnName(name) {
+		fm.JSONFail(c, "字段名稱必須以字母開頭，只能包含字母、數字、下劃線")
 		return
 	}
 	if description == "" {

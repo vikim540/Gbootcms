@@ -127,11 +127,8 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		case "sitestatistical":
 			return ctx.Site.Statistical
 		case "sitetplpath":
-			theme := ctx.Site.Theme
-			if theme == "" {
-				theme = "default"
-			}
-			return "/template/" + theme + "/static"
+			// 靜態資源（CSS/JS/圖片）所有語言共用 default 目錄，避免重複和同步問題
+			return "/template/default/static"
 		case "sitepath":
 			return currentHomePath(ctx)
 		case "pagetitle":
@@ -176,7 +173,8 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		case "turnstile_sitekey":
 			return model.GetConfigValue("turnstile_sitekey", "")
 		case "httpurl":
-			return "/" // 簡化實現
+		// 對齊 PbootCMS: 返回完整站點 URL（從 ay_config 讀取 httpurl 配置）
+		return model.GetConfigValue("httpurl", "/")
 		// Company 字段路由: {gboot:companyname} → company.name
 		case "companyname":
 			if ctx.Company != nil {
@@ -560,7 +558,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 	})
 
 	p.Register("httpurl", func(tagName string, params map[string]string, inner string) string {
-		return "/"
+		return model.GetConfigValue("httpurl", "/")
 	})
 
 	p.Register("pageurl", func(tagName string, params map[string]string, inner string) string {
@@ -624,7 +622,7 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		return acodeplugin.GetAcode(ctx.Ctx)
 	})
 
-	// homename — 當前語言的「首頁」文字
+	// homename — 導航菜單首項文字（本地化「首頁」），站點標題請用 {gboot:sitetitle}
 	p.Register("homename", func(tagName string, params map[string]string, inner string) string {
 		acode := acodeplugin.GetAcode(ctx.Ctx)
 		switch acode {
@@ -751,6 +749,9 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			// 獨立查詢取總記錄數（含 scode 過濾 + ext_ 篩選）
 			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
 				Where("status = 1")
+			if acode := acodeplugin.GetAcode(ctx.Ctx); acode != "" {
+				countQuery = countQuery.Where("acode = ?", acode)
+			}
 			if scode != "" {
 				countQuery = countQuery.Where("scode IN (?)", findAllChildScodes(ctx.Ctx, scode))
 			}
@@ -769,6 +770,9 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			// 獨立查詢取總記錄數（含 scode 過濾 + ext_ 篩選）
 			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
 				Where("status = 1")
+			if acode := acodeplugin.GetAcode(ctx.Ctx); acode != "" {
+				countQuery = countQuery.Where("acode = ?", acode)
+			}
 			if scode != "" {
 				countQuery = countQuery.Where("scode IN (?)", findAllChildScodes(ctx.Ctx, scode))
 			}
@@ -1265,7 +1269,12 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 		// 查動態表數據
 		var rows []map[string]interface{}
-		model.DB.WithContext(ctx.Ctx).Raw("SELECT * FROM " + tableName + " ORDER BY id DESC LIMIT " + strconv.Itoa(num)).Scan(&rows)
+		// SQL 注入防護：驗證表名（表名從 DB 讀取，但額外驗證以防資料被篡改）
+		safeTableRegex := regexp.MustCompile(`^[\w]+$`)
+		if !safeTableRegex.MatchString(tableName) {
+			return ""
+		}
+		model.DB.WithContext(ctx.Ctx).Raw("SELECT * FROM `" + tableName + "` ORDER BY id DESC LIMIT " + strconv.Itoa(num)).Scan(&rows)
 		if len(rows) == 0 {
 			return ""
 		}
@@ -1328,15 +1337,21 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			query.Offset(offset).Limit(num).Find(&contents)
 
 			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
-				Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
-			if scode != "" {
-				countQuery = countQuery.Where("scode IN ?", findAllChildScodes(ctx.Ctx, scode))
-			}
-			countQuery.Count(&total)
-		} else {
-			query.Limit(num).Find(&contents)
-			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
-				Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
+			Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
+		if acode := acodeplugin.GetAcode(ctx.Ctx); acode != "" {
+			countQuery = countQuery.Where("acode = ?", acode)
+		}
+		if scode != "" {
+			countQuery = countQuery.Where("scode IN ?", findAllChildScodes(ctx.Ctx, scode))
+		}
+		countQuery.Count(&total)
+	} else {
+		query.Limit(num).Find(&contents)
+		countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
+			Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
+		if acode := acodeplugin.GetAcode(ctx.Ctx); acode != "" {
+			countQuery = countQuery.Where("acode = ?", acode)
+		}
 			if scode != "" {
 				countQuery = countQuery.Where("scode IN ?", findAllChildScodes(ctx.Ctx, scode))
 			}
@@ -1697,9 +1712,12 @@ func getSortField(ctx context.Context, s *model.ContentSort, field string) strin
 		tcode := getSortField(ctx, s, "tcode")
 		allScodes := findAllChildScodes(ctx, tcode)
 		var cnt int64
-		model.DB.WithContext(ctx).Model(&model.Content{}).
-			Where("scode IN ? AND status = 1", allScodes).
-			Count(&cnt)
+		topRowsQ := model.DB.WithContext(ctx).Model(&model.Content{}).
+			Where("scode IN ? AND status = 1", allScodes)
+		if acode := acodeplugin.GetAcode(ctx); acode != "" {
+			topRowsQ = topRowsQ.Where("acode = ?", acode)
+		}
+		topRowsQ.Count(&cnt)
 		return strconv.FormatInt(cnt, 10)
 	case "link":
 		if s.Outlink != "" {
@@ -2122,9 +2140,12 @@ func sortToMap(ctx context.Context, s *model.ContentSort, index int, countMap ma
 	} else {
 		childScodes := findAllChildScodes(ctx, s.Scode)
 		var c int64
-		model.DB.WithContext(ctx).Model(&model.Content{}).
-			Where("scode IN ? AND status = 1", childScodes).
-			Count(&c)
+		fallbackQ := model.DB.WithContext(ctx).Model(&model.Content{}).
+			Where("scode IN ? AND status = 1", childScodes)
+		if acode := acodeplugin.GetAcode(ctx); acode != "" {
+			fallbackQ = fallbackQ.Where("acode = ?", acode)
+		}
+		fallbackQ.Count(&c)
 		rowCount = int(c)
 	}
 	return map[string]interface{}{
@@ -2164,11 +2185,13 @@ func buildSortCountMap(ctx context.Context) map[string]int {
 		Cnt   int64
 	}
 	var counts []scodeCount
-	model.DB.WithContext(ctx).Model(&model.Content{}).
+	countQ := model.DB.WithContext(ctx).Model(&model.Content{}).
 		Select("scode, count(*) as cnt").
-		Where("status = 1").
-		Group("scode").
-		Scan(&counts)
+		Where("status = 1")
+	if acode := acodeplugin.GetAcode(ctx); acode != "" {
+		countQ = countQ.Where("acode = ?", acode)
+	}
+	countQ.Group("scode").Scan(&counts)
 	directCount := make(map[string]int)
 	for _, c := range counts {
 		directCount[c.Scode] = int(c.Cnt)

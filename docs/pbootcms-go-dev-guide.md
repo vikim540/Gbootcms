@@ -160,6 +160,12 @@ mg.JSONOKMsg(c, "新增成功")
 | 22 | layui `form.on('submit()')` 攔截非 `lay-submit` 按鈕 | 改用 jQuery `$(document).on('submit')` 統一攔截 | 高 |
 | 23 | ExtField 同模型 field 名稱重複導致數據覆蓋 | `ay_content_ext` 每列對應一個 field 名，必須用 `CheckFieldUnique` 檢查 | 高 |
 | 24 | `c.Query()` 在 IndexCatchAll 後返回舊值 | `IndexCatchAll` 修改 `RawQuery` 後 gin 緩存失效，改用 `c.Request.URL.Query().Get()` | 高 |
+| 25 | 用戶輸入未過濾直接存入 DB | 必須經過 `common.FilterUserInput()`（XSS 防護） | 高 |
+| 26 | 動態 SQL 表名/欄位名未驗證 | 必須用 `CheckVarType()` / `CheckColumnName()` 白名單驗證 | 高 |
+| 27 | 會員登入未重新生成 Session ID | 必須呼叫 `common.RegenerateSessionID(c)`（防 Session Fixation） | 高 |
+| 28 | AJAX 攔截回應只有 `msg` 缺少 `data` | `auth.go` 中 AJAX 回應必須同時包含 `data` + `msg` | 高 |
+| 29 | 刪除操作用 GET 請求 | 刪除操作必須用 POST（防 CSRF） | 高 |
+| 30 | 通知文案帶感嘆號 | 統一風格，通知文案**不加感嘆號** | 中 |
 
 ### 0.4 後台狀態切換速查（class="switch"）
 
@@ -685,3 +691,87 @@ common.Logger.Error("操作失敗", "err", err)
 - 複製/移動/刪除按鈕不需要 `lay-submit` 屬性
 - 用 `button._clicked` class 識別點擊的提交按鈕
 - GET 表單直接放行，POST 表單走 AJAX
+
+---
+
+## 二十一、安全防護系統（2026-07-13 新增）
+
+### 21.1 安全工具函數（`apps/common/security.go`）
+
+對齊 PbootCMS PHP `escape_string()` + `filter()` + `checkKey()`，使用 Go stdlib 等價方案：
+
+```go
+// XSS 防護（對齊 PbootCMS filter() + escape_string()）
+comment := common.FilterUserInput(c.PostForm("comment"))
+
+// SQL 標識符驗證（對齊 PbootCMS checkKey()）
+if !common.CheckVarType(tableName) { return err }
+if !common.CheckColumnName(fieldName) { return err }
+```
+
+| 函數 | 正則 | PHP 對應 | 用途 |
+|------|------|---------|------|
+| `EscapeString` | — | `htmlspecialchars(ENT_QUOTES, UTF-8)` | HTML 轉義 |
+| `FilterUserInput` | — | `filter()` + `escape_string()` | 完整用戶輸入過濾 |
+| `CheckIdentifier` | `^[\w\.\-]+$` | `checkKey()` | 通用 SQL 識別符 |
+| `CheckVarType` | `^[\w\-\.]+$` | var 類型驗證 | 表名驗證 |
+| `CheckColumnName` | `^[a-zA-Z][\w]+$` | MemberField 驗證 | 欄位名驗證 |
+
+### 21.2 Session TTL 機制
+
+對齊 PbootCMS PHP `session_ticket` 機制，防止 session 無限累積：
+
+```go
+type sessionEntry struct {
+    data         SessionData
+    createdAt    time.Time    // 創建時間
+    lastActivity time.Time    // 最後活動時間
+}
+```
+
+| 參數 | 值 | 說明 |
+|------|-----|------|
+| `sessionMaxLifetime` | 24h | 最大生命週期（對齊 cookie MaxAge=86400） |
+| `sessionIdleTimeout` | 2h | 閒置超時（無活動超過此時間則過期） |
+| `sessionCleanupInterval` | 10min | 過期清理週期（後台協程） |
+
+每次 `SetSession` / `GetSession` 呼叫時自動更新 `lastActivity`，實現活動延長。
+
+### 21.3 CSRF 防護
+
+| 防護層 | 實現 | 位置 |
+|--------|------|------|
+| 後台 POST 表單 | 32字節 `crypto/rand` token + 中間件驗證 | `auth.go` VerifyFormcheck |
+| 評論刪除 | 僅允許 `POST`（GET 返回 404） | `main.go` 路由 |
+| 上傳豁免 | `csrfExemptPaths` 白名單 | `auth.go` |
+
+### 21.4 權限控制
+
+- `clearsession` **不在** `publicPermPaths` 中（對齊 PbootCMS PHP `$public_path`），需特定權限
+- 非標準動作（list/detail/mark/clean/refresh/backup/restore）附屬於控制器 `index` 瀏覽權限
+- 評論刪除驗證 `uid` 所有權：`WHERE id = ? AND uid = ?`
+
+### 21.5 密碼安全
+
+```go
+// bcrypt + 雙 MD5 向後相容
+hashedPwd, err := common.HashPassword(password)
+if err != nil {
+    c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "密碼加密失敗，請重試"})
+    return
+}
+```
+
+- 新密碼使用 bcrypt 儲存
+- 舊雙 MD5 密碼登入時自動升級為 bcrypt
+- `HashPassword` 錯誤必須處理，不可忽略
+
+### 21.6 AJAX 回應格式規則
+
+| 場景 | 回應方式 | 前端讀取 | 顯示方式 |
+|------|---------|---------|---------|
+| ajaxlink 連結 | `JSONOK(c, data)` | `response.data` | `layer.msg()` |
+| 表單提交 | `JSONOKMsg` / `JSONFail` | `res.msg` | `showNotify()` |
+| 權限攔截 | 雙欄位 `data` + `msg` | 視場景 | 視場景 |
+
+> `auth.go` 中的 AJAX 攔截回應必須同時包含 `data` 和 `msg` 欄位。通知文案**不加感嘆號**。

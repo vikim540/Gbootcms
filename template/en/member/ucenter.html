@@ -1,0 +1,104 @@
+{include file=comm/head.html}
+
+<div class="jumbotron jumbotron-fluid mb-2" style="background:#e9ecef url(/static/upload/202606/1523501459462835.jpg);background-size:cover;background-repeat:no-repeat">
+  <div class="container text-light">
+    <h1 class="fs-18 fs-sm-26 wow fadeInDown">My Account</h1>
+    <p class="fs-14 fs-sm-18 wow fadeInDown">Account Info Management</p>
+  </div>
+</div>
+
+<div class="container pages">
+
+	{include file=comm/position.html}
+
+	<div class="row mb-5">
+
+        {include file=member/left.html}
+
+        <div class="col-12 col-md-10 mt-3">
+			<table class="table">
+			  <tbody>
+
+			    <tr>
+			      <td width="150">Username:</td>
+			      <td>{user:username}</td>
+			    </tr>
+
+			    <tr>
+			      <td>Email:</td>
+			      <td>{user:useremail}</td>
+			    </tr>
+
+			     <tr>
+			      <td>Phone:</td>
+			      <td>{user:usermobile}</td>
+			    </tr>
+
+			    <tr>
+			      <td>Avatar:</td>
+			      <td><img src="{user:headpic}" height="30px" class="rounded"></td>
+			    </tr>
+
+			    <tr>
+			      <td>Nickname:</td>
+			      <td>{user:nickname}</td>
+			    </tr>
+
+			    <tr>
+			      <td>Level:</td>
+			      <td>{user:gname}</td>
+			    </tr>
+
+			    <tr>
+			      <td>Score:</td>
+			      <td>{user:score}</td>
+			    </tr>
+
+			    <tr>
+			      <td>Gender:</td>
+			      <td>{user:sex}</td>
+			    </tr>
+
+			    <tr>
+			      <td>Birthday:</td>
+			      <td>{user:birthday}</td>
+			    </tr>
+
+			    <tr>
+			      <td>Phone:</td>
+			      <td>{user:telephone}</td>
+			    </tr>
+
+			    <tr>
+			      <td>QQ:</td>
+			      <td>{user:qq}</td>
+			    </tr>
+
+			     <tr>
+			      <td>Register Time:</td>
+			      <td>{user:registertime}</td>
+			    </tr>
+
+			    <tr>
+			      <td>Login Count:</td>
+			      <td>{user:logincount}</td>
+			    </tr>
+
+			    <tr>
+			      <td>Last Login IP:</td>
+			      <td>{user:lastloginip}</td>
+			    </tr>
+
+			    <tr>
+			      <td>Last Login Time:</td>
+			      <td>{user:lastlogintime}</td>
+			    </tr>
+			  </tbody>
+			</table>
+			<a class="btn btn-info" href="{gboot:umodify}" role="button">Edit</a>
+        </div>
+   </div>
+
+</div>
+
+{include file=comm/foot.html}

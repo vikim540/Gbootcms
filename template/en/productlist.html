@@ -1,0 +1,93 @@
+{include file=comm/head.html}
+
+{include file=comm/top.html}
+
+<div class="container pages">
+
+	 {include file=comm/position.html}
+
+	 <!-- 子欄目導航 -->
+	 <div class="row mb-3">
+          <div class="col-12 d-flex flex-wrap">
+          	   {gboot:nav parent={sort:scode}}
+               <a href="[nav:link]" class="btn btn-outline-info mr-2 mb-2">[nav:name] <span class="badge badge-light">[nav:rows]</span></a>
+               {/gboot:nav}
+          </div>
+     </div>
+
+	 <!-- 分類篩選 -->
+     <div  class="my-3">
+          <div class="row">
+           		<div class="col-12 col-sm-2 col-md-1">Type:</div>
+                <div class="col-12 col-sm-10 col-md-11">
+                   {gboot:selectall field=ext_type text=All  class='mb-3 btn btn-light' active='mb-3 btn btn-info'}
+                   {gboot:select field=ext_type}
+                       <a href= "[select:link]" class="mb-3 btn {gboot:if('[select:value]'=='[select:current]')}btn-info{else}btn-light{/gboot:if}">[select:value]</a>
+                   {/gboot:select}
+               </div>
+          </div>
+
+          <div class="row">
+           		<div class="col-12 col-sm-2 col-md-1">Color:</div>
+                <div class="col-12 col-sm-10 col-md-11">
+                   {gboot:selectall field=ext_color text=All  class='mb-3 btn btn-light' active='mb-3 btn btn-info'}
+                   {gboot:select field=ext_color}
+                      <a href= "[select:link]" class="mb-3 btn {gboot:if('[select:value]'=='[select:current]')}btn-info{else}btn-light{/gboot:if}">[select:value]</a>
+                   {/gboot:select}
+               </div>
+          </div>
+    </div>
+
+	<!-- 圖文列表 -->
+    <div class="row">
+        {gboot:list num=12 order=sorting page=1}
+            <div class="col-12 col-sm-6 col-lg-3 wow zoomIn" data-wow-delay="[list:i]00ms" data-wow-duration="1s">
+              <div class="card">
+                  <div class="card-img-150"><a href="[list:link]"><img class="card-img-top" src="[list:ico]" alt="[list:title]"></a></div>
+                  <div class="card-body">
+                    <h5 class="card-title"><a href="[list:link]" {gboot:if('[list:titlecolor]'!='')}style="color: [list:titlecolor]"{/gboot:if}>[list:title lencn=12]</a></h5>
+                    <p class="card-text">
+                    {gboot:if([list:istop]==1)}
+                		<span class="badge badge-danger">Top</span>
+                	{/gboot:if}
+                	{gboot:if([list:isrecommend]==1)}
+                		<span class="badge badge-warning">Hot</span>
+                	{/gboot:if}
+                	{gboot:if([list:isheadline]==1)}
+                		<span class="badge badge-info">News</span>
+                	{/gboot:if}
+                	{gboot:if('[list:ext_type]'!='')}
+                		<span class="badge badge-primary">[list:ext_type]</span>
+                	{/gboot:if}
+                	{gboot:if('[list:ext_color]'!='')}
+                		<span class="badge badge-secondary">[list:ext_color]</span>
+                	{/gboot:if}
+                	{gboot:if('[list:ext_price]'!='')}
+                		<span class="badge badge-success">[list:ext_price]</span>
+                	{/gboot:if}
+                	[list:content drophtml=1 dropblank=1 lencn=50]
+                	</p>
+                	<p>
+                	{gboot:tags id=[list:id] scode={sort:tcode}}
+                  		<a href="[tags:link]"><span class="badge badge-secondary">[tags:text]</span></a>
+					{/gboot:tags}
+					</p>
+                  </div>
+               </div>
+         	</div>
+        {/gboot:list}
+    </div>
+
+ 	{include file=comm/page.html}
+
+    <!-- 搜索-->
+     <form class="form-inline mb-5 justify-content-center" action="{gboot:scaction}"  method="get">
+		  <div class="form-group mx-sm-3 mb-2">
+		    <input type="text" name="keyword" class="form-control" placeholder="Please enter keywords">
+		  </div>
+		  <button type="submit" class="btn btn-info mb-2">Search</button>
+     </form>
+
+</div>
+
+{include file=comm/foot.html}

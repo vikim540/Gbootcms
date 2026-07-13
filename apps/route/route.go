@@ -174,17 +174,15 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.GET("/system/user/index", uc.Index)
 		adminGroup.GET("/system/user/add", uc.Add)
 		adminGroup.POST("/system/user/add", uc.Add)
-		adminGroup.GET("/system/user/mod/:id", uc.Mod)
-		adminGroup.POST("/system/user/mod/:id", uc.Mod)
-		adminGroup.POST("/system/user/del", uc.Del)
+		adminGroup.Any("/system/user/mod/*action", uc.Mod)
+		adminGroup.Any("/system/user/del/*action", uc.Del)
 
 		rc := &system.RoleController{}
 		adminGroup.GET("/system/role/index", rc.Index)
 		adminGroup.GET("/system/role/add", rc.Add)
 		adminGroup.POST("/system/role/add", rc.Add)
-		adminGroup.GET("/system/role/mod/:id", rc.Mod)
-		adminGroup.POST("/system/role/mod/:id", rc.Mod)
-		adminGroup.POST("/system/role/del", rc.Del)
+		adminGroup.Any("/system/role/mod/*action", rc.Mod)
+		adminGroup.Any("/system/role/del/*action", rc.Del)
 
 		cf := &system.ConfigController{}
 		adminGroup.GET("/system/config/index", cf.Index)

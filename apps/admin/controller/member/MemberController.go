@@ -109,7 +109,11 @@ func (mb *MemberController) Add(c *gin.Context) {
 		}
 
 		// 使用 bcrypt 雜湊密碼（向後兼容舊版雙 MD5）
-	hashedPwd, _ := common.HashPassword(password)
+	hashedPwd, err := common.HashPassword(password)
+	if err != nil {
+		mb.JSONFail(c, "密碼加密失敗，請重試")
+		return
+	}
 
 	// 生成 ucode（時間戳 + 隨機數，併發安全）
 	ucode := fmt.Sprintf("%d%04d", time.Now().Unix()%1000000, common.SecureRandomInt(10000))
@@ -250,10 +254,14 @@ func (mb *MemberController) Mod(c *gin.Context) {
 			"status":     status,
 		}
 		password := c.PostForm("password")
-		if password != "" {
-			hashedPwd, _ := common.HashPassword(password)
-			updates["password"] = hashedPwd
+	if password != "" {
+		hashedPwd, err := common.HashPassword(password)
+		if err != nil {
+			mb.JSONFail(c, "密碼加密失敗，請重試")
+			return
 		}
+		updates["password"] = hashedPwd
+	}
 		if err := model.DB.Model(&model.Member{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		mb.LogAction(c, "修改會員失敗")
 		mb.JSONFail(c, "修改失敗："+err.Error())

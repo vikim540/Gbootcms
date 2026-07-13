@@ -17,7 +17,7 @@ import (
 // CommentController 前台評論控制器
 // 對應 PHP: apps/home/controller/CommentController.php
 type CommentController struct {
-	FrontController
+	*FrontController
 }
 
 // Add 提交評論（AJAX POST）
@@ -64,7 +64,7 @@ func (cc *CommentController) Add(c *gin.Context) {
 	if contentid == "" {
 		contentid = c.Query("contentid")
 	}
-	comment := c.PostForm("comment")
+	comment := common.FilterUserInput(c.PostForm("comment"))
 	if comment == "" {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "評論內容不能為空"})
 		return
@@ -159,7 +159,7 @@ func (cc *CommentController) My(c *gin.Context) {
 	cc.renderMemberPage(c, "member/mycomment.html")
 }
 
-// Del 刪除評論（AJAX GET）
+// Del 刪除評論（AJAX POST，CSRF 防護：僅允許 POST 避免 GET 請求偽造）
 func (cc *CommentController) Del(c *gin.Context) {
 	uid := common.GetSessionInt(c, "pboot_uid")
 	if uid == 0 {
@@ -167,7 +167,11 @@ func (cc *CommentController) Del(c *gin.Context) {
 		return
 	}
 
-	idStr := c.Query("id")
+	// 支援 POST form 和 query 兩種方式讀取 id（AJAX 使用 query 參數）
+	idStr := c.PostForm("id")
+	if idStr == "" {
+		idStr = c.Query("id")
+	}
 	if idStr == "" {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "缺少參數"})
 		return

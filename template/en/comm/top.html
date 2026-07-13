@@ -1,0 +1,12 @@
+<!-- 頭部大屏 -->
+<!-- 背景圖優先級：
+     1. {sort:pic} 當前欄目設定的背景圖（後台可改）
+     2. 默認背景：static/upload/202606/1523501459462835.jpg
+     注意：背景圖路徑前不再加 {gboot:sitepath}，因為 sitepath 已經是 '/'，
+     直接拼接 static 開頭即可，避免出現 // 問題。 -->
+<div class="jumbotron jumbotron-fluid mb-2" style="{gboot:if('{sort:pic}')}background:#e9ecef url({sort:pic}){else}background:#e9ecef url(/static/upload/202606/1523501459462835.jpg){/gboot:if};background-size:cover;background-repeat:no-repeat">
+  <div class="container text-light">
+    <h1 class="fs-18 fs-sm-26 wow fadeInDown">{sort:name}</h1>
+    <p class="fs-14  fs-sm-18 wow fadeInDown">{sort:subname}</p>
+  </div>
+</div>

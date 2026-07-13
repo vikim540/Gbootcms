@@ -100,19 +100,41 @@ func (ic *IndexController) Login(c *gin.Context) {
 	defaultPwdHash := common.DoubleMD5("123456")
 	pwsecurity := user.Password != defaultPwdHash
 
-	acodes := strings.Split(user.Acodes, ",")
-	if user.Acodes == "" {
-		acodes = []string{}
-	}
-
+	// 獲取用戶權限 levels 和區域 acodes
 	var levels []string
-	if user.Rcodes != "" {
+	var acodes []string
+
+	if user.Ucode == "10001" {
+		// 超級管理員：擁有全部區域
+		var allAreas []model.Area
+		model.DB.WithContext(loginCtx).Find(&allAreas)
+		for _, a := range allAreas {
+			acodes = append(acodes, a.Acode)
+		}
+	} else if user.Rcodes != "" {
+		// 普通用戶：從 ay_role_level 獲取權限，從 ay_role_area 獲取區域
 		rcodeList := strings.Split(user.Rcodes, ",")
 		var roleLevels []model.RoleLevel
 		model.DB.WithContext(loginCtx).Where("rcode IN ?", rcodeList).Find(&roleLevels)
 		for _, rl := range roleLevels {
 			levels = append(levels, rl.URL)
 		}
+		// 從 ay_role_area 獲取用戶可管理的區域（對齊 PHP IndexModel::getUserAcode）
+		var roleAreas []model.RoleArea
+		model.DB.WithContext(loginCtx).Where("rcode IN ?", rcodeList).Find(&roleAreas)
+		for _, ra := range roleAreas {
+			acodes = append(acodes, ra.Acode)
+		}
+		// 去重
+		acodes = uniqueStrings(acodes)
+	}
+
+	// fallback：如果用戶 acodes 為空但有 ay_user.acodes，使用用戶表中的值
+	if len(acodes) == 0 && user.Acodes != "" {
+		acodes = strings.Split(user.Acodes, ",")
+	}
+	if len(acodes) == 0 {
+		acodes = []string{}
 	}
 
 	var areas []model.Area
@@ -448,6 +470,19 @@ func (ic *IndexController) generateSessionID() string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return base64.URLEncoding.EncodeToString(b)
+}
+
+// uniqueStrings 去除字串切片中的重複項（保持順序）
+func uniqueStrings(s []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(s))
+	for _, v := range s {
+		if !seen[v] {
+			seen[v] = true
+			result = append(result, v)
+		}
+	}
+	return result
 }
 
 func (ic *IndexController) checkLoginBlack(c *gin.Context) int {

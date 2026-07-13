@@ -146,7 +146,10 @@ func (lk *LinkController) Del(c *gin.Context) {
 	if idStr != "" {
 		id, _ := strconv.Atoi(idStr)
 		if id > 0 {
-			model.DB.WithContext(c.Request.Context()).Delete(&model.Link{}, id)
+			if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Link{}, id).Error; err != nil {
+				lk.JSONFail(c, "刪除失敗："+err.Error())
+				return
+			}
 		}
 	}
 	lk.LogAction(c, "刪除友情鏈接成功")
