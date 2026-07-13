@@ -6,6 +6,8 @@ import (
 	"gbootcms/config"
 	"gbootcms/core/acodeplugin"
 	"gbootcms/core/mediaplugin"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -21,6 +23,12 @@ var DB *gorm.DB
 func InitDB(cfg *config.Config) error {
 	var err error
 	dsn := cfg.Database.DBName
+
+	// 確保數據庫目錄存在
+	if dir := filepath.Dir(dsn); dir != "" && dir != "." {
+		os.MkdirAll(dir, 0755)
+	}
+
 	DB, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 		// 命名策略：保留 PbootCMS 原版表前綴 ay_，單數化表名（user 而非 users）

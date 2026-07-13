@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/spf13/viper"
@@ -44,6 +46,18 @@ var (
 
 func Load(path string) *Config {
 	once.Do(func() {
+		// 相對路徑自動轉為相對於可執行文件的絕對路徑
+		// 解決寶塔/systemd 等面板工作目錄不一致的問題
+		if !filepath.IsAbs(path) {
+			if exePath, err := os.Executable(); err == nil {
+				baseDir := filepath.Dir(exePath)
+				if filepath.Base(baseDir) == "bin" {
+					baseDir = filepath.Dir(baseDir)
+				}
+				path = filepath.Join(baseDir, path)
+			}
+		}
+
 		v := viper.New()
 
 		// 預設值
@@ -99,6 +113,27 @@ func Load(path string) *Config {
 				Prefix: v.GetString("database.prefix"),
 			},
 		}
+
+		// 統一將所有相對路徑轉為絕對路徑（相對於可執行文件的上層目錄）
+		// 解決寶塔/systemd 等面板工作目錄不一致的問題
+		baseDir := ""
+		if exePath, err := os.Executable(); err == nil {
+			baseDir = filepath.Dir(exePath)
+			if filepath.Base(baseDir) == "bin" {
+				baseDir = filepath.Dir(baseDir)
+			}
+		}
+		toAbs := func(p string) string {
+			if p == "" || filepath.IsAbs(p) || baseDir == "" {
+				return p
+			}
+			return filepath.Join(baseDir, p)
+		}
+		globalConfig.App.TemplateDir = toAbs(globalConfig.App.TemplateDir)
+		globalConfig.App.AdminTemplateDir = toAbs(globalConfig.App.AdminTemplateDir)
+		globalConfig.App.StaticDir = toAbs(globalConfig.App.StaticDir)
+		globalConfig.App.RuntimeDir = toAbs(globalConfig.App.RuntimeDir)
+		globalConfig.Database.DBName = toAbs(globalConfig.Database.DBName)
 	})
 	return globalConfig
 }

@@ -6,6 +6,7 @@
 
 # ===== 編譯產物 / Build artifacts =====
 bin/
+dist/
 *.exe
 *.exe~
 *.dll
