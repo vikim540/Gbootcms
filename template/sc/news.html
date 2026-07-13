@@ -17,8 +17,53 @@
 		<p>上一篇：{content:precontent}</p>
 		<p>下一篇：{content:nextcontent}</p>
 	</div>
+
+	{gboot:if({gboot:likesstatus})}
+	<div class="text-center my-4">
+		<div class="btn-group" role="group" aria-label="点赞反对">
+			<button type="button" class="btn btn-outline-success btn-likes" data-id="{content:id}">
+				<i class="fa fa-thumbs-up"></i>
+				<span class="ml-1">点赞</span>
+				<span class="badge badge-light ml-1 likes-count">{content:likes}</span>
+			</button>
+			<button type="button" class="btn btn-outline-danger btn-oppose" data-id="{content:id}">
+				<i class="fa fa-thumbs-down"></i>
+				<span class="ml-1">反对</span>
+				<span class="badge badge-light ml-1 oppose-count">{content:oppose}</span>
+			</button>
+		</div>
+	</div>
+	{/gboot:if}
 </div>
 
 {include file=comm/comment.html}
 
 {include file=comm/foot.html}
+
+{gboot:if({gboot:likesstatus})}
+<script>
+$(function(){
+	var contentId = $('.btn-likes').data('id');
+	if (!contentId) return;
+
+	function doAction(type, btn) {
+		$.post('/api/' + type, { id: contentId }, function(res) {
+			if (res.code === 1) {
+				if (type === 'likes') {
+					$('.likes-count').text(res.likes);
+					btn.removeClass('btn-outline-success').addClass('btn-success').prop('disabled', true);
+				} else {
+					$('.oppose-count').text(res.oppose);
+					btn.removeClass('btn-outline-danger').addClass('btn-danger').prop('disabled', true);
+				}
+			} else {
+				btn.removeClass('btn-outline-success btn-outline-danger').addClass('btn-secondary').prop('disabled', true);
+			}
+		}, 'json');
+	}
+
+	$('.btn-likes').on('click', function(){ doAction('likes', $(this)); });
+	$('.btn-oppose').on('click', function(){ doAction('oppose', $(this)); });
+});
+</script>
+{/gboot:if}

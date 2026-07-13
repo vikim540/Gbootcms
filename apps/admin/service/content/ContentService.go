@@ -172,10 +172,57 @@ func (s *ContentService) UpdateContent(ctx context.Context, id int, updates map[
 	return nil
 }
 
-// DeleteContent deletes contents by comma-separated IDs (also deletes ext data)
+// DeleteContent performs soft delete by setting status = -1 (move to recycle bin)
 func (s *ContentService) DeleteContent(ctx context.Context, ids []string) error {
 	for _, id := range ids {
-		if err := model.DB.WithContext(ctx).Delete(&model.Content{}, id).Error; err != nil {
+		if err := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).Update("status", -1).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ListTrashedContents returns paginated trashed content (status = -1)
+func (s *ContentService) ListTrashedContents(ctx context.Context, mcode, scode, keyword string, page, pageSize int) ([]model.Content, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	var total int64
+	query := model.DB.WithContext(ctx).Model(&model.Content{}).Where("status = -1")
+	if mcode != "" {
+		query = query.Where("scode IN (SELECT scode FROM ay_content_sort WHERE mcode = ?)", mcode)
+	}
+	if scode != "" {
+		query = query.Where("scode = ? OR subscode = ?", scode, scode)
+	}
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("title LIKE ? OR tags LIKE ?", like, like)
+	}
+	query.Count(&total)
+
+	var contents []model.Content
+	err := query.Order("update_time DESC, id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&contents).Error
+	return contents, total, err
+}
+
+// RestoreContent restores trashed content by setting status back to 0 (draft)
+func (s *ContentService) RestoreContent(ctx context.Context, ids []string) error {
+	for _, id := range ids {
+		if err := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ? AND status = -1", id).Update("status", 0).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PermanentDeleteContent permanently deletes content and its ext data
+func (s *ContentService) PermanentDeleteContent(ctx context.Context, ids []string) error {
+	for _, id := range ids {
+		if err := model.DB.WithContext(ctx).Where("id = ? AND status = -1", id).Delete(&model.Content{}).Error; err != nil {
 			return err
 		}
 		// 同步刪除擴展數據

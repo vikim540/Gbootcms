@@ -5,6 +5,7 @@ import (
 	content "gbootcms/apps/admin/controller/content"
 	member "gbootcms/apps/admin/controller/member"
 	system "gbootcms/apps/admin/controller/system"
+	"gbootcms/apps/api"
 	"gbootcms/apps/common/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -43,7 +44,10 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.POST("/content/mod", cc.Mod)
 		adminGroup.Any("/content/mod/*action", cc.Mod)
 		adminGroup.POST("/content/del", cc.Del)
-		adminGroup.Any("/content/del/*action", cc.DelCatchAll)
+	adminGroup.Any("/content/del/*action", cc.DelCatchAll)
+	adminGroup.GET("/content/trash", cc.Trash)
+	adminGroup.POST("/content/restore", cc.Restore)
+	adminGroup.POST("/content/permanentDel", cc.PermanentDel)
 
 		csc := &content.ContentSortController{}
 		adminGroup.GET("/content/sort/index", csc.Index)
@@ -152,11 +156,18 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.Any("/content/model/del/*action", md.Del)
 
 		ef := &content.ExtFieldController{}
-		adminGroup.GET("/content/extField/index", ef.Index)
-		adminGroup.GET("/content/extField/add", ef.Add)
-		adminGroup.POST("/content/extField/add", ef.Add)
-		adminGroup.Any("/content/extField/mod/*action", ef.Mod)
-		adminGroup.POST("/content/extField/del", ef.Del)
+	adminGroup.GET("/content/extField/index", ef.Index)
+	adminGroup.GET("/content/extField/add", ef.Add)
+	adminGroup.POST("/content/extField/add", ef.Add)
+	adminGroup.Any("/content/extField/mod/*action", ef.Mod)
+	adminGroup.POST("/content/extField/del", ef.Del)
+
+	rdc := &content.RedirectController{}
+	adminGroup.GET("/content/redirect/index", rdc.Index)
+	adminGroup.GET("/content/redirect/add", rdc.Add)
+	adminGroup.POST("/content/redirect/add", rdc.Add)
+	adminGroup.Any("/content/redirect/mod/*action", rdc.Mod)
+	adminGroup.POST("/content/redirect/del", rdc.Del)
 
 		mc := &system.MenuController{}
 		adminGroup.GET("/system/menu/index", mc.Index)
@@ -239,5 +250,42 @@ func SetupAdminRoutes(r *gin.Engine) {
 	adminGroup.Any("/member/comment/mod/*action", mcc.Mod)
 	adminGroup.POST("/member/comment/del", mcc.Del)
 	adminGroup.Any("/member/comment/del/*action", mcc.Del)
+	}
+}
+
+// SetupAPIRoutes 註冊 RESTful API 路由
+func SetupAPIRoutes(r *gin.Engine) {
+	apiGroup := r.Group("/api/v1")
+	apiGroup.Use(api.APIAuth())
+	{
+		// 認證
+		apiGroup.POST("/auth/login", api.Login)
+		apiGroup.POST("/auth/refresh", api.RefreshToken)
+
+		// 站點資訊
+		apiGroup.GET("/site", api.GetSite)
+
+		// 欄目
+		apiGroup.GET("/sorts", api.ListSorts)
+		apiGroup.GET("/sorts/:scode", api.GetSort)
+
+		// 內容
+		apiGroup.GET("/contents", api.ListContents)
+		apiGroup.GET("/contents/:id", api.GetContent)
+
+		// 搜索
+		apiGroup.GET("/search", api.SearchContent)
+
+		// 留言
+		apiGroup.POST("/messages", api.CreateMessage)
+
+		// 幻燈片
+		apiGroup.GET("/slides", api.ListSlides)
+
+		// 友情連結
+		apiGroup.GET("/links", api.ListLinks)
+
+		// 標籤
+		apiGroup.GET("/tags", api.ListTags)
 	}
 }

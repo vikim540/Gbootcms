@@ -62,6 +62,7 @@ type Label = content.Label
 type ContentModel = content.Model
 type ExtField = content.ExtField
 type MediaMark = content.MediaMark
+type Redirect = content.Redirect
 
 // ──────────────────────────────────────────────
 // Type aliases – member sub-package

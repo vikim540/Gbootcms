@@ -157,6 +157,20 @@ func BuildSubsortSelectHTML(sorts []model.ContentSort, excludeScode string) *pon
 	return pongo2.AsSafeValue(sb.String())
 }
 
+// BuildSubsortSelectWithSelected generates <option> HTML for sub-sort selection with selected value.
+// Used in content mod forms where the content's subscode should be selected.
+func BuildSubsortSelectWithSelected(sorts []model.ContentSort, selectedSubscode string) *pongo2.Value {
+	var sb strings.Builder
+	for _, s := range sorts {
+		sel := ""
+		if s.Scode == selectedSubscode {
+			sel = " selected"
+		}
+		sb.WriteString(fmt.Sprintf(`<option value="%s"%s>%s</option>`, s.Scode, sel, s.Name))
+	}
+	return pongo2.AsSafeValue(sb.String())
+}
+
 // AddSonField adds a computed "Son" boolean field to each sort entry.
 // Son=true means the sort has child sorts (used for folder icon display).
 func AddSonField(sorts []model.ContentSort) []map[string]interface{} {
@@ -280,42 +294,46 @@ func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[stri
 	return result
 }
 
-// buildFrontURL 生成內容前台連結（對齊 PHP parserLink 規則）
+// buildFrontURL 生成內容前台連結（Google SEO 標準：無 .html 副檔名）
+// URL 規則：
+//   1. 多段 slug（含 /，如 test/a/b）→ /test/a/b（自定義完整路徑）
+//   2. 單段 slug（如 my-article）→ /{sortPath}/{slug}（欄目路徑 + slug）
+//   3. 無 slug，欄目有 pathname → /{sortPath}/{id}
+//   4. 無 slug，欄目無 pathname → /content/{id}（兜底）
 func buildFrontURL(c model.Content, sortFilename, sortURLName, contentPathMode string) string {
 	if c.Outlink != "" {
 		return c.Outlink
 	}
-	// 短路徑模式
-	if contentPathMode == "1" {
-		if c.Filename != "" {
-			return "/" + c.Filename + ".html"
-		}
-		if c.URLName != "" {
-			return "/" + c.URLName + ".html"
-		}
-		return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
-	}
-	// 帶欄目路徑模式
 	sortPath := sortFilename
 	if sortPath == "" {
 		sortPath = sortURLName
 	}
+	// 多段 slug（含 /）→ 直接作為完整路徑
 	if c.Filename != "" {
-		if sortPath != "" {
-			return "/" + sortPath + "/" + c.Filename + ".html"
+		if strings.Contains(c.Filename, "/") {
+			return "/" + c.Filename
 		}
-		return "/" + c.Filename + ".html"
+		// 單段 slug → 欄目路徑 + slug
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.Filename
+		}
+		return "/" + c.Filename
 	}
 	if c.URLName != "" {
-		if sortPath != "" {
-			return "/" + sortPath + "/" + c.URLName + ".html"
+		if strings.Contains(c.URLName, "/") {
+			return "/" + c.URLName
 		}
-		return "/" + c.URLName + ".html"
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.URLName
+		}
+		return "/" + c.URLName
 	}
+	// 無 slug，欄目有 pathname → /{sortPath}/{id}
 	if sortPath != "" {
-		return "/" + sortPath + "/" + strconv.Itoa(int(c.ID)) + ".html"
+		return "/" + sortPath + "/" + strconv.Itoa(int(c.ID))
 	}
-	return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
+	// 兜底
+	return "/content/" + strconv.Itoa(int(c.ID))
 }
 
 // BuildPagebarHTML generates pagination HTML for content lists.

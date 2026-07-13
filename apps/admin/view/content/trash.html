@@ -1,0 +1,137 @@
+{include file='common/head.html'}
+
+<div class="layui-body">
+	<div class="layui-tab layui-tab-brief" lay-filter="tab">
+	  <ul class="layui-tab-title">
+	    <li class="layui-this" lay-id="t1">文檔回收站</li>
+	  </ul>
+	  <div class="layui-tab-content">
+	  	   <div class="layui-tab-item layui-show">
+	  	   		<form action="{url./admin/content/trash}" method="get" class="layui-form">
+		  	   		<div class="layui-form-item nospace">
+		  	   			<div class="layui-input-inline">
+		  	   				{$pathinfo}
+				       <select name="scode">
+                      	<option value="">全部欄目</option>
+                            {$search_select}
+                   </select>
+				    </div>
+                     <div class="layui-input-inline">
+                     	<input type="text" name="keyword"  value="{$keyword}"  placeholder="請輸入搜索關鍵字" class="layui-input">
+                     </div>
+                     <div class="layui-input-inline">
+                     	<button class="layui-btn" lay-submit>搜索</button>
+                     	<a class="layui-btn layui-btn-primary"  href="{url./admin/content/trash}">清除搜索</a>
+                     	<a class="layui-btn" href="{url./admin/content/index}">返回內容列表</a>
+                     </div>
+                </div>
+                </form>
+
+	  	   		<form action="{url./admin/content/restore}" method="post" id="trashForm" name="trashForm" class="layui-form" onkeydown="if(event.keyCode==13) return false;">
+		            <input type="hidden" name="formcheck" value="{$formcheck}">
+		            <table class="layui-table">
+		            	<thead>
+		                    <tr>
+		                    	<th><input type="checkbox" class="checkbox" lay-ignore id="checkall" title="全選"></th>
+		                    	<th>ID</th>
+		                        <th>欄目</th>
+		                        <th>標題</th>
+		                        <th>刪除時間</th>
+		                        <th>訪問量</th>
+		                        <th>操作</th>
+		                    </tr>
+		                </thead>
+		                <tbody>
+		                    {foreach $contents(key,value)}
+		                    <tr>
+		                    	<td>
+		                    		<input type="checkbox" class="checkbox checkitem" lay-ignore name="list[]" value="[value->id]">
+		                    	</td>
+		                    	<td>[value->id]</td>
+		                        <td title="[value->scode]">[value->sortname]</td>
+		                        <td title="[value->title]">
+		                        {fun=substr_both($value->title,0,30)}
+		                        </td>
+		                        <td>[value->author]</td>
+		                        <td>[value->visits]</td>
+		                        <td>
+			                        <a href="{url./admin/content/restore/id/'.$value->id.'}" class="layui-btn layui-btn-xs layui-btn-normal ajaxlink" data-msg="恢復成功">恢復</a>
+			                        <a href="{url./admin/content/permanentDel/id/'.$value->id.'}" class="layui-btn layui-btn-xs layui-btn-danger ajaxlink" data-msg="永久刪除成功" data-confirm="確定要永久刪除嗎？此操作不可恢復">永久刪除</a>
+			                    </td>
+		                    </tr>
+		                    {/foreach}
+		                </tbody>
+		            </table>
+
+			        <div class="layui-form-item">
+			            <div class="layui-input-block">
+			                <button type="button" class="layui-btn layui-btn-normal" id="btnRestore">批量恢復</button>
+			                <button type="button" class="layui-btn layui-btn-danger" id="btnPermanentDel">批量永久刪除</button>
+			            </div>
+			        </div>
+			    </form>
+
+			    <div class="layui-inline" style="float:right">
+			     		<select lay-filter="tourl" class="page-select" >
+							<option value="" selected="">每頁顯示數量</option>
+							<option value="{url./admin/content/trash/pagesize/20}" {if(get('pagesize')==20)}selected{/if}>20條/頁</option>
+							<option value="{url./admin/content/trash/pagesize/30}" {if(get('pagesize')==30)}selected{/if}>30條/頁</option>
+							<option value="{url./admin/content/trash/pagesize/50}" {if(get('pagesize')==50)}selected{/if}>50條/頁</option>
+							<option value="{url./admin/content/trash/pagesize/100}" {if(get('pagesize')==100)}selected{/if}>100條/頁</option>
+						</select>
+				</div>
+				<div class="page">{$pagebar}</div>
+
+		  </div>
+		</div>
+	</div>
+</div>
+
+<script>
+// 批量恢復
+$('#btnRestore').on('click', function(){
+	var ids = [];
+	$('.checkitem:checked').each(function(){
+		ids.push($(this).val());
+	});
+	if(ids.length == 0){
+		layui.layer.msg('請選擇要恢復的項目');
+		return;
+	}
+	$.post('/admin/content/restore', {list: ids, formcheck: '{$formcheck}'}, function(res){
+		if(res.code == 1){
+			layui.layer.msg(res.msg, {icon: 1, time: 1500}, function(){
+				location.reload();
+			});
+		} else {
+			layui.layer.msg(res.msg, {icon: 2});
+		}
+	}, 'json');
+});
+
+// 批量永久刪除
+$('#btnPermanentDel').on('click', function(){
+	var ids = [];
+	$('.checkitem:checked').each(function(){
+		ids.push($(this).val());
+	});
+	if(ids.length == 0){
+		layui.layer.msg('請選擇要永久刪除的項目');
+		return;
+	}
+	layui.layer.confirm('確定要永久刪除選中的 ' + ids.length + ' 項嗎？此操作不可恢復', function(index){
+		$.post('/admin/content/permanentDel', {list: ids, formcheck: '{$formcheck}'}, function(res){
+			if(res.code == 1){
+				layui.layer.msg(res.msg, {icon: 1, time: 1500}, function(){
+					location.reload();
+				});
+			} else {
+				layui.layer.msg(res.msg, {icon: 2});
+			}
+		}, 'json');
+		layui.layer.close(index);
+	});
+});
+</script>
+
+{include file='common/foot.html'}

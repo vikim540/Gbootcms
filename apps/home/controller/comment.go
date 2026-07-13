@@ -65,6 +65,7 @@ func (cc *CommentController) Add(c *gin.Context) {
 		contentid = c.Query("contentid")
 	}
 	comment := common.FilterUserInput(c.PostForm("comment"))
+	comment = common.FilterSensitiveWords(comment)
 	if comment == "" {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "評論內容不能為空"})
 		return

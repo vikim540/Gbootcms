@@ -6,6 +6,7 @@ import (
 	"gbootcms/apps/admin/helper"
 	"gbootcms/apps/admin/model"
 	svc "gbootcms/apps/admin/service/content"
+	"gbootcms/apps/api"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/push"
 	"strconv"
@@ -97,10 +98,14 @@ func (cc *ContentController) Add(c *gin.Context) {
 		isrecommend, _ := strconv.Atoi(c.DefaultPostForm("isrecommend", "0"))
 		isheadline, _ := strconv.Atoi(c.DefaultPostForm("isheadline", "0"))
 
-		// Read filename with urlname fallback
-		urlname := c.PostForm("filename")
-		if urlname == "" {
-			urlname = c.PostForm("urlname")
+		// slug：表單 filename 欄位存入 Filename DB 欄位
+		filename := c.PostForm("filename")
+		// 衝突檢查：slug 不得與欄目路徑衝突
+		if filename != "" {
+			if msg := checkSlugConflict(filename, ""); msg != "" {
+				cc.JSONFail(c, msg)
+				return
+			}
 		}
 
 		doc := model.Content{
@@ -122,7 +127,7 @@ func (cc *ContentController) Add(c *gin.Context) {
 			Date:        pubDate,
 			Sorting:     sorting,
 			Status:      helper.ParseInt(c.DefaultPostForm("status", "1")),
-			URLName:     urlname,
+			Filename:    filename,
 			Outlink:     c.PostForm("outlink"),
 			Tags:        strings.ReplaceAll(c.PostForm("tags"), "，", ","),
 			TitleColor:  c.PostForm("titlecolor"),
@@ -147,7 +152,14 @@ func (cc *ContentController) Add(c *gin.Context) {
 			return
 		}
 		cc.LogAction(c, "新增文章成功")
-		cc.JSONOKMsg(c, common.NoticeAdd)
+	// 同步到 MeiliSearch
+	api.SyncContentToMeili(&doc)
+	// 返回 tourl 跳轉到列表頁，防止頁面停留在新增表單導致重複新增
+	tourl := "/admin/content/index"
+	if mcode != "" {
+		tourl += "/mcode/" + mcode
+	}
+	cc.JSONOKMsgTourl(c, common.NoticeAdd, tourl)
 		return
 	}
 
@@ -296,10 +308,14 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			return
 		}
 
-		// Read filename with urlname fallback
-		urlname := c.PostForm("filename")
-		if urlname == "" {
-			urlname = c.PostForm("urlname")
+		// slug：表單 filename 欄位存入 Filename DB 欄位
+		filename := c.PostForm("filename")
+		// 衝突檢查：slug 不得與欄目路徑衝突
+		if filename != "" {
+			if msg := checkSlugConflict(filename, strconv.Itoa(id)); msg != "" {
+				cc.JSONFail(c, msg)
+				return
+			}
 		}
 
 		updates := map[string]interface{}{
@@ -314,7 +330,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 			"pics":        c.PostForm("pics"),
 			"source":      c.PostForm("source"),
 			"author":      c.PostForm("author"),
-			"urlname":     urlname,
+			"filename":    filename,
 			"outlink":     c.PostForm("outlink"),
 			"enclosure":   c.PostForm("enclosure"),
 			"tags":        strings.ReplaceAll(c.PostForm("tags"), "，", ","),
@@ -369,11 +385,15 @@ func (cc *ContentController) Mod(c *gin.Context) {
 		)
 
 		if err := cc.svc.UpdateContent(c.Request.Context(), id, updates, extData); err != nil {
-			cc.JSONFail(c, err.Error())
-			return
-		}
-		cc.LogAction(c, "修改文章成功")
-		cc.JSONOKMsg(c, common.NoticeModify)
+		cc.JSONFail(c, err.Error())
+		return
+	}
+	cc.LogAction(c, "修改文章成功")
+	// 同步到 MeiliSearch
+	var updatedContent model.Content
+	model.DB.First(&updatedContent, id)
+	api.SyncContentToMeili(&updatedContent)
+	cc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
@@ -391,6 +411,9 @@ func (cc *ContentController) Mod(c *gin.Context) {
 	data := cc.contentTemplateData(c.Request.Context(), mcode, scodeVal, sorts, contentMap)
 	data["content"] = contentMap
 	data["sort_select"] = helper.BuildSortSelectWithSelected(sorts, mcode, scodeVal)
+	// 副欄目 select：與主欄目使用同一份按 mcode 過濾的數據，只是 selected 值不同（對齊 PbootCMS makeSortSelect 邏輯）
+	subscodeVal, _ := contentMap["Subscode"].(string)
+	data["subsort_select"] = helper.BuildSortSelectWithSelected(sorts, mcode, subscodeVal)
 	// 預處理 pics/picstitle 供模板多圖循環（替代殘留的 {php} explode/foreach）
 	if picsStr, ok := contentMap["Pics"].(string); ok && picsStr != "" {
 		data["pics"] = strings.Split(picsStr, ",")
@@ -428,6 +451,12 @@ func (cc *ContentController) Del(c *gin.Context) {
 				cc.JSONFail(c, err.Error())
 				return
 			}
+			// 從 MeiliSearch 移除已刪除內容
+			for _, id := range ids {
+				if idInt, err := strconv.Atoi(id); err == nil {
+					api.DeleteFromMeili(uint(idInt))
+				}
+			}
 			cc.LogAction(c, "刪除文章成功")
 			cc.JSONOKMsg(c, common.NoticeDelete)
 			return
@@ -441,6 +470,12 @@ func (cc *ContentController) Del(c *gin.Context) {
 		cc.LogAction(c, "刪除文章失敗")
 		cc.JSONFail(c, err.Error())
 		return
+	}
+	// 從 MeiliSearch 移除已刪除內容
+	for _, id := range ids {
+		if idInt, err := strconv.Atoi(id); err == nil {
+			api.DeleteFromMeili(uint(idInt))
+		}
 	}
 	cc.LogAction(c, "刪除文章成功")
 	cc.JSONOKMsg(c, common.NoticeDelete)
@@ -486,6 +521,123 @@ func (cc *ContentController) AddCatchAll(c *gin.Context) {
 func (cc *ContentController) DelCatchAll(c *gin.Context) {
 	cc.applyPathAction(c)
 	cc.Del(c)
+}
+
+// Trash - 回收站列表頁
+func (cc *ContentController) Trash(c *gin.Context) {
+	ctx := c.Request.Context()
+	mcode := c.Request.URL.Query().Get("mcode")
+	scode := c.Request.URL.Query().Get("scode")
+	keyword := c.Request.URL.Query().Get("keyword")
+	page, pageSize, offset := cc.Paginate(c)
+	_ = offset
+
+	items, total, err := cc.svc.ListTrashedContents(ctx, mcode, scode, keyword, page, pageSize)
+	if err != nil {
+		cc.JSONFail(c, err.Error())
+		return
+	}
+
+	sorts, _ := cc.svc.GetAllSorts(ctx)
+
+	// 預格式化日期
+	for i := range items {
+		if !items[i].Date.IsZero() {
+			items[i].Author = items[i].Date.Format("2006-01-02")
+		}
+	}
+
+	baseURL := "/admin/content/trash?"
+	if mcode != "" {
+		baseURL += "mcode=" + mcode + "&"
+	}
+	if scode != "" {
+		baseURL += "scode=" + scode + "&"
+	}
+	if keyword != "" {
+		baseURL += "keyword=" + keyword + "&"
+	}
+
+	data := cc.contentTemplateData(ctx, mcode, scode, sorts, nil)
+	data["list"] = true
+	data["trash"] = true
+	data["contents"] = helper.AddSortName(items, sorts)
+	data["C"] = "content"
+	data["pagebar"] = helper.BuildPagebarHTML(total, page, pageSize, baseURL)
+	data["pagesize"] = pageSize
+	data["mcode"] = mcode
+	data["scode"] = scode
+	data["keyword"] = keyword
+
+	common.Render(c, "content/trash.html", data)
+}
+
+// Restore - 從回收站恢復內容
+func (cc *ContentController) Restore(c *gin.Context) {
+	idStr := c.Query("id")
+	if idStr == "" {
+		ids := c.PostFormArray("list[]")
+		if len(ids) == 0 {
+			ids = c.PostFormArray("list")
+		}
+		if len(ids) > 0 {
+			if err := cc.svc.RestoreContent(c.Request.Context(), ids); err != nil {
+				cc.LogAction(c, "恢復文章失敗")
+				cc.JSONFail(c, err.Error())
+				return
+			}
+			cc.LogAction(c, "恢復文章成功")
+			cc.JSONOKMsg(c, "恢復成功")
+			return
+		}
+		cc.JSONFail(c, "未選擇任何項目")
+		return
+	}
+	ids := strings.Split(idStr, ",")
+	if err := cc.svc.RestoreContent(c.Request.Context(), ids); err != nil {
+		cc.LogAction(c, "恢復文章失敗")
+		cc.JSONFail(c, err.Error())
+		return
+	}
+	cc.LogAction(c, "恢復文章成功")
+	cc.JSONOKMsg(c, "恢復成功")
+}
+
+// PermanentDel - 永久刪除回收站內容
+func (cc *ContentController) PermanentDel(c *gin.Context) {
+	idStr := c.Query("id")
+	if idStr == "" {
+		ids := c.PostFormArray("list[]")
+		if len(ids) == 0 {
+			ids = c.PostFormArray("list")
+		}
+		if len(ids) > 0 {
+			if err := cc.svc.PermanentDeleteContent(c.Request.Context(), ids); err != nil {
+				cc.LogAction(c, "永久刪除文章失敗")
+				cc.JSONFail(c, err.Error())
+				return
+			}
+			// 從 MeiliSearch 移除已永久刪除內容
+			for _, id := range ids {
+				if idInt, err := strconv.Atoi(id); err == nil {
+					api.DeleteFromMeili(uint(idInt))
+				}
+			}
+			cc.LogAction(c, "永久刪除文章成功")
+			cc.JSONOKMsg(c, common.NoticeDelete)
+			return
+		}
+		cc.JSONFail(c, "未選擇任何項目")
+		return
+	}
+	ids := strings.Split(idStr, ",")
+	if err := cc.svc.PermanentDeleteContent(c.Request.Context(), ids); err != nil {
+		cc.LogAction(c, "永久刪除文章失敗")
+		cc.JSONFail(c, err.Error())
+		return
+	}
+	cc.LogAction(c, "永久刪除文章成功")
+	cc.JSONOKMsg(c, common.NoticeDelete)
 }
 
 // handlePush 處理百度/Bing/Google 推送（對齊 PHP ContentController::mod 的 baiduzz/baiduks 分支）
@@ -602,24 +754,17 @@ func (cc *ContentController) handlePush(c *gin.Context, pushType string) {
 	}
 }
 
-// buildContentPath 構建內容的相對 URL 路徑（與前台 contentURL 邏輯一致）
+// buildContentPath 構建內容的相對 URL 路徑（Google SEO 標準：無 .html 副檔名）
+// URL 規則：
+//   1. 多段 slug（含 /，如 test/a/b）→ /test/a/b（自定義完整路徑）
+//   2. 單段 slug（如 my-article）→ /{sortPath}/{slug}（欄目路徑 + slug）
+//   3. 無 slug，欄目有 pathname → /{sortPath}/{id}
+//   4. 無 slug，欄目無 pathname → /content/{id}（兜底）
 func buildContentPath(ctx context.Context, c *model.Content) string {
 	if c.Outlink != "" {
 		return c.Outlink
 	}
-
-	// 短路徑模式
-	if model.GetConfigValue("url_rule_content_path", "0") == "1" {
-		if c.Filename != "" {
-			return "/" + c.Filename + ".html"
-		}
-		if c.URLName != "" {
-			return "/" + c.URLName + ".html"
-		}
-		return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
-	}
-
-	// 帶欄目路徑模式
+	// 查詢欄目 pathname
 	var sortPath string
 	if c.Scode != "" {
 		var s model.ContentSort
@@ -631,21 +776,62 @@ func buildContentPath(ctx context.Context, c *model.Content) string {
 			}
 		}
 	}
-
+	// 多段 slug（含 /）→ 直接作為完整路徑
 	if c.Filename != "" {
-		if sortPath != "" {
-			return "/" + sortPath + "/" + c.Filename + ".html"
+		if strings.Contains(c.Filename, "/") {
+			return "/" + c.Filename
 		}
-		return "/" + c.Filename + ".html"
+		// 單段 slug → 欄目路徑 + slug
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.Filename
+		}
+		return "/" + c.Filename
 	}
 	if c.URLName != "" {
-		if sortPath != "" {
-			return "/" + sortPath + "/" + c.URLName + ".html"
+		if strings.Contains(c.URLName, "/") {
+			return "/" + c.URLName
 		}
-		return "/" + c.URLName + ".html"
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.URLName
+		}
+		return "/" + c.URLName
 	}
+	// 無 slug，欄目有 pathname → /{sortPath}/{id}
 	if sortPath != "" {
-		return "/" + sortPath + "/" + strconv.Itoa(int(c.ID)) + ".html"
+		return "/" + sortPath + "/" + strconv.Itoa(int(c.ID))
 	}
-	return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
+	// 兜底
+	return "/content/" + strconv.Itoa(int(c.ID))
+}
+
+// checkSlugConflict 檢查 slug 是否與欄目路徑或其他內容衝突
+// excludeID：排除自身的內容 ID（Mod 時傳入，Add 時傳空字串）
+// 返回空字串表示無衝突，非空字串為衝突提示訊息
+func checkSlugConflict(slug, excludeID string) string {
+	if slug == "" {
+		return ""
+	}
+	// 多段 slug 取第一段檢查是否與欄目路徑衝突
+	firstSeg := slug
+	if strings.Contains(slug, "/") {
+		firstSeg = strings.SplitN(slug, "/", 2)[0]
+	}
+	// 檢查與欄目 filename/urlname 衝突
+	var count int64
+	model.DB.Model(&model.ContentSort{}).Where("filename = ? OR urlname = ?", firstSeg, firstSeg).Count(&count)
+	if count > 0 {
+		return "slug 「" + firstSeg + "」與欄目路徑衝突，請使用其他名稱"
+	}
+	// 單段 slug：檢查與其他內容的 filename 衝突
+	if !strings.Contains(slug, "/") {
+		q := model.DB.Model(&model.Content{}).Where("filename = ?", slug)
+		if excludeID != "" {
+			q = q.Where("id != ?", excludeID)
+		}
+		q.Count(&count)
+		if count > 0 {
+			return "slug 「" + slug + "」已被其他內容使用，請使用其他名稱"
+		}
+	}
+	return ""
 }

@@ -12,9 +12,6 @@
 				<a class="arrow-right" href="#"></a>
                    <div class="swiper-container">
                        <div class="swiper-wrapper" >
-                       	   <div class="swiper-slide">
-                               <img src="{content:ico}">
-                           </div>
                            {gboot:pics num=10 id={content:id}}
                            <div class="swiper-slide">
                                <img src="[pics:src]">
@@ -29,11 +26,8 @@
                    <a class="arrow-right" href="#"></a>
                    <div class="swiper-container" >
                        <div class="swiper-wrapper">
-                       	<div class="swiper-slide active-nav swiper-slide-active">
-                               <img src="{content:ico}">
-                           </div>
                            {gboot:pics num=10 id={content:id}}
-                           <div class="swiper-slide">
+                           <div class="swiper-slide {gboot:if([pics:n]==0)}active-nav swiper-slide-active{/gboot:if}">
                                <img src="[pics:src]" alt="[pics:title]">
                            </div>
                            {/gboot:pics}

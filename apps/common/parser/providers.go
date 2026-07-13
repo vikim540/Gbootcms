@@ -54,6 +54,7 @@ func RegisterAllProviders(p *TagParser, ctx *Context) {
 	registerSingleProviders(p, ctx)
 	registerPairProviders(p, ctx)
 	registerIfProvider(p, ctx)
+	registerJSONLDProvider(p, ctx)
 	p.SetCtx(ctx) // 用於 checkLabelLevel 權限檢查
 }
 
@@ -169,9 +170,11 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		case "msgcodestatus":
 			return model.GetConfigValue("message_check_code", "1")
 		case "msgturnstilestatus":
-			return model.GetConfigValue("message_turnstile", "0")
-		case "turnstile_sitekey":
-			return model.GetConfigValue("turnstile_sitekey", "")
+		return model.GetConfigValue("message_turnstile", "0")
+	case "likesstatus":
+		return model.GetConfigValue("likes_status", "0")
+	case "turnstile_sitekey":
+		return model.GetConfigValue("turnstile_sitekey", "")
 		case "httpurl":
 		// 對齊 PbootCMS: 返回完整站點 URL（從 ay_config 讀取 httpurl 配置）
 		return model.GetConfigValue("httpurl", "/")
@@ -698,27 +701,34 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			order = "date"
 		}
 
-		query := model.DB.WithContext(ctx.Ctx).Where("status = 1")
+		query := model.DB.WithContext(ctx.Ctx).Where("status = 1 AND date <= ?", time.Now())
 		if scode != "" {
 			// 遞歸查找當前欄目及其所有子欄目的 scode
 			childScodes := findAllChildScodes(ctx.Ctx, scode)
 			query = query.Where("scode IN ?", childScodes)
 		}
+		// 排序優先級（對齊 PbootCMS ParserController 默認排序邏輯）
+		// istop > isrecommend > isheadline > sorting > date > id
 		switch order {
 		case "date":
-			query = query.Order("date DESC")
+			query = query.Order("istop DESC, date DESC, isrecommend DESC, isheadline DESC, sorting ASC, id DESC")
 		case "sorting":
-			query = query.Order("sorting ASC, date DESC")
-		case "visits":
-			query = query.Order("visits DESC")
+			query = query.Order("sorting ASC, istop DESC, isrecommend DESC, isheadline DESC, date DESC, id DESC")
 		case "istop":
-			query = query.Where("istop = 1").Order("sorting ASC, date DESC")
+			query = query.Order("istop DESC, isrecommend DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
 		case "isrecommend":
-			query = query.Where("isrecommend = 1").Order("sorting ASC, date DESC")
+			query = query.Order("isrecommend DESC, istop DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
 		case "isheadline":
-			query = query.Where("isheadline = 1").Order("sorting ASC, date DESC")
+			query = query.Order("isrecommend DESC, istop DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
+		case "visits", "likes", "oppose":
+			query = query.Order(order+" DESC, istop DESC, isrecommend DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
+		case "id":
+			query = query.Order("id DESC, istop DESC, isrecommend DESC, isheadline DESC, sorting ASC, date DESC")
+		case "random":
+			query = query.Order("RANDOM()")
 		default:
-			query = query.Order("date DESC")
+			// 自定義欄位排序
+			query = query.Order(order)
 		}
 
 		// Pagination support
@@ -748,7 +758,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 
 			// 獨立查詢取總記錄數（含 scode 過濾 + ext_ 篩選）
 			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
-				Where("status = 1")
+				Where("status = 1 AND date <= ?", time.Now())
 			if acode := acodeplugin.GetAcode(ctx.Ctx); acode != "" {
 				countQuery = countQuery.Where("acode = ?", acode)
 			}
@@ -769,7 +779,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			query.Limit(num).Find(&contents)
 			// 獨立查詢取總記錄數（含 scode 過濾 + ext_ 篩選）
 			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
-				Where("status = 1")
+				Where("status = 1 AND date <= ?", time.Now())
 			if acode := acodeplugin.GetAcode(ctx.Ctx); acode != "" {
 				countQuery = countQuery.Where("acode = ?", acode)
 			}
@@ -838,8 +848,9 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 		extMap := content.GetContentExtByContentIDs(contentIDs)
 		for i, c := range contents {
-			data := contentToMap(&c, i, extMap)
+			data := contentToMap(ctx, &c, i, extMap)
 			row := ReplaceInnerTags(inner, "list", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -871,6 +882,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		for i, s := range sorts {
 			data := sortToMap(ctx.Ctx, &s, i, countMap)
 			row := ReplaceInnerTags(inner, "nav", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -890,6 +902,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		for i, s := range sorts {
 			data := sortToMap(ctx.Ctx, &s, i, countMap)
 			row := ReplaceInnerTags(inner, "sort", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -902,7 +915,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			return ""
 		}
 		var c model.Content
-		query := model.DB.WithContext(ctx.Ctx).Where("status = 1")
+		query := model.DB.WithContext(ctx.Ctx).Where("status = 1 AND date <= ?", time.Now())
 		if id != "" {
 			query = query.Where("id = ?", id)
 		}
@@ -913,7 +926,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			return ""
 		}
 
-		data := contentToMap(&c, 0, nil)
+		data := contentToMap(ctx, &c, 0, nil)
 		return ReplaceInnerTags(inner, "content", data)
 	})
 
@@ -990,6 +1003,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				"title": l.Name,
 			}
 			row := ReplaceInnerTags(inner, "link", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -1046,6 +1060,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				"active": a.Acode == currentAcode,
 			}
 			row := ReplaceInnerTags(inner, "language", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -1066,6 +1081,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				"index": i,
 			}
 			row := ReplaceInnerTags(inner, "loop", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -1078,7 +1094,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 		var contents []model.Content
 		// 限制最多載入 2000 條記錄，防止大型站點 OOM
-		model.DB.WithContext(ctx.Ctx).Where("status = 1 AND keywords != ''").Order("id DESC").Limit(2000).Find(&contents)
+		model.DB.WithContext(ctx.Ctx).Where("status = 1 AND keywords != '' AND date <= ?", time.Now()).Order("id DESC").Limit(2000).Find(&contents)
 		tagSet := map[string]bool{}
 		var tagList []string
 		for _, c := range contents {
@@ -1103,6 +1119,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				"link": "/search?keyword=" + tag,
 			}
 			row := ReplaceInnerTags(inner, "tags", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -1144,12 +1161,17 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			if pic == "" {
 				continue
 			}
+			// 確保路徑以 / 開頭
+			if !strings.HasPrefix(pic, "/") {
+				pic = "/" + pic
+			}
 			data := map[string]interface{}{
 				"n":   i,
 				"i":   i + 1,
 				"src": pic,
 			}
 			row := ReplaceInnerTags(inner, "pics", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -1248,6 +1270,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				"headpic":    headpic,
 			}
 			row := ReplaceInnerTags(inner, "message", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -1287,6 +1310,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			data["i"] = strconv.Itoa(i + 1)
 			data["date"] = data["create_time"]
 			rowHTML := ReplaceInnerTags(inner, "form", data)
+			rowHTML = processInnerIfTags(rowHTML)
 			sb.WriteString(rowHTML)
 		}
 		return sb.String()
@@ -1302,7 +1326,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			num = n
 		}
 		like := "%" + keyword + "%"
-		query := model.DB.WithContext(ctx.Ctx).Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
+		query := model.DB.WithContext(ctx.Ctx).Where("status = 1 AND date <= ? AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", time.Now(), like, like, like)
 
 		// scode 過濾（可選）
 		scode := params["scode"]
@@ -1314,13 +1338,24 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		if order == "" {
 			order = "date"
 		}
+		// 排序優先級（對齊 PbootCMS ParserController 默認排序邏輯）
 		switch order {
+		case "date":
+			query = query.Order("istop DESC, date DESC, isrecommend DESC, isheadline DESC, sorting ASC, id DESC")
 		case "sorting":
-			query = query.Order("sorting ASC, date DESC")
-		case "visits":
-			query = query.Order("visits DESC")
+			query = query.Order("sorting ASC, istop DESC, isrecommend DESC, isheadline DESC, date DESC, id DESC")
+		case "istop":
+			query = query.Order("istop DESC, isrecommend DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
+		case "isrecommend":
+			query = query.Order("isrecommend DESC, istop DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
+		case "isheadline":
+			query = query.Order("isrecommend DESC, istop DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
+		case "visits", "likes", "oppose":
+			query = query.Order(order+" DESC, istop DESC, isrecommend DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
+		case "id":
+			query = query.Order("id DESC, istop DESC, isrecommend DESC, isheadline DESC, sorting ASC, date DESC")
 		default:
-			query = query.Order("date DESC")
+			query = query.Order("istop DESC, date DESC, isrecommend DESC, isheadline DESC, sorting ASC, id DESC")
 		}
 
 		// 分頁支援
@@ -1337,7 +1372,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			query.Offset(offset).Limit(num).Find(&contents)
 
 			countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
-			Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
+			Where("status = 1 AND date <= ? AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", time.Now(), like, like, like)
 		if acode := acodeplugin.GetAcode(ctx.Ctx); acode != "" {
 			countQuery = countQuery.Where("acode = ?", acode)
 		}
@@ -1348,7 +1383,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 	} else {
 		query.Limit(num).Find(&contents)
 		countQuery := model.DB.WithContext(ctx.Ctx).Model(&model.Content{}).
-			Where("status = 1 AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", like, like, like)
+			Where("status = 1 AND date <= ? AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", time.Now(), like, like, like)
 		if acode := acodeplugin.GetAcode(ctx.Ctx); acode != "" {
 			countQuery = countQuery.Where("acode = ?", acode)
 		}
@@ -1393,8 +1428,9 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		}
 		extMap := content.GetContentExtByContentIDs(contentIDs)
 		for i, c := range contents {
-			data := contentToMap(&c, i, extMap)
+			data := contentToMap(ctx, &c, i, extMap)
 			row := ReplaceInnerTags(inner, "search", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -1457,12 +1493,14 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				for j, sc := range subs {
 					subData := commentToMap(&sc, j+1)
 					subRow := ReplaceInnerTags(subInner, "commentsub", subData)
+					subRow = processInnerIfTags(subRow)
 					subSB.WriteString(subRow)
 				}
 				row = strings.Replace(row, "{__COMMENTSUB__}", subSB.String(), 1)
 			} else {
 				row = strings.Replace(row, "{__COMMENTSUB__}", "", 1)
 			}
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -1512,6 +1550,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				data["date"] = ""
 			}
 			row := ReplaceInnerTags(inner, "mycomment", data)
+			row = processInnerIfTags(row)
 			sb.WriteString(row)
 		}
 		return sb.String()
@@ -1604,18 +1643,70 @@ func processInnerIfTags(content string) string {
 }
 
 // evalInnerCondition 在循環上下文中求值簡單條件
+// 對齊 PbootCMS PHP symbol() 函數，支援 == != > >= < <= 運算符
 func evalInnerCondition(cond string) bool {
-	// 處理 == 和 != 操作符
-	for _, op := range []string{"!=", "=="} {
+	cond = strings.TrimSpace(cond)
+
+	// 處理 && (AND) 邏輯運算符
+	if idx := strings.Index(cond, "&&"); idx > 0 {
+		left := strings.TrimSpace(cond[:idx])
+		right := strings.TrimSpace(cond[idx+2:])
+		return evalInnerCondition(left) && evalInnerCondition(right)
+	}
+	// 處理 || (OR) 邏輯運算符
+	if idx := strings.Index(cond, "||"); idx > 0 {
+		left := strings.TrimSpace(cond[:idx])
+		right := strings.TrimSpace(cond[idx+2:])
+		return evalInnerCondition(left) || evalInnerCondition(right)
+	}
+
+	// 比較運算符（按長度降序匹配，避免 >= 被 > 截獲）
+	for _, op := range []string{">=", "<=", "!=", "==", ">", "<"} {
 		if idx := strings.Index(cond, op); idx > 0 {
 			left := strings.TrimSpace(strings.Trim(cond[:idx], "'\" "))
 			right := strings.TrimSpace(strings.Trim(cond[idx+len(op):], "'\" "))
-			if op == "==" {
-				return left == right
+
+			// 嘗試數值比較
+			leftNum, leftErr := strconv.Atoi(left)
+			rightNum, rightErr := strconv.Atoi(right)
+
+			if leftErr == nil && rightErr == nil {
+				// 數值比較
+				switch op {
+				case "==":
+					return leftNum == rightNum
+				case "!=":
+					return leftNum != rightNum
+				case ">":
+					return leftNum > rightNum
+				case ">=":
+					return leftNum >= rightNum
+				case "<":
+					return leftNum < rightNum
+				case "<=":
+					return leftNum <= rightNum
+				}
+			} else {
+				// 字串比較
+				switch op {
+				case "==":
+					return left == right
+				case "!=":
+					return left != right
+				case ">":
+					return left > right
+				case ">=":
+					return left >= right
+				case "<":
+					return left < right
+				case "<=":
+					return left <= right
+				}
 			}
-			return left != right
 		}
 	}
+
+	// 處理 % 取模運算（如 [pics:n]%2==0 判斷偶數）
 	// 無操作符：非空即真
 	return cond != "" && cond != "0" && cond != "false"
 }
@@ -1667,6 +1758,12 @@ func buildIfContext(ctx *Context) map[string]interface{} {
 	} else {
 		data["registercodestatus"] = 0
 	}
+	// 點讚/反對功能開關
+	if model.GetConfigValue("likes_status", "0") == "1" {
+		data["likesstatus"] = 1
+	} else {
+		data["likesstatus"] = 0
+	}
 	return data
 }
 
@@ -1713,7 +1810,7 @@ func getSortField(ctx context.Context, s *model.ContentSort, field string) strin
 		allScodes := findAllChildScodes(ctx, tcode)
 		var cnt int64
 		topRowsQ := model.DB.WithContext(ctx).Model(&model.Content{}).
-			Where("scode IN ? AND status = 1", allScodes)
+			Where("scode IN ? AND status = 1 AND date <= ?", allScodes, time.Now())
 		if acode := acodeplugin.GetAcode(ctx); acode != "" {
 			topRowsQ = topRowsQ.Where("acode = ?", acode)
 		}
@@ -1770,28 +1867,18 @@ func getSortField(ctx context.Context, s *model.ContentSort, field string) strin
 	}
 }
 
-// contentURL 生成內容鏈接（對齊 PHP parserLink，支援 url_rule_content_path 配置）
-// url_rule_content_path=0（預設）：帶欄目路徑 /sort-path/content-filename.html
-// url_rule_content_path=1：短路徑 /content-filename.html
+// contentURL 生成內容鏈接（Google SEO 標準：無 .html 副檔名）
+// URL 規則：
+//   1. 多段 slug（含 /，如 test/a/b）→ /test/a/b（自定義完整路徑）
+//   2. 單段 slug（如 my-article）→ /{sortPath}/{slug}（欄目路徑 + slug）
+//   3. 無 slug，欄目有 pathname → /{sortPath}/{id}
+//   4. 無 slug，欄目無 pathname → /content/{id}（兜底）
 // 使用 ctx.sortPathCache 快取欄目路徑，避免同一頁面重複查詢 ContentSort
 func contentURL(ctx *Context, c *model.Content) string {
 	if c.Outlink != "" {
 		return c.Outlink
 	}
-
-	// 短路徑模式（url_rule_content_path=1）：只使用內容自身的 filename/urlname/id
-	if model.GetConfigValue("url_rule_content_path", "0") == "1" {
-		if c.Filename != "" {
-			return "/" + c.Filename + ".html"
-		}
-		if c.URLName != "" {
-			return "/" + c.URLName + ".html"
-		}
-		return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
-	}
-
-	// 帶欄目路徑模式（url_rule_content_path=0，預設）
-	// 查詢欄目的 filename 或 urlname 作為路徑前綴（使用快取避免重複查詢）
+	// 查詢欄目 pathname（使用快取避免重複查詢）
 	var sortPath string
 	if c.Scode != "" {
 		if ctx.sortPathCache == nil {
@@ -1808,26 +1895,35 @@ func contentURL(ctx *Context, c *model.Content) string {
 					sortPath = s.URLName
 				}
 			}
-			ctx.sortPathCache[c.Scode] = sortPath // 快取結果（空字串也表示已查詢過）
+			ctx.sortPathCache[c.Scode] = sortPath
 		}
 	}
-
+	// 多段 slug（含 /）→ 直接作為完整路徑
 	if c.Filename != "" {
-		if sortPath != "" {
-			return "/" + sortPath + "/" + c.Filename + ".html"
+		if strings.Contains(c.Filename, "/") {
+			return "/" + c.Filename
 		}
-		return "/" + c.Filename + ".html"
+		// 單段 slug → 欄目路徑 + slug
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.Filename
+		}
+		return "/" + c.Filename
 	}
 	if c.URLName != "" {
-		if sortPath != "" {
-			return "/" + sortPath + "/" + c.URLName + ".html"
+		if strings.Contains(c.URLName, "/") {
+			return "/" + c.URLName
 		}
-		return "/" + c.URLName + ".html"
+		if sortPath != "" {
+			return "/" + sortPath + "/" + c.URLName
+		}
+		return "/" + c.URLName
 	}
+	// 無 slug，欄目有 pathname → /{sortPath}/{id}
 	if sortPath != "" {
-		return "/" + sortPath + "/" + strconv.Itoa(int(c.ID)) + ".html"
+		return "/" + sortPath + "/" + strconv.Itoa(int(c.ID))
 	}
-	return "/content/" + strconv.Itoa(int(c.ID)) + ".html"
+	// 兜底
+	return "/content/" + strconv.Itoa(int(c.ID))
 }
 
 // buildFilterURL 生成帶篩選參數的 URL（保留其他欄位的篩選）
@@ -1885,10 +1981,11 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 	case "description":
 		return c.Description
 	case "content":
-		// 內鏈替換 + 敏感詞過濾（對齊 PbootCMS parserCurrentContentLabel + parserReplaceKeyword）
+		// 內鏈替換 + 外鏈 nofollow + 敏感詞過濾
 		raw := c.Content
 		raw = replaceContentTags(raw, ctx.Ctx)
 		raw = replaceKeyword(raw)
+		raw = addNofollowToExternalLinks(raw)
 		return raw
 	case "ico":
 		v := c.Ico
@@ -1919,6 +2016,8 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 		return strconv.Itoa(val)
 	case "likes":
 		return strconv.Itoa(c.Likes)
+	case "oppose":
+		return strconv.Itoa(c.Oppose)
 	case "date":
 		if style, ok := params["style"]; ok {
 			return c.Date.Format(phpToGoFormat(style))
@@ -1939,14 +2038,14 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 	case "precontent":
 		// 上一篇：同欄目下 ID 小於當前的最大記錄
 		var prev model.Content
-		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ? AND id < ?", c.Scode, c.ID).Order("id desc").First(&prev).Error; err == nil {
+		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ? AND id < ? AND status = 1 AND date <= ?", c.Scode, c.ID, time.Now()).Order("id desc").First(&prev).Error; err == nil {
 			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(ctx, &prev), prev.Title)
 		}
 		return "沒有了"
 	case "nextcontent":
 		// 下一篇：同欄目下 ID 大於當前的最小記錄
 		var next model.Content
-		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ? AND id > ?", c.Scode, c.ID).Order("id asc").First(&next).Error; err == nil {
+		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ? AND id > ? AND status = 1 AND date <= ?", c.Scode, c.ID, time.Now()).Order("id asc").First(&next).Error; err == nil {
 			return fmt.Sprintf("<a href=\"%s\">%s</a>", contentURL(ctx, &next), next.Title)
 		}
 		return "沒有了"
@@ -2045,18 +2144,9 @@ func commentToMap(c *model.CommentView, index int) map[string]interface{} {
 
 // contentToMap 將 Content 模型轉為模板可用的 map。
 // extMap 為批量預載入的擴展字段（避免 N+1），nil 時回退到單條查詢。
-func contentToMap(c *model.Content, index int, extMap map[uint]map[string]interface{}) map[string]interface{} {
-	// URL 生成規則（對齊 PbootCMS PHP）：
-	//   1. 外部鏈接優先
-	//   2. 自定義 URL 名稱 (c.Filename)
-	//   3. fallback 到 /content/{id}
-	link := "/" + c.Filename
-	if link == "/" {
-		link = fmt.Sprintf("/content/%d", c.ID)
-	}
-	if c.Outlink != "" {
-		link = c.Outlink
-	}
+func contentToMap(ctx *Context, c *model.Content, index int, extMap map[uint]map[string]interface{}) map[string]interface{} {
+	// URL 生成統一使用 contentURL（與前台路由邏輯一致）
+	link := contentURL(ctx, c)
 	// 圖片路徑標準化：確保以 / 開頭
 	ico := c.Ico
 	if ico != "" && !strings.HasPrefix(ico, "/") && !strings.HasPrefix(ico, "http") {
@@ -2084,6 +2174,7 @@ func contentToMap(c *model.Content, index int, extMap map[uint]map[string]interf
 		"author":      c.Author,
 		"visits":      c.Visits,
 		"likes":       c.Likes,
+		"oppose":      c.Oppose,
 		"date":        c.Date.Format("2006-01-02"),
 		"istop":       c.IsTop,
 		"isrecommend": c.IsRecommend,
@@ -2141,7 +2232,7 @@ func sortToMap(ctx context.Context, s *model.ContentSort, index int, countMap ma
 		childScodes := findAllChildScodes(ctx, s.Scode)
 		var c int64
 		fallbackQ := model.DB.WithContext(ctx).Model(&model.Content{}).
-			Where("scode IN ? AND status = 1", childScodes)
+			Where("scode IN ? AND status = 1 AND date <= ?", childScodes, time.Now())
 		if acode := acodeplugin.GetAcode(ctx); acode != "" {
 			fallbackQ = fallbackQ.Where("acode = ?", acode)
 		}
@@ -2187,7 +2278,7 @@ func buildSortCountMap(ctx context.Context) map[string]int {
 	var counts []scodeCount
 	countQ := model.DB.WithContext(ctx).Model(&model.Content{}).
 		Select("scode, count(*) as cnt").
-		Where("status = 1")
+		Where("status = 1 AND date <= ?", time.Now())
 	if acode := acodeplugin.GetAcode(ctx); acode != "" {
 		countQ = countQ.Where("acode = ?", acode)
 	}

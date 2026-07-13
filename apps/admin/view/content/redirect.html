@@ -1,0 +1,187 @@
+{include file='common/head.html'}
+
+<div class="layui-body">
+	{if([$list])}
+	<div class="layui-tab layui-tab-brief" lay-filter="tab">
+	  <ul class="layui-tab-title">
+	    <li class="layui-this" lay-id="t1">301重定向規則</li>
+	    <li lay-id="t2">新增規則</li>
+	  </ul>
+	  <div class="layui-tab-content">
+	  	   <div class="layui-tab-item layui-show">
+	  	   		<form action="{url./admin/content/redirect/index}" method="get" class="layui-form">
+		  	   		<div class="layui-form-item nospace">
+		  	   			<div class="layui-input-inline">
+                     	<input type="text" name="keyword" value="{$keyword}" placeholder="搜索舊URL或新URL" class="layui-input">
+                     </div>
+                     <div class="layui-input-inline">
+                     	<button class="layui-btn" lay-submit>搜索</button>
+                     	<a class="layui-btn layui-btn-primary" href="{url./admin/content/redirect/index}">清除搜索</a>
+                     </div>
+                </div>
+                </form>
+
+	  	   		<form action="{url./admin/content/redirect/del}" method="post" id="redirectForm" name="redirectForm" class="layui-form">
+		            <input type="hidden" name="formcheck" value="{$formcheck}">
+		            <table class="layui-table">
+		            	<thead>
+		                    <tr>
+		                    	<th><input type="checkbox" class="checkbox" lay-ignore id="checkall" title="全選"></th>
+		                    	<th>ID</th>
+		                        <th>舊URL</th>
+		                        <th>新URL</th>
+		                        <th>匹配方式</th>
+		                        <th>排序</th>
+		                        <th>狀態</th>
+		                        <th>操作</th>
+		                    </tr>
+		                </thead>
+		                <tbody>
+		                    {foreach $items(key,value)}
+		                    <tr>
+		                    	<td><input type="checkbox" class="checkbox checkitem" lay-ignore name="list[]" value="[value->id]"></td>
+		                    	<td>[value->id]</td>
+		                        <td>[value->old_url]</td>
+		                        <td>[value->new_url]</td>
+		                        <td>{if($value->match_type==2)}前綴匹配{else}精確匹配{/if}</td>
+		                        <td>[value->sorting]</td>
+		                        <td>
+		                        {if($value->status)}
+			                        <a href="{url./admin/content/redirect/mod/id/'.$value->id.'/field/status/value/0}" class="switch"><i class='fa fa-toggle-on' title="點擊關閉"></i></a>
+			                        {else}
+			                        <a href="{url./admin/content/redirect/mod/id/'.$value->id.'/field/status/value/1}" class="switch"><i class='fa fa-toggle-off' title="點擊開啓"></i></a>
+			                    {/if}
+			                    </td>
+		                        <td>
+			                        <a href="{url./admin/content/redirect/mod/id/'.$value->id.'}" class="layui-btn layui-btn-xs">修改</a>
+			                        <a href="{url./admin/content/redirect/del/id/'.$value->id.'}" class="layui-btn layui-btn-xs layui-btn-danger ajaxlink" data-msg="刪除成功" data-confirm="確定要刪除此重定向規則嗎">刪除</a>
+			                    </td>
+		                    </tr>
+		                    {/foreach}
+		                </tbody>
+		            </table>
+			    </form>
+			    <div class="page">{$pagebar}</div>
+		  </div>
+		</div>
+	</div>
+	{/if}
+
+	{if([$mod])}
+	<div class="layui-tab layui-tab-brief" lay-filter="tab">
+	  <ul class="layui-tab-title">
+	    <li lay-id="t1"><a href="{url./admin/content/redirect/index}">301重定向規則</a></li>
+	    <li class="layui-this" lay-id="t2">修改規則</li>
+	  </ul>
+	  <div class="layui-tab-content">
+	  	   <div class="layui-tab-item layui-show">
+	  	   		<form action="{url./admin/content/redirect/mod/id/'.$item->id.'}" method="post" class="layui-form">
+		  	   		<input type="hidden" name="formcheck" value="{$formcheck}">
+		  	   		<div class="layui-form-item">
+		  	   			<label class="layui-form-label">舊URL</label>
+		  	   			<div class="layui-input-block">
+		  	   				<input type="text" name="old_url" value="{$item->old_url}" required lay-verify="required" placeholder="如 /old-page" class="layui-input">
+		  	   			</div>
+		  	   		</div>
+		  	   		<div class="layui-form-item">
+		  	   			<label class="layui-form-label">新URL</label>
+		  	   			<div class="layui-input-block">
+		  	   				<input type="text" name="new_url" value="{$item->new_url}" required lay-verify="required" placeholder="如 /new-page" class="layui-input">
+		  	   			</div>
+		  	   		</div>
+		  	   		<div class="layui-form-item">
+		  	   			<label class="layui-form-label">匹配方式</label>
+		  	   			<div class="layui-input-block">
+		  	   				<select name="match_type">
+		  	   					<option value="1" {if($item->match_type==1)}selected{/if}>精確匹配</option>
+		  	   					<option value="2" {if($item->match_type==2)}selected{/if}>前綴匹配</option>
+		  	   				</select>
+		  	   			</div>
+		  	   		</div>
+		  	   		<div class="layui-form-item">
+		  	   			<label class="layui-form-label">排序</label>
+		  	   			<div class="layui-input-block">
+		  	   				<input type="text" name="sorting" value="{$item->sorting}" class="layui-input">
+		  	   			</div>
+		  	   		</div>
+		  	   		<div class="layui-form-item">
+		  	   			<label class="layui-form-label">狀態</label>
+		  	   			<div class="layui-input-block">
+		  	   				<select name="status">
+		  	   					<option value="1" {if($item->status==1)}selected{/if}>啟用</option>
+		  	   					<option value="0" {if($item->status==0)}selected{/if}>禁用</option>
+		  	   				</select>
+		  	   			</div>
+		  	   		</div>
+		  	   		<div class="layui-form-item">
+		  	   			<div class="layui-input-block">
+		  	   				<button class="layui-btn" lay-submit lay-filter="formDemo">提交</button>
+		  	   				<a href="{url./admin/content/redirect/index}" class="layui-btn layui-btn-primary">返回</a>
+		  	   			</div>
+		  	   		</div>
+	  	   		</form>
+	  	   </div>
+	  </div>
+	</div>
+	{/if}
+
+	{if(![$list] && ![$mod])}
+	<div class="layui-tab layui-tab-brief" lay-filter="tab">
+	  <ul class="layui-tab-title">
+	    <li lay-id="t1"><a href="{url./admin/content/redirect/index}">301重定向規則</a></li>
+	    <li class="layui-this" lay-id="t2">新增規則</li>
+	  </ul>
+	  <div class="layui-tab-content">
+	  	   <div class="layui-tab-item layui-show">
+	  	   		<form action="{url./admin/content/redirect/add}" method="post" class="layui-form">
+		  	   		<input type="hidden" name="formcheck" value="{$formcheck}">
+		  	   		<div class="layui-form-item">
+		  	   			<label class="layui-form-label">舊URL</label>
+		  	   			<div class="layui-input-block">
+		  	   				<input type="text" name="old_url" required lay-verify="required" placeholder="如 /old-page" class="layui-input">
+		  	   			</div>
+		  	   		</div>
+		  	   		<div class="layui-form-item">
+		  	   			<label class="layui-form-label">新URL</label>
+		  	   			<div class="layui-input-block">
+		  	   				<input type="text" name="new_url" required lay-verify="required" placeholder="如 /new-page" class="layui-input">
+		  	   			</div>
+		  	   		</div>
+		  	   		<div class="layui-form-item">
+		  	   			<label class="layui-form-label">匹配方式</label>
+		  	   			<div class="layui-input-block">
+		  	   				<select name="match_type">
+		  	   					<option value="1" selected>精確匹配</option>
+		  	   					<option value="2">前綴匹配</option>
+		  	   				</select>
+		  	   			</div>
+		  	   		</div>
+		  	   		<div class="layui-form-item">
+		  	   			<label class="layui-form-label">排序</label>
+		  	   			<div class="layui-input-block">
+		  	   				<input type="text" name="sorting" value="0" class="layui-input">
+		  	   			</div>
+		  	   		</div>
+		  	   		<div class="layui-form-item">
+		  	   			<label class="layui-form-label">狀態</label>
+		  	   			<div class="layui-input-block">
+		  	   				<select name="status">
+		  	   					<option value="1" selected>啟用</option>
+		  	   					<option value="0">禁用</option>
+		  	   				</select>
+		  	   			</div>
+		  	   		</div>
+		  	   		<div class="layui-form-item">
+		  	   			<div class="layui-input-block">
+		  	   				<button class="layui-btn" lay-submit lay-filter="formDemo">提交</button>
+		  	   				<a href="{url./admin/content/redirect/index}" class="layui-btn layui-btn-primary">返回</a>
+		  	   			</div>
+		  	   		</div>
+	  	   		</form>
+	  	   </div>
+	  </div>
+	</div>
+	{/if}
+</div>
+
+{include file='common/foot.html'}

@@ -16,6 +16,7 @@ func AutoMigrate() {
 		&Link{},
 		&Message{},
 		&Model{},
+		&Redirect{},
 		&Single{},
 		&Site{},
 		&Slide{},

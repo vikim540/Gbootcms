@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
+	"gbootcms/apps/common/storage"
 	"gbootcms/apps/common/watermark"
 	"gbootcms/config"
 	basic "gbootcms/core/basic"
@@ -359,6 +360,9 @@ func (ic *IndexController) UcenterMod(c *gin.Context) {
 func (ic *IndexController) ClearCache(c *gin.Context) {
 	// 清除內存中的模板快取（核心操作）
 	basic.ClearTemplateCache()
+
+	// 清除存儲快取（R2 檔案存在性快取）
+	storage.ClearCache()
 
 	// 清除 runtime 目錄下的 pongo2 debug 文件
 	debugFiles, _ := filepath.Glob("runtime/pongo2_debug_*.html")
@@ -825,9 +829,20 @@ func (ic *IndexController) Upload(c *gin.Context) {
 		}
 	}
 
-	// 回傳相對於專案根目錄的路徑（layui 期望此格式）
+	// 回傳檔案路徑（如果啟用雲存儲，返回 R2 公開 URL）
 	relPath := filepath.ToSlash(savePath)
-	c.JSON(http.StatusOK, gin.H{"code": 1, "data": []string{relPath}})
+	fileURL := relPath
+	if model.GetConfigValue("r2_enabled", "0") == "1" {
+		store := storage.GetStorage()
+		if store.IsEnabled() {
+			if cloudURL, err := store.Upload(savePath, relPath); err == nil {
+				fileURL = cloudURL
+			} else {
+				slog.Warn("R2 上傳失敗，使用本地路徑", "error", err)
+			}
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 1, "data": []string{fileURL}})
 }
 
 // isImageExt 判斷是否為圖片副檔名

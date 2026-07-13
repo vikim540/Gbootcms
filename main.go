@@ -15,8 +15,11 @@ import (
 	"gbootcms/apps/admin/model/member"
 	"gbootcms/apps/admin/model/system"
 	"gbootcms/apps/admin/seed"
+	"gbootcms/apps/api"
+	"gbootcms/apps/common"
 	"gbootcms/apps/common/middleware"
 	"gbootcms/apps/common/parser"
+	"gbootcms/apps/common/storage"
 	"gbootcms/apps/route"
 	"gbootcms/config"
 	"gbootcms/core/acodeplugin"
@@ -100,8 +103,17 @@ func main() {
 		// 跳過後台、靜態資源、API、SEO 文件路徑（不解析語言前綴）
 		if strings.HasPrefix(path, "/admin") || strings.HasPrefix(path, "/static") ||
 			strings.HasPrefix(path, "/template") || strings.HasPrefix(path, "/api") ||
-			strings.HasPrefix(path, "/sitemap") || strings.HasPrefix(path, "/robots") {
+			strings.HasPrefix(path, "/sitemap") || strings.HasPrefix(path, "/robots") ||
+			strings.HasPrefix(path, "/llms") {
 			c.Next()
+			return
+		}
+
+		// SEO：301 重定向 .html URL 到無後綴的乾淨 URL（Google SEO 標準）
+		// 放在語言前綴檢測之前，確保重定向保留語言前綴（如 /tc/industry/36.html → /tc/industry/36）
+		if strings.HasSuffix(path, ".html") {
+			c.Redirect(http.StatusMovedPermanently, strings.TrimSuffix(path, ".html"))
+			c.Abort()
 			return
 		}
 
@@ -116,10 +128,6 @@ func main() {
 			} else {
 				c.Request.URL.Path = "/"
 			}
-			// 同時處理 .html 後綴
-			if strings.HasSuffix(c.Request.URL.Path, ".html") {
-				c.Request.URL.Path = strings.TrimSuffix(c.Request.URL.Path, ".html")
-			}
 			// 將 acode 存入 request context 供 InjectAcode 讀取
 			ctx := middleware.SetURLAcode(c.Request.Context(), acode)
 			c.Request = c.Request.WithContext(ctx)
@@ -128,18 +136,14 @@ func main() {
 			return
 		}
 
-		// 原有 .html 剝離邏輯
-		if strings.HasSuffix(path, ".html") {
-			c.Request.URL.Path = strings.TrimSuffix(path, ".html")
-			r.HandleContext(c)
-			c.Abort()
-			return
-		}
 		c.Next()
 	})
 
 	// 關站檢查（對齊 PHP HomeController.__construct，最高優先級，前台生效）
 	r.Use(middleware.SiteStatus())
+
+	// 301 重定向（應用層 URL 重寫規則，補充 Nginx 靜態規則）
+	r.Use(middleware.Redirect301())
 
 	// HTTPS 跳轉和主域名跳轉（對齊 PHP HomeController.__construct，前台生效）
 	r.Use(middleware.SiteRedirect())
@@ -168,6 +172,16 @@ func main() {
 	r.Static("/template/default/static", "template/default/static")
 
 	route.SetupAdminRoutes(r)
+	route.SetupAPIRoutes(r)
+
+	// 初始化 MeiliSearch 全文搜索（如果已配置）
+	go api.InitMeiliSearch()
+
+	// 載入敏感詞列表
+	common.LoadSensitiveWords()
+
+	// 初始化雲存儲（如果配置了 R2）
+	storage.InitStorage()
 
 	fc := home.NewFrontController(store)
 
@@ -176,7 +190,9 @@ func main() {
 	r.GET("/tags", fc.Tags)
 	r.GET("/message", fc.Message)
 	r.POST("/message", fc.Message)
-	r.GET("/api/visits", fc.Visits)
+	r.GET("/api/visits", middleware.APIRateLimit(), fc.Visits)
+	r.POST("/api/likes", middleware.VoteRateLimit(), fc.Likes)
+	r.POST("/api/oppose", middleware.VoteRateLimit(), fc.Oppose)
 	r.GET("/api/checkcode", fc.CheckCode)
 
 	// SEO: sitemap 索引 + robots.txt
@@ -184,6 +200,7 @@ func main() {
 	// 因為 Gin 的 :param 不支援路徑段中間匹配（如 /sitemap-:acode.xml）
 	r.GET("/sitemap.xml", fc.Sitemap)
 	r.GET("/robots.txt", fc.Robots)
+	r.GET("/llms.txt", fc.LLMS)
 
 	// 會員系統路由
 	r.GET("/login", fc.Login)

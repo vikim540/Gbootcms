@@ -187,6 +187,12 @@ func (bc *BaseController) JSONOKMsg(c *gin.Context, msg string) {
 	c.JSON(http.StatusOK, gin.H{"code": 1, "data": msg, "msg": msg, "tourl": ""})
 }
 
+// JSONOKMsgTourl 成功響應帶消息和跳轉 URL
+// 用於新增成功後跳轉到列表頁，防止頁面停留在新增表單導致重複新增
+func (bc *BaseController) JSONOKMsgTourl(c *gin.Context, msg string, tourl string) {
+	c.JSON(http.StatusOK, gin.H{"code": 1, "data": msg, "msg": msg, "tourl": tourl})
+}
+
 func (bc *BaseController) JSONFail(c *gin.Context, msg string) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "data": msg, "msg": msg, "tourl": ""})
 }

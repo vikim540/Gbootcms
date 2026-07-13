@@ -87,6 +87,7 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			"watermark_position",
 			"turnstile_sitekey", "turnstile_secret",
 			"message_turnstile", "form_turnstile",
+			"likes_status",
 		}
 		for _, name := range names {
 			if name == "submit" {

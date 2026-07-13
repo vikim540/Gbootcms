@@ -214,8 +214,15 @@ func (fc *FrontController) ListPage(c *gin.Context) {
 }
 
 func (fc *FrontController) ContentPage(c *gin.Context) {
-	path := c.Request.URL.Path
-	path = strings.TrimPrefix(path, "/")
+	// SEO：301 重定向 .html URL 到無後綴的乾淨 URL
+	reqPath := c.Request.URL.Path
+	if strings.HasSuffix(reqPath, ".html") || strings.HasSuffix(reqPath, ".htm") {
+		cleanPath := strings.TrimSuffix(strings.TrimSuffix(reqPath, ".html"), ".htm")
+		c.Redirect(http.StatusMovedPermanently, cleanPath)
+		return
+	}
+
+	path := strings.TrimPrefix(reqPath, "/")
 	path = strings.TrimRight(path, "/")
 	path = trimSuffix(path)
 
@@ -224,39 +231,104 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 		return
 	}
 
-	// 優先查 filename（自定義 URL 名稱），fallback 查 urlname
-	// 手動添加 acode 過濾（AcodePlugin 對 .First() 不可靠）
 	ctAcode := acodeplugin.GetAcode(c.Request.Context())
+
+	// 1. 優先查 content filename（支援多段 slug，如 "test/a"）
 	var ct content.Content
-	ctQuery := model.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1", path)
+	ctQuery := model.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1 AND date <= ?", path, time.Now())
 	if ctAcode != "" {
 		ctQuery = ctQuery.Where("acode = ?", ctAcode)
 	}
-	if err := ctQuery.First(&ct).Error; err != nil {
-		ctFallback := model.DB.WithContext(c.Request.Context()).Where("urlname = ? AND status = 1", path)
-		if ctAcode != "" {
-			ctFallback = ctFallback.Where("acode = ?", ctAcode)
-		}
-		if err2 := ctFallback.First(&ct).Error; err2 != nil {
-			var sort content.ContentSort
-			sortQuery := model.DB.WithContext(c.Request.Context()).Where("filename = ?", path)
+	if ctQuery.First(&ct).Error == nil {
+		fc.renderContentDetail(c, &ct)
+		return
+	}
+
+	// 2. 查 content urlname
+	ctFallback := model.DB.WithContext(c.Request.Context()).Where("urlname = ? AND status = 1 AND date <= ?", path, time.Now())
+	if ctAcode != "" {
+		ctFallback = ctFallback.Where("acode = ?", ctAcode)
+	}
+	if ctFallback.First(&ct).Error == nil {
+		fc.renderContentDetail(c, &ct)
+		return
+	}
+
+	// 3. 查欄目 filename
+	var sort content.ContentSort
+	sortQuery := model.DB.WithContext(c.Request.Context()).Where("filename = ?", path)
+	if ctAcode != "" {
+		sortQuery = sortQuery.Where("acode = ?", ctAcode)
+	}
+	if sortQuery.First(&sort).Error == nil {
+		fc.renderSortPage(c, &sort)
+		return
+	}
+
+	// 4. 查欄目 urlname
+	sortFallback := model.DB.WithContext(c.Request.Context()).Where("urlname = ?", path)
+	if ctAcode != "" {
+		sortFallback = sortFallback.Where("acode = ?", ctAcode)
+	}
+	if sortFallback.First(&sort).Error == nil {
+		fc.renderSortPage(c, &sort)
+		return
+	}
+
+	// 5. 分段匹配：處理 /{sortPath}/{slug}.html 或 /{sortPath}/{id}.html
+	//    當 slug 不含 "/" 時，URL 帶欄目前綴；最後一段可能是 filename、urlname 或數字 ID
+	if segments := strings.Split(path, "/"); len(segments) > 1 {
+		lastSegment := segments[len(segments)-1]
+		prefix := strings.Join(segments[:len(segments)-1], "/")
+
+		// 5a. 最後一段為數字 → 按 ID 查詢
+		if id, err := strconv.Atoi(lastSegment); err == nil && id > 0 {
+			var ctByID content.Content
+			idQ := model.DB.WithContext(c.Request.Context()).Where("id = ? AND status = 1 AND date <= ?", id, time.Now())
 			if ctAcode != "" {
-				sortQuery = sortQuery.Where("acode = ?", ctAcode)
+				idQ = idQ.Where("acode = ?", ctAcode)
 			}
-			if err3 := sortQuery.First(&sort).Error; err3 != nil {
-				sortFallback := model.DB.WithContext(c.Request.Context()).Where("urlname = ?", path)
-				if ctAcode != "" {
-					sortFallback = sortFallback.Where("acode = ?", ctAcode)
-				}
-				if err4 := sortFallback.First(&sort).Error; err4 != nil {
-					c.String(http.StatusNotFound, "404")
+			if idQ.First(&ctByID).Error == nil {
+				if fc.verifySortPath(c.Request.Context(), ctByID.Scode, prefix, ctAcode) {
+					fc.renderContentDetail(c, &ctByID)
 					return
 				}
 			}
-			fc.renderSortPage(c, &sort)
-			return
+		}
+
+		// 5b. 最後一段為 content filename
+		var ctByFn content.Content
+		fnQ := model.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1 AND date <= ?", lastSegment, time.Now())
+		if ctAcode != "" {
+			fnQ = fnQ.Where("acode = ?", ctAcode)
+		}
+		if fnQ.First(&ctByFn).Error == nil {
+			if fc.verifySortPath(c.Request.Context(), ctByFn.Scode, prefix, ctAcode) {
+				fc.renderContentDetail(c, &ctByFn)
+				return
+			}
+		}
+
+		// 5c. 最後一段為 content urlname
+		var ctByUn content.Content
+		unQ := model.DB.WithContext(c.Request.Context()).Where("urlname = ? AND status = 1 AND date <= ?", lastSegment, time.Now())
+		if ctAcode != "" {
+			unQ = unQ.Where("acode = ?", ctAcode)
+		}
+		if unQ.First(&ctByUn).Error == nil {
+			if fc.verifySortPath(c.Request.Context(), ctByUn.Scode, prefix, ctAcode) {
+				fc.renderContentDetail(c, &ctByUn)
+				return
+			}
 		}
 	}
+
+	c.String(http.StatusNotFound, "404")
+}
+
+// renderContentDetail 渲染內容詳情頁（ContentPage 和 ContentByID 共用）
+func (fc *FrontController) renderContentDetail(c *gin.Context, ct *content.Content) {
+	ctAcode := acodeplugin.GetAcode(c.Request.Context())
 
 	// 查欄目並做欄目權限檢查
 	var sort content.ContentSort
@@ -271,12 +343,12 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 	}
 
 	// 內容權限檢查
-	if !fc.checkContentPermission(c, &ct) {
+	if !fc.checkContentPermission(c, ct) {
 		return
 	}
 
 	ctx := fc.buildContext(c)
-	ctx.Content = &ct
+	ctx.Content = ct
 	if sort.ID != 0 {
 		ctx.Sort = &sort
 	}
@@ -297,6 +369,22 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, html)
+}
+
+// verifySortPath 驗證路徑前綴是否與欄目的 filename/urlname 匹配
+func (fc *FrontController) verifySortPath(ctx context.Context, scode, prefix, acode string) bool {
+	if scode == "" || prefix == "" {
+		return false
+	}
+	var sort content.ContentSort
+	q := model.DB.WithContext(ctx).Where("scode = ?", scode)
+	if acode != "" {
+		q = q.Where("acode = ?", acode)
+	}
+	if err := q.First(&sort).Error; err != nil {
+		return false
+	}
+	return sort.Filename == prefix || sort.URLName == prefix
 }
 
 func (fc *FrontController) Search(c *gin.Context) {
@@ -391,9 +479,9 @@ func (fc *FrontController) Message(c *gin.Context) {
 
 	msg := model.Message{
 		Acode:      acodeplugin.GetAcode(c.Request.Context()),
-		Contacts:   filterGbootIf(c.PostForm("contacts")),
+		Contacts:   common.FilterSensitiveWords(filterGbootIf(c.PostForm("contacts"))),
 		Mobile:     filterGbootIf(c.PostForm("mobile")),
-		Content:    filterGbootIf(c.PostForm("content")),
+		Content:    common.FilterSensitiveWords(filterGbootIf(c.PostForm("content"))),
 		IP:         clientIP,
 		OS:         osName,
 		Browser:    bsName,
@@ -612,6 +700,83 @@ func (fc *FrontController) addVisits(c *gin.Context, id int) {
 	c.SetCookie(cookieName, "1", 1800, "/", "", false, true)
 }
 
+// checkReferer 驗證請求來源是否為本站（防止跨站 CSRF）
+func checkReferer(c *gin.Context) bool {
+	referer := c.Request.Header.Get("Referer")
+	if referer == "" {
+		// AJAX 請求可能不帶 Referer，檢查 Origin
+		origin := c.Request.Header.Get("Origin")
+		if origin == "" {
+			return false
+		}
+		referer = origin
+	}
+	host := c.Request.Host
+	return strings.Contains(referer, host)
+}
+
+// Likes 處理點讚請求（POST + IP限速 + Cookie去重 + Referer驗證）
+func (fc *FrontController) Likes(c *gin.Context) {
+	if model.GetConfigValue("likes_status", "0") == "0" {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "功能已禁用"})
+		return
+	}
+	if !checkReferer(c) {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "非法請求來源"})
+		return
+	}
+	id, _ := strconv.Atoi(c.PostForm("id"))
+	if id <= 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "無效的內容ID"})
+		return
+	}
+	cookieName := fmt.Sprintf("pboot_likes_%d", id)
+	if _, err := c.Cookie(cookieName); err == nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您已經點過讚了"})
+		return
+	}
+	var ct content.Content
+	if err := model.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&ct).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "內容不存在"})
+		return
+	}
+	model.DB.WithContext(c.Request.Context()).Model(&content.Content{}).Where("id = ?", id).
+		UpdateColumn("likes", gorm.Expr("likes + 1"))
+	c.SetCookie(cookieName, "1", 31536000, "/", "", false, true)
+	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "點讚成功", "likes": ct.Likes + 1})
+}
+
+// Oppose 處理反對請求（POST + IP限速 + Cookie去重 + Referer驗證）
+func (fc *FrontController) Oppose(c *gin.Context) {
+	if model.GetConfigValue("likes_status", "0") == "0" {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "功能已禁用"})
+		return
+	}
+	if !checkReferer(c) {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "非法請求來源"})
+		return
+	}
+	id, _ := strconv.Atoi(c.PostForm("id"))
+	if id <= 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "無效的內容ID"})
+		return
+	}
+	cookieName := fmt.Sprintf("pboot_oppose_%d", id)
+	if _, err := c.Cookie(cookieName); err == nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您已經反對過了"})
+		return
+	}
+	var ct content.Content
+	if err := model.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&ct).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "內容不存在"})
+		return
+	}
+	model.DB.WithContext(c.Request.Context()).Model(&content.Content{}).Where("id = ?", id).
+		UpdateColumn("oppose", gorm.Expr("oppose + 1"))
+	c.SetCookie(cookieName, "1", 31536000, "/", "", false, true)
+	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "反對成功", "oppose": ct.Oppose + 1})
+}
+
 // checkAntispam 蜜罐 + 時間陷阱通用反垃圾檢查
 // 返回 true 表示通過（非垃圾），false 表示已攔截（已寫入 JSON 響應）
 // 適用於留言、自定義表單等公開提交場景；後台登錄不適用（蜜罐易被密碼管理器誤填）
@@ -657,59 +822,63 @@ func (fc *FrontController) SortByScode(c *gin.Context) {
 }
 
 // ContentByID renders the content detail page for a content identified by id.
-// Used as the dynamic URL "/content/{id}" generated by contentToMap
-// when a content has no urlname set.
+// /content/{id} 是兜底 URL：僅當內容無 slug 且欄目無 pathname 時才是規範 URL。
+// 若內容有 slug 或欄目有 pathname，301 重定向到規範 URL（避免重複內容，符合 SEO 標準）。
 func (fc *FrontController) ContentByID(c *gin.Context) {
 	idStr := c.Param("id")
-	// 同時兼容 .html 後綴（如 /content/57.html）
-	idStr = strings.TrimSuffix(idStr, ".html")
+	// SEO：301 重定向 .html URL 到無後綴的乾淨 URL
+	if strings.HasSuffix(idStr, ".html") || strings.HasSuffix(idStr, ".htm") {
+		idStr = strings.TrimSuffix(strings.TrimSuffix(idStr, ".html"), ".htm")
+		c.Redirect(http.StatusMovedPermanently, langPath(c, "/content/"+idStr))
+		return
+	}
 	id, err := strconv.Atoi(idStr)
 	if err != nil || id <= 0 {
 		c.String(http.StatusNotFound, "404")
 		return
 	}
 	var ct content.Content
-	if err := model.DB.WithContext(c.Request.Context()).Where("id = ? AND status = 1", id).First(&ct).Error; err != nil {
+	if err := model.DB.WithContext(c.Request.Context()).Where("id = ? AND status = 1 AND date <= ?", id, time.Now()).First(&ct).Error; err != nil {
 		// 當前語言找不到：嘗試跨語言查詢原始內容，重定向到當前語言的對應頁面
 		fc.redirectCrossLangContent(c, id)
 		return
 	}
+	// SEO：若內容有 slug，301 重定向到規範 URL
 	var sort content.ContentSort
 	_ = model.DB.WithContext(c.Request.Context()).Where("scode = ?", ct.Scode).First(&sort).Error
-
-	// 欄目權限檢查
-	if sort.ID != 0 {
-		if !fc.checkSortPermission(c, &sort) {
-			return
-		}
+	sortPath := sort.Filename
+	if sortPath == "" {
+		sortPath = sort.URLName
 	}
-
-	// 內容權限檢查
-	if !fc.checkContentPermission(c, &ct) {
+	if ct.Filename != "" {
+		if strings.Contains(ct.Filename, "/") {
+			// 多段 slug → /{slug}
+			c.Redirect(http.StatusMovedPermanently, langPath(c, "/"+ct.Filename))
+		} else if sortPath != "" {
+			// 單段 slug → /{sortPath}/{slug}
+			c.Redirect(http.StatusMovedPermanently, langPath(c, "/"+sortPath+"/"+ct.Filename))
+		} else {
+			c.Redirect(http.StatusMovedPermanently, langPath(c, "/"+ct.Filename))
+		}
 		return
 	}
-
-	ctx := fc.buildContext(c)
-	ctx.Content = &ct
-	if sort.ID != 0 {
-		ctx.Sort = &sort
+	if ct.URLName != "" {
+		if strings.Contains(ct.URLName, "/") {
+			c.Redirect(http.StatusMovedPermanently, langPath(c, "/"+ct.URLName))
+		} else if sortPath != "" {
+			c.Redirect(http.StatusMovedPermanently, langPath(c, "/"+sortPath+"/"+ct.URLName))
+		} else {
+			c.Redirect(http.StatusMovedPermanently, langPath(c, "/"+ct.URLName))
+		}
+		return
 	}
-
-	// 累加訪問數（對齊 PHP: 未開靜態快取時同步自增）
-	fc.addVisits(c, int(ct.ID))
-
-	p := parser.New()
-	parser.RegisterAllProviders(p, ctx)
-
-	tpl := "content.html"
-	if sort.ID != 0 && sort.ContentTpl != "" {
-		tpl = sort.ContentTpl
+	// SEO：若欄目有 pathname，301 重定向到 /{sortPath}/{id}
+	if sortPath != "" {
+		c.Redirect(http.StatusMovedPermanently, langPath(c, "/"+sortPath+"/"+strconv.Itoa(int(ct.ID))))
+		return
 	}
-	html := fc.getStore(c).Render(tpl)
-	html = p.Render(html)
-	html = postRender(html, c.Request.Context())
-	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.String(http.StatusOK, html)
+	// 無 slug 且欄目無 pathname → /content/{id} 是規範 URL，正常渲染
+	fc.renderContentDetail(c, &ct)
 }
 
 // redirectCrossLangContent 跨語言內容重定向
@@ -730,7 +899,7 @@ func (fc *FrontController) redirectCrossLangContent(c *gin.Context, id int) {
 	// 嘗試按 filename 在當前語言中查找對應內容
 	if origContent.Filename != "" {
 		var target content.Content
-		if err := model.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1", origContent.Filename).First(&target).Error; err == nil {
+		if err := model.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1 AND date <= ?", origContent.Filename, time.Now()).First(&target).Error; err == nil {
 			// 找到對應內容，重定向到其 URL
 			targetURL := "/" + target.Filename
 			if targetURL == "/" {

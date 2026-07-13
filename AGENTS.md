@@ -146,7 +146,7 @@ gbootcms/
 8. **通知消息用常量** — `common.NoticeAdd` / `common.NoticeModify` / `common.NoticeDelete`，禁止硬編碼
 9. **編輯表單做髒檢查** — 無變更時不寫 DB、不發成功通知
 10. **構建產物輸出 `bin/`** — 不滯留根目錄
-11. **文檔放 `docs/`** — 所有 `.md` 文件放 docs 文件夾，根目錄僅保留必要文件
+11. **文檔放 `docs/`** — 所有文檔以 `.md` 格式寫入 `docs/` 文件夾，禁止創建 HTML 文件，禁止在根目錄創建新文件夾
 12. **模板清除 BOM** — 所有模板文件開頭的 `U+FEFF` 必須清除
 13. **狀態切換鏈接加 `class="switch"`** — comm.js 用此選擇器攔截 AJAX，否則瀏覽器直接顯示 JSON
 14. **前台 include 路徑用 `common/`** — `{include file='common/head.html'}` 而非 `comm/`
@@ -162,6 +162,8 @@ gbootcms/
 24. **刪除操作必須用 POST** — GET 刪除有 CSRF 風險
 25. **AJAX 攔截回應雙欄位** — `auth.go` 中 AJAX 回應必須同時包含 `data` + `msg`
 26. **通知文案不加感嘆號** — 統一風格，所有通知訊息不帶 `！`
+27. **定時發布靠查詢過濾，不用排程器** — PbootCMS 無排程器，前台查詢用 `status=1 AND date <= now` 過濾；單頁例外（只查 `status=1`，不支持定時發布）；禁止用 goroutine 翻轉 status（會誤發布手動隱藏的文章）
+28. **優先參考 PbootCMS 原版邏輯** — 移植功能時先閱讀 `PbootCMS-3.2.12` 對應代碼，原版資料庫不做任何修改、刪除字段操作
 
 ---
 
@@ -375,6 +377,9 @@ if !member.RegisterTime.IsZero() {
 | 22 | AJAX 攔截回應只有 `msg` 缺少 `data` | 必須同時包含 `data` + `msg` |
 | 23 | 刪除操作用 GET 請求 | 刪除操作必須用 POST（防 CSRF） |
 | 24 | 通知文案帶感嘆號 | 通知文案**不加感嘆號** |
+| 25 | 用 goroutine 排程器翻轉 status 實現定時發布 | PbootCMS 無排程器，靠查詢 `date <= now` 過濾；排程器會誤發布手動隱藏的文章 |
+| 26 | 單頁查詢加 `date <= now` 過濾 | PbootCMS 單頁不支持定時發布，只查 `status=1` |
+| 27 | 在根目錄創建文件夾或 HTML 文件 | 文檔一律以 `.md` 格式寫入 `docs/` |
 
 ---
 

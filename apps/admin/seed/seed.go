@@ -63,10 +63,10 @@ func seedArea() {
 }
 
 // ensureMenuVersion 檢查選單資料是否與最新 seedMenus 版本一致。
-// 偵測標誌：是否存在 mcode='M1008'（移除類型管理後的版本標記）。若不存在則清空重建。
+// 偵測標誌：是否存在 mcode='M1010'（新增301重定向後的版本標記）。若不存在則清空重建。
 func ensureMenuVersion() {
 	var count int64
-	model.DB.Model(&system.Menu{}).Where("mcode = ?", "M1008").Count(&count)
+	model.DB.Model(&system.Menu{}).Where("mcode = ?", "M1010").Count(&count)
 	if count > 0 {
 		return
 	}
@@ -75,7 +75,7 @@ func ensureMenuVersion() {
 	seedMenus(time.Now())
 	// 寫入版本標記（隱藏選單，不作導航用）
 	model.DB.Create(&system.Menu{
-		Mcode:      "M1008",
+		Mcode:      "M1010",
 		Pcode:      "",
 		Name:       "版本標記",
 		URL:        "#",
@@ -157,6 +157,8 @@ func seedMenus(now time.Time) {
 		// ============ 文章內容 子選單 (M130) ============
 		{Mcode: "M131", Pcode: "M130", Name: "欄目", URL: "/admin/Single/index", Ico: "fa-file-o", Sorting: 401, Status: 1, Shortcut: 0, Type: 1},
 		{Mcode: "M132", Pcode: "M130", Name: "列表內容", URL: "/admin/Content/index", Ico: "fa-file-text-o", Sorting: 402, Status: 1, Shortcut: 1, Type: 1},
+		{Mcode: "M133", Pcode: "M130", Name: "文檔回收站", URL: "/admin/content/trash", Ico: "fa-recycle", Sorting: 403, Status: 1, Shortcut: 0, Type: 1},
+		{Mcode: "M134", Pcode: "M130", Name: "301重定向", URL: "/admin/content/redirect/index", Ico: "fa-reply", Sorting: 404, Status: 1, Shortcut: 0, Type: 1},
 
 		// ============ 擴展內容 子選單 (M157) ============
 		{Mcode: "M150", Pcode: "M157", Name: "留言資訊", URL: "/admin/Message/index", Ico: "fa-question-circle-o", Sorting: 501, Status: 1, Shortcut: 0, Type: 1},
@@ -284,6 +286,26 @@ func seedConfigs() {
 		{Name: "watermark_text_font", Value: ""},
 		{Name: "watermark_pic", Value: ""},
 		{Name: "watermark_position", Value: "4"},
+		// MeiliSearch 全文搜索配置
+		{Name: "meilisearch_url", Value: ""},
+		{Name: "meilisearch_key", Value: ""},
+		// Cloudflare R2 雲存儲配置
+		{Name: "r2_enabled", Value: "0"},
+		{Name: "r2_endpoint", Value: ""},
+		{Name: "r2_access_key", Value: ""},
+		{Name: "r2_secret_key", Value: ""},
+		{Name: "r2_bucket", Value: ""},
+		{Name: "r2_public_url", Value: ""},
+		{Name: "r2_cache_ttl", Value: "300"},
+		// 外鏈 nofollow 配置
+		{Name: "nofollow_external", Value: "1"},
+		// 敏感詞過濾配置
+		{Name: "sensitive_words", Value: ""},
+		// JSON-LD 結構化資料配置
+		{Name: "opening_hours", Value: ""},
+		{Name: "geo_latitude", Value: ""},
+		{Name: "geo_longitude", Value: ""},
+		{Name: "price_currency", Value: "CNY"},
 	}
 	for _, c := range configs {
 		model.DB.Create(&c)
