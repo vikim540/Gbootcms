@@ -1776,6 +1776,24 @@ func buildIfContext(ctx *Context) map[string]interface{} {
 	} else {
 		data["commentcodestatus"] = 0
 	}
+	// 會員登入開關
+	if model.GetConfigValue("login_status", "1") != "0" {
+		data["loginstatus"] = 1
+	} else {
+		data["loginstatus"] = 0
+	}
+	// 會員註冊開關
+	if model.GetConfigValue("register_status", "1") != "0" {
+		data["registerstatus"] = 1
+	} else {
+		data["registerstatus"] = 0
+	}
+	// 留言驗證碼開關
+	if model.GetConfigValue("message_check_code", "1") != "0" {
+		data["msgcodestatus"] = 1
+	} else {
+		data["msgcodestatus"] = 0
+	}
 	return data
 }
 

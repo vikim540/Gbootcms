@@ -84,12 +84,6 @@ func resolveCondVars(cond string, data map[string]interface{}) string {
 					return ValToStr(data["islogin"])
 				}
 				return "0"
-			case "registerstatus":
-				return "0"
-			case "loginstatus":
-				return "0"
-			case "msgcodestatus":
-				return "0"
 			}
 		}
 		return "0"

@@ -164,6 +164,8 @@ gbootcms/
 26. **通知文案不加感嘆號** — 統一風格，所有通知訊息不帶 `！`
 27. **定時發布靠查詢過濾，不用排程器** — PbootCMS 無排程器，前台查詢用 `status=1 AND date <= now` 過濾；單頁例外（只查 `status=1`，不支持定時發布）；禁止用 goroutine 翻轉 status（會誤發布手動隱藏的文章）
 28. **優先參考 PbootCMS 原版邏輯** — 移植功能時先閱讀 `PbootCMS-3.2.12` 對應代碼，原版資料庫不做任何修改、刪除字段操作
+29. **禁止在 if_eval.go 硬編碼配置值** — `{gboot:if({gboot:xxx})}` 條件中的變量必須從 `buildIfContext()` 的 data map 讀取，嚴禁在 `resolveCondVars` 的 switch 中硬編碼返回 `"0"` 或 `"1"`；新增配置開關標籤時，必須同時在 `buildIfContext()` 中注入對應值，並用 `model.GetConfigValue()` 讀取 DB 配置，不可在 `if_eval.go` 中寫 fallback
+30. **前台配置開關的單標籤與條件標籤必須同步** — 在 `providers.go` 中註冊的 `{gboot:xxx}` 單標籤 provider 若返回配置值（如 `commentstatus`、`logincodestatus`），則同時必須在 `buildIfContext()` 中注入同名 key，否則 `{gboot:if({gboot:xxx})}` 條件判斷走 `if_eval.go` fallback 會返回錯誤值
 
 ---
 
@@ -380,6 +382,8 @@ if !member.RegisterTime.IsZero() {
 | 25 | 用 goroutine 排程器翻轉 status 實現定時發布 | PbootCMS 無排程器，靠查詢 `date <= now` 過濾；排程器會誤發布手動隱藏的文章 |
 | 26 | 單頁查詢加 `date <= now` 過濾 | PbootCMS 單頁不支持定時發布，只查 `status=1` |
 | 27 | 在根目錄創建文件夾或 HTML 文件 | 文檔一律以 `.md` 格式寫入 `docs/` |
+| 28 | 在 `if_eval.go` 的 switch 中硬編碼配置值（如 `return "0"`） | 必須在 `buildIfContext()` 中從 DB 讀取配置注入 data map |
+| 29 | 新增配置開關單標籤但忘記在 `buildIfContext()` 同步注入 | 單標籤 provider 和 `buildIfContext()` 必須同步，否則 `{gboot:if}` 條件判斷走 fallback 返回錯誤值 |
 
 ---
 
