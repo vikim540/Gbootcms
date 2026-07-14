@@ -15,6 +15,7 @@ import (
 	"gbootcms/apps/common"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/singleflight"
 )
 
 // --- 記憶體緩存層（永遠開啟，無需配置） ---
@@ -22,11 +23,13 @@ import (
 type memCacheEntry struct {
 	content  []byte
 	expireAt int64
+	// staleUntil: 過期後仍可作為 stale 返回的截止時間
+	staleUntil int64
 }
 
 var (
-	memCache   sync.Map // key: cacheKey(string), value: memCacheEntry
-	memCacheMu sync.RWMutex
+	memCache sync.Map // key: cacheKey(string), value: memCacheEntry
+	sfGroup  singleflight.Group
 )
 
 // ClearHTMLCache 清除所有 HTML 緩存（記憶體 + 檔案）
@@ -60,8 +63,17 @@ func (w *cacheBodyWriter) Write(b []byte) (int, error) {
 	return w.buf.Write(b)
 }
 
+// renderResult 是 singleflight 的返回類型
+type renderResult struct {
+	status      int
+	contentType string
+	body        []byte
+	cacheSource string // "FRESH"=剛渲染, "STALE"=過期但可用, "SF"=singleflight共享
+}
+
 // HTMLCache 動態頁面緩存中間件
 // 記憶體緩存永遠開啟（TTL 由 tpl_html_cache_time 控制，預設 900 秒）
+// 使用 singleflight 防止快取擊穿 + stale-while-revalidate 避免阻塞
 // 檔案緩存由 tpl_html_cache 配置項控制（跨重啟持久化）
 // 帶 p（pathinfo）或 s（搜索）參數的請求不快取
 // 已登入會員不快取（避免個人化內容被快取導致資訊洩露）
@@ -95,22 +107,38 @@ func HTMLCache() gin.HandlerFunc {
 			}
 		}
 
+		// stale 寬限期：過期後仍可返回舊數據的時間（TTL 的 50%）
+		staleGrace := int64(cacheTTL.Seconds()) / 2
+		if staleGrace < 60 {
+			staleGrace = 60 // 至少 60 秒 stale 寬限
+		}
+
 		// 計算快取鍵
 		cacheKey := fmt.Sprintf("%s%s", c.Request.Host, c.Request.RequestURI)
 		cacheKeyHash := fmt.Sprintf("%x", md5.Sum([]byte(cacheKey)))
 		now := time.Now().Unix()
 
-		// --- 第一層：記憶體緩存（永遠開啟，亞毫秒級） ---
+		// --- 第一層：記憶體緩存（永遠開啟） ---
 		if entry, ok := memCache.Load(cacheKeyHash); ok {
 			e := entry.(memCacheEntry)
 			if now < e.expireAt {
+				// 快取有效，直接返回
 				c.Header("Content-Type", "text/html; charset=utf-8")
 				c.Header("X-Cache", "HIT-MEM")
 				c.Data(http.StatusOK, "text/html; charset=utf-8", e.content)
 				c.Abort()
 				return
 			}
-			// 過期，刪除
+			// 快取已過期，但在 stale 寬限期內：直接返回舊數據
+			// 快取自然過期（staleUntil 到期）後由 singleflight 重新渲染
+			if now < e.staleUntil {
+				c.Header("Content-Type", "text/html; charset=utf-8")
+				c.Header("X-Cache", "HIT-STALE")
+				c.Data(http.StatusOK, "text/html; charset=utf-8", e.content)
+				c.Abort()
+				return
+			}
+			// 超過 stale 寬限期，刪除舊快取
 			memCache.Delete(cacheKeyHash)
 		}
 
@@ -123,10 +151,10 @@ func HTMLCache() gin.HandlerFunc {
 				if time.Since(info.ModTime()) < cacheTTL {
 					data, err := os.ReadFile(cacheFile)
 					if err == nil {
-						// 同時寫入記憶體緩存（下次命中走記憶體，無磁碟 I/O）
 						memCache.Store(cacheKeyHash, memCacheEntry{
-							content:  data,
-							expireAt: now + int64(cacheTTL.Seconds()),
+							content:    data,
+							expireAt:   now + int64(cacheTTL.Seconds()),
+							staleUntil: now + int64(cacheTTL.Seconds()) + staleGrace,
 						})
 						c.Header("Content-Type", "text/html; charset=utf-8")
 						c.Header("X-Cache", "HIT-FILE")
@@ -138,35 +166,81 @@ func HTMLCache() gin.HandlerFunc {
 			}
 		}
 
-		// --- 快取未命中，繼續處理請求並捕獲響應 ---
-		cw := &cacheBodyWriter{
-			ResponseWriter: c.Writer,
-			buf:            &bytes.Buffer{},
-		}
-		c.Writer = cw
-
-		c.Next()
-
-		// 請求處理完成，判斷是否為 HTML 響應
-		contentType := cw.Header().Get("Content-Type")
-		if strings.HasPrefix(contentType, "text/html") && cw.Status() == http.StatusOK {
-			body := cw.buf.Bytes()
-
-			// 寫入記憶體緩存（永遠執行）
-			memCache.Store(cacheKeyHash, memCacheEntry{
-				content:  body,
-				expireAt: now + int64(cacheTTL.Seconds()),
-			})
-
-			// 寫入檔案緩存（僅在開啟時）
-			if fileCacheEnabled {
-				os.MkdirAll(filepath.Dir(cacheFile), 0755)
-				os.WriteFile(cacheFile, body, 0644)
+		// --- 快取未命中：使用 singleflight 防止快取擊穿 ---
+		// 1000 並發冷啟動時，只有 1 個 goroutine 執行渲染，其餘等待結果
+		result, _, shared := sfGroup.Do(cacheKeyHash, func() (interface{}, error) {
+			// 再次檢查快取（可能在等待期間已被其他請求填充）
+			if entry, ok := memCache.Load(cacheKeyHash); ok {
+				e := entry.(memCacheEntry)
+				if time.Now().Unix() < e.expireAt {
+					return &renderResult{
+						status:      http.StatusOK,
+						contentType: "text/html; charset=utf-8",
+						body:        e.content,
+						cacheSource: "MEM",
+					}, nil
+				}
 			}
+
+			// 執行實際渲染
+			cw := &cacheBodyWriter{
+				ResponseWriter: c.Writer,
+				buf:            &bytes.Buffer{},
+			}
+			c.Writer = cw
+			c.Next()
+			// 恢復原始 ResponseWriter（關鍵！否則 c.Data() 會寫入緩衝區而非客戶端）
+			c.Writer = cw.ResponseWriter
+
+			contentType := cw.Header().Get("Content-Type")
+			body := cw.buf.Bytes()
+			nowInner := time.Now().Unix()
+
+			// 如果是成功的 HTML 響應，存入快取
+			if strings.HasPrefix(contentType, "text/html") && cw.Status() == http.StatusOK {
+				memCache.Store(cacheKeyHash, memCacheEntry{
+					content:    body,
+					expireAt:   nowInner + int64(cacheTTL.Seconds()),
+					staleUntil: nowInner + int64(cacheTTL.Seconds()) + staleGrace,
+				})
+
+				if fileCacheEnabled {
+					os.MkdirAll(filepath.Dir(cacheFile), 0755)
+					os.WriteFile(cacheFile, body, 0644)
+				}
+			}
+
+			return &renderResult{
+				status:      cw.Status(),
+				contentType: contentType,
+				body:        body,
+				cacheSource: "FRESH",
+			}, nil
+		})
+
+		if result == nil {
+			return
 		}
 
-		// 輸出實際響應
-		cw.ResponseWriter.WriteHeader(cw.Status())
-		cw.ResponseWriter.Write(cw.buf.Bytes())
+		rr := result.(*renderResult)
+
+		// 設置響應頭
+		if rr.contentType != "" {
+			c.Header("Content-Type", rr.contentType)
+		}
+
+		// 標記快取狀態
+		if shared && rr.cacheSource == "FRESH" {
+			c.Header("X-Cache", "HIT-SF")
+		} else if rr.cacheSource == "MEM" {
+			c.Header("X-Cache", "HIT-MEM")
+		} else if shared {
+			c.Header("X-Cache", "HIT-SF")
+		} else {
+			c.Header("X-Cache", "MISS")
+		}
+
+		// 輸出響應體
+		c.Data(rr.status, rr.contentType, rr.body)
 	}
 }
