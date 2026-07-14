@@ -166,6 +166,8 @@ gbootcms/
 28. **優先參考 PbootCMS 原版邏輯** — 移植功能時先閱讀 `PbootCMS-3.2.12` 對應代碼，原版資料庫不做任何修改、刪除字段操作
 29. **禁止在 if_eval.go 硬編碼配置值** — `{gboot:if({gboot:xxx})}` 條件中的變量必須從 `buildIfContext()` 的 data map 讀取，嚴禁在 `resolveCondVars` 的 switch 中硬編碼返回 `"0"` 或 `"1"`；新增配置開關標籤時，必須同時在 `buildIfContext()` 中注入對應值，並用 `model.GetConfigValue()` 讀取 DB 配置，不可在 `if_eval.go` 中寫 fallback
 30. **前台配置開關的單標籤與條件標籤必須同步** — 在 `providers.go` 中註冊的 `{gboot:xxx}` 單標籤 provider 若返回配置值（如 `commentstatus`、`logincodestatus`），則同時必須在 `buildIfContext()` 中注入同名 key，否則 `{gboot:if({gboot:xxx})}` 條件判斷走 `if_eval.go` fallback 會返回錯誤值
+31. **後台模板配置值比較用整數無引號** — `loadConfigToData` 將 `ay_config` 的數字字串轉為 int 存入 `data["Config"]`，所以模板中 `{if([$configs.xxx.value]==1)}` 必須用整數比較（無引號），嚴禁 `=='1'`（字串比較會因 `int(1)!="1"` 而永遠 false）；但 GORM string 類型欄位（如 `is_default string`）的比較用 `=='1'`（有引號），兩者不可混淆
+32. **PHP 鬆散類型 vs Go 強類型** — 從 PbootCMS PHP 移植模板時，PHP 的 `'1' == 1` 為 true（鬆散比較），但 Go+pongo2 中 `int(1) == "1"` 為 false（強類型）。所有從 PHP 模板複製的條件判斷，必須檢查比較值的類型是否與 Go 端一致
 
 ---
 
@@ -384,6 +386,8 @@ if !member.RegisterTime.IsZero() {
 | 27 | 在根目錄創建文件夾或 HTML 文件 | 文檔一律以 `.md` 格式寫入 `docs/` |
 | 28 | 在 `if_eval.go` 的 switch 中硬編碼配置值（如 `return "0"`） | 必須在 `buildIfContext()` 中從 DB 讀取配置注入 data map |
 | 29 | 新增配置開關單標籤但忘記在 `buildIfContext()` 同步注入 | 單標籤 provider 和 `buildIfContext()` 必須同步，否則 `{gboot:if}` 條件判斷走 fallback 返回錯誤值 |
+| 30 | 後台模板用 `=='1'` 比較 ay_config 數字配置值 | `loadConfigToData` 轉為 int，必須用 `==1`（整數無引號）比較 |
+| 31 | 從 PHP 模板直接複製條件判斷不檢查類型 | PHP 鬆散類型 `'1'==1` 為 true，Go+pongo2 強類型 `int(1)=="1"` 為 false，必須統一比較類型 |
 
 ---
 

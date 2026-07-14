@@ -805,27 +805,27 @@
 						<div class="layui-form-item">
 		                     <label class="layui-form-label">會員註冊</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="register_status" value="1" {if([$configs.register_status.value]=='1'||[$configs.register_status.value]=='')} checked="checked" {/if} title="啟用">
-								<input type="radio" name="register_status" value="0" {if([$configs.register_status.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="register_status" value="1" {if([$configs.register_status.value]==1||[$configs.register_status.value]=='')} checked="checked" {/if} title="啟用">
+							<input type="radio" name="register_status" value="0" {if([$configs.register_status.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">會員註冊類型</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="register_type" value="1" {if([$configs.register_type.value]=='1'||[$configs.register_type.value]=='')} checked="checked" {/if} title="用戶名">
-								<input type="radio" name="register_type" value="2" {if([$configs.register_type.value]=='2')} checked="checked" {/if} title="郵箱帳號">
-								<input type="radio" name="register_type" value="3" {if([$configs.register_type.value]=='3')} checked="checked" {/if} title="手機號碼">
+		                     	<input type="radio" name="register_type" value="1" {if([$configs.register_type.value]==1||[$configs.register_type.value]=='')} checked="checked" {/if} title="用戶名">
+							<input type="radio" name="register_type" value="2" {if([$configs.register_type.value]==2)} checked="checked" {/if} title="郵箱帳號">
+							<input type="radio" name="register_type" value="3" {if([$configs.register_type.value]==3)} checked="checked" {/if} title="手機號碼">
 		                     </div>
 		                </div>
 		                
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">會員註冊驗證碼</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="register_check_code" value="0" {if([$configs.register_check_code.value]=='0')} checked="checked" {/if} title="禁用">
-		                     	<input type="radio" name="register_check_code" value="1" {if([$configs.register_check_code.value]=='1'||[$configs.register_check_code.value]=='')} checked="checked" {/if} title="普通驗證碼">
-								<input type="radio" name="register_check_code" value="2" {if([$configs.register_check_code.value]=='2')} checked="checked" {/if} title="郵箱驗證碼">
-								<!-- <input type="radio" name="register_check_code" value="3" {if([$configs.register_check_code.value]=='3')} checked="checked" {/if} title="短信驗證碼"> -->
+		                     	<input type="radio" name="register_check_code" value="0" {if([$configs.register_check_code.value]==0)} checked="checked" {/if} title="禁用">
+	                     	<input type="radio" name="register_check_code" value="1" {if([$configs.register_check_code.value]==1||[$configs.register_check_code.value]=='')} checked="checked" {/if} title="普通驗證碼">
+							<input type="radio" name="register_check_code" value="2" {if([$configs.register_check_code.value]==2)} checked="checked" {/if} title="郵箱驗證碼">
+							<!-- <input type="radio" name="register_check_code" value="3" {if([$configs.register_check_code.value]==3)} checked="checked" {/if} title="短信驗證碼"> -->
 		                     </div>
 		                </div>
 		                
@@ -833,23 +833,23 @@
 		                     <label class="layui-form-label">會員註冊審核</label>
 		                     <div class="layui-input-block">
 		                     	<input type="radio" name="register_verify" value="1" {if([$configs.register_verify.value]==1)} checked="checked" {/if} title="啟用">
-								<input type="radio" name="register_verify" value="0" {if([$configs.register_verify.value]==0)} checked="checked" {/if} title="禁用">
+							<input type="radio" name="register_verify" value="0" {if([$configs.register_verify.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 	                
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">會員登錄</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="login_status" value="1" {if([$configs.login_status.value]=='1'||[$configs.login_status.value]=='')} checked="checked" {/if} title="啟用">
-								<input type="radio" name="login_status" value="0" {if([$configs.login_status.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="login_status" value="1" {if([$configs.login_status.value]==1||[$configs.login_status.value]=='')} checked="checked" {/if} title="啟用">
+							<input type="radio" name="login_status" value="0" {if([$configs.login_status.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">會員登錄驗證碼</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="login_check_code" value="1" {if([$configs.login_check_code.value]=='1'||[$configs.login_check_code.value]=='')} checked="checked" {/if} title="啟用">
-								<input type="radio" name="login_check_code" value="0" {if([$configs.login_check_code.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="login_check_code" value="1" {if([$configs.login_check_code.value]==1||[$configs.login_check_code.value]=='')} checked="checked" {/if} title="啟用">
+							<input type="radio" name="login_check_code" value="0" {if([$configs.login_check_code.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                
@@ -864,8 +864,8 @@
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">評論功能</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="comment_status" value="1" {if([$configs.comment_status.value]=='1'||[$configs.comment_status.value]=='')} checked="checked" {/if} title="啟用">
-								<input type="radio" name="comment_status" value="0" {if([$configs.comment_status.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="comment_status" value="1" {if([$configs.comment_status.value]==1||[$configs.comment_status.value]=='')} checked="checked" {/if} title="啟用">
+							<input type="radio" name="comment_status" value="0" {if([$configs.comment_status.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 		                
@@ -880,16 +880,16 @@
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">評論驗證碼</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="comment_check_code" value="1" {if([$configs.comment_check_code.value]=='1'||[$configs.comment_check_code.value]=='')} checked="checked" {/if} title="啟用">
-								<input type="radio" name="comment_check_code" value="0" {if([$configs.comment_check_code.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="comment_check_code" value="1" {if([$configs.comment_check_code.value]==1||[$configs.comment_check_code.value]=='')} checked="checked" {/if} title="啟用">
+							<input type="radio" name="comment_check_code" value="0" {if([$configs.comment_check_code.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 
 		                <div class="layui-form-item">
 		                     <label class="layui-form-label">評論審核</label>
 		                     <div class="layui-input-block">
-		                     	<input type="radio" name="comment_verify" value="1" {if([$configs.comment_verify.value]=='1'||[$configs.comment_verify.value]=='')} checked="checked" {/if} title="啟用">
-								<input type="radio" name="comment_verify" value="0" {if([$configs.comment_verify.value]=='0')} checked="checked" {/if} title="禁用">
+		                     	<input type="radio" name="comment_verify" value="1" {if([$configs.comment_verify.value]==1||[$configs.comment_verify.value]=='')} checked="checked" {/if} title="啟用">
+							<input type="radio" name="comment_verify" value="0" {if([$configs.comment_verify.value]==0)} checked="checked" {/if} title="禁用">
 		                     </div>
 		                </div>
 
