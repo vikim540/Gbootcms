@@ -742,18 +742,9 @@ func (fc *FrontController) addVisits(c *gin.Context, id int) {
 	if model.GetConfigValue("visits_count", "1") == "0" {
 		return
 	}
-	// 開啟靜態快取時不自增（由前端異步請求處理）
-	if model.GetConfigValue("tpl_html_cache", "0") != "0" {
-		return
-	}
-	// cookie 去重：同一訪客對同一文章在有效期內只計一次
-	cookieName := fmt.Sprintf("pboot_visited_%d", id)
-	if _, err := c.Cookie(cookieName); err == nil {
-		return
-	}
-	model.DB.WithContext(c.Request.Context()).Model(&content.Content{}).Where("id = ?", id).
-		UpdateColumn("visits", gorm.Expr("visits + 1"))
-	c.SetCookie(cookieName, "1", 1800, "/", "", false, true)
+	// 記憶體快取永遠開啟，訪問量由前端異步請求 /api/visits 處理，不自增
+	// 否則 UpdateColumn("visits") 會觸發 GORM 回調清除所有快取，導致快取失效
+	return
 }
 
 // checkReferer 驗證請求來源是否為本站（防止跨站 CSRF）

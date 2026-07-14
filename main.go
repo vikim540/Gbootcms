@@ -304,15 +304,23 @@ func main() {
 	// 啟動時預熱快取：對首頁發一次內部 HTTP 請求，填充記憶體快取
 	// 這樣第一個真實訪客也不會遇到冷緩存的高延遲
 	go func() {
-		time.Sleep(500 * time.Millisecond) // 等待 HTTP 伺服器完全就緒
 		warmURL := fmt.Sprintf("http://localhost%s/", addr)
-		resp, err := http.Get(warmURL)
-		if err != nil {
-			slog.Warn("快取預熱失敗", "error", err)
-			return
+		// 重試 3 次，每次間隔遞增（伺服器可能需要時間完全就緒）
+		for i := 0; i < 3; i++ {
+			time.Sleep(time.Duration(500+i*500) * time.Millisecond)
+			resp, err := http.Get(warmURL)
+			if err != nil {
+				slog.Warn("快取預熱失敗", "attempt", i+1, "error", err)
+				continue
+			}
+			resp.Body.Close()
+			if resp.StatusCode == 200 {
+				slog.Info("快取預熱完成", "url", warmURL, "status", resp.StatusCode)
+				return
+			}
+			slog.Warn("快取預熱狀態碼異常", "attempt", i+1, "status", resp.StatusCode)
 		}
-		resp.Body.Close()
-		slog.Info("快取預熱完成", "url", warmURL, "status", resp.StatusCode)
+		slog.Warn("快取預熱未成功，第一個訪客將遇到冷緩存")
 	}()
 
 	if err := r.Run(addr); err != nil {

@@ -90,12 +90,36 @@ func InitDB(cfg *config.Config) error {
 	}
 
 	// 註冊 HTML 緩存自動清除回調：
-	// 任何表的 Create/Update/Delete 操作都會清除前台 HTML 記憶體緩存
-	// 確保後台發布/編輯/刪除內容後，前台立即看到最新內容
+	// 僅對「會影響前台頁面內容」的表變更時清除快取
+	// visits/likes/oppose 等統計欄位更新不清除快取（否則每次瀏覽都清空快取）
 	clearHTMLCache := func(db *gorm.DB) {
-		if db.Error == nil && db.RowsAffected > 0 && OnDataChange != nil {
-			OnDataChange()
+		if db.Error != nil || db.RowsAffected == 0 || OnDataChange == nil {
+			return
 		}
+		// 取得表名（去除 ay_ 前綴）
+		tableName := ""
+		if db.Statement != nil && db.Statement.Table != "" {
+			tableName = db.Statement.Table
+		}
+		// 這些表的變更不需要清除快取（純統計/日誌用途）
+		skipTables := map[string]bool{
+			"syslog":          true, // 系統日誌
+			"member":          true, // 會員資料（不影響前台頁面）
+			"member_comment":  true, // 評論數據（評論單獨 AJAX 加載）
+			"message":         true, // 留言（不影響已渲染頁面）
+		}
+		if skipTables[tableName] {
+			return
+		}
+		// visits/likes/oppose 欄位更新不清除快取
+		if db.Statement != nil && len(db.Statement.Selects) > 0 {
+			for _, col := range db.Statement.Selects {
+				if col == "visits" || col == "likes" || col == "oppose" {
+					return
+				}
+			}
+		}
+		OnDataChange()
 	}
 	DB.Callback().Create().After("gorm:create").Register("clear_html_cache", clearHTMLCache)
 	DB.Callback().Update().After("gorm:update").Register("clear_html_cache", clearHTMLCache)
