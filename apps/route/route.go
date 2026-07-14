@@ -255,8 +255,10 @@ func SetupAdminRoutes(r *gin.Engine) {
 
 // SetupAPIRoutes 註冊 RESTful API 路由
 func SetupAPIRoutes(r *gin.Engine) {
+	// CORS 必須全域掛載，否則 Gin 在路由匹配前就返回 404 給 OPTIONS
+	r.Use(api.CORS())
+
 	apiGroup := r.Group("/api/v1")
-	apiGroup.Use(api.CORS())
 	apiGroup.Use(api.APIAuth())
 	{
 		// 認證

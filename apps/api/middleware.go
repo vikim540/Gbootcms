@@ -2,8 +2,8 @@ package api
 
 import (
 	"crypto/subtle"
-	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -72,20 +72,26 @@ var (
 	loginAttemptsMu sync.Mutex
 )
 
-// checkLoginLock 檢查 IP 是否已被鎖定，返回剩餘鎖定秒數（0=未鎖定）
-func checkLoginLock(c *gin.Context) int {
-	lockCount := 5
-	lockTime := 900
+// getLockConfig 讀取登入鎖定配置（DRY：checkLoginLock 和 recordLoginFailure 共用）
+func getLockConfig() (lockCount, lockTime int) {
+	lockCount = 5
+	lockTime = 900
 	if v := model.GetConfigValue("lock_count", "5"); v != "" {
-		if parsed, err := fmt.Sscanf(v, "%d", &lockCount); err != nil || parsed == 0 {
-			lockCount = 5
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			lockCount = n
 		}
 	}
 	if v := model.GetConfigValue("lock_time", "900"); v != "" {
-		if parsed, err := fmt.Sscanf(v, "%d", &lockTime); err != nil || parsed == 0 {
-			lockTime = 900
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			lockTime = n
 		}
 	}
+	return
+}
+
+// checkLoginLock 檢查 IP 是否已被鎖定，返回剩餘鎖定秒數（0=未鎖定）
+func checkLoginLock(c *gin.Context) int {
+	lockCount, lockTime := getLockConfig()
 
 	ip := c.ClientIP()
 	now := time.Now().Unix()
@@ -113,18 +119,7 @@ func checkLoginLock(c *gin.Context) int {
 
 // recordLoginFailure 記錄登入失敗
 func recordLoginFailure(c *gin.Context) {
-	lockCount := 5
-	lockTime := 900
-	if v := model.GetConfigValue("lock_count", "5"); v != "" {
-		if parsed, err := fmt.Sscanf(v, "%d", &lockCount); err != nil || parsed == 0 {
-			lockCount = 5
-		}
-	}
-	if v := model.GetConfigValue("lock_time", "900"); v != "" {
-		if parsed, err := fmt.Sscanf(v, "%d", &lockTime); err != nil || parsed == 0 {
-			lockTime = 900
-		}
-	}
+	lockCount, lockTime := getLockConfig()
 
 	ip := c.ClientIP()
 	now := time.Now().Unix()
@@ -151,6 +146,44 @@ func recordLoginFailure(c *gin.Context) {
 // clearLoginFailure 登入成功時清除失敗記錄
 func clearLoginFailure(c *gin.Context) {
 	loginAttempts.Delete(c.ClientIP())
+}
+
+// --- 留言提交速率限制（IP 為粒度，60 秒內最多 3 次） ---
+
+type messageRateEntry struct {
+	count int
+	time  int64
+}
+
+var (
+	messageRates   sync.Map
+	messageRateMu  sync.Mutex
+	messageRateMax = 3
+	messageRateWin = 60 // seconds
+)
+
+// checkMessageRate 檢查留言提交頻率，返回 false 表示超出限制
+func checkMessageRate(c *gin.Context) bool {
+	ip := c.ClientIP()
+	now := time.Now().Unix()
+
+	messageRateMu.Lock()
+	defer messageRateMu.Unlock()
+
+	val, ok := messageRates.Load(ip)
+	if ok {
+		entry := val.(messageRateEntry)
+		if now-entry.time < int64(messageRateWin) {
+			if entry.count >= messageRateMax {
+				return false
+			}
+			entry.count++
+			messageRates.Store(ip, entry)
+			return true
+		}
+	}
+	messageRates.Store(ip, messageRateEntry{count: 1, time: now})
+	return true
 }
 
 // APIAuth API 認證中間件
@@ -203,9 +236,15 @@ func APIAuth() gin.HandlerFunc {
 }
 
 // CORS 跨域中間件
-// 允許的域名從配置項 api_cors_origins 讀取（逗號分隔），為空時默認允許全部
+// 僅處理 /api/v1 路徑的跨域請求，允許的域名從配置項 api_cors_origins 讀取
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 非 API 路徑跳過
+		if !strings.HasPrefix(c.Request.URL.Path, "/api/v1") {
+			c.Next()
+			return
+		}
+
 		origin := c.GetHeader("Origin")
 		if origin == "" {
 			c.Next()
@@ -229,6 +268,7 @@ func CORS() gin.HandlerFunc {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
+			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Max-Age", "86400")
 		}
 

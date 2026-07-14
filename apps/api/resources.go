@@ -97,7 +97,7 @@ func ListSorts(c *gin.Context) {
 		query = query.Where("status = ?", status)
 	}
 
-	var sorts []model.ContentSort
+	var sorts []model.ContentSort = []model.ContentSort{}
 	query.Order("sorting ASC, id ASC").Find(&sorts)
 
 	apiOK(c, sorts)
@@ -124,7 +124,7 @@ func ListNav(c *gin.Context) {
 		query = query.Where("scode = ? OR pcode = ?", scode, scode)
 	}
 
-	var sorts []model.ContentSort
+	var sorts []model.ContentSort = []model.ContentSort{}
 	query.Order("sorting ASC, id ASC").Find(&sorts)
 
 	// 構建樹狀結構
@@ -215,8 +215,9 @@ func ListContents(c *gin.Context) {
 		query = query.Order("date DESC, id DESC")
 	}
 
+	// Count 時不需要 ORDER BY，提升效能
 	var total int64
-	query.Count(&total)
+	query.Session(&gorm.Session{}).Order("").Count(&total)
 
 	var contents []model.Content
 	query.Offset((page - 1) * pagesize).Limit(pagesize).Find(&contents)
@@ -235,7 +236,7 @@ func ListContents(c *gin.Context) {
 	}
 
 	// 構建回應
-	var items []gin.H
+	items := []gin.H{}
 	for _, ct := range contents {
 		item := gin.H{
 			"id":          ct.ID,
@@ -279,9 +280,10 @@ func GetContent(c *gin.Context) {
 		return
 	}
 
-	// 可選訪問量追蹤
+	// 可選訪問量追蹤（使用 gorm.Expr 避免競態條件）
 	if c.Query("track") == "1" {
-		dbCtx(c).Model(&ct).UpdateColumn("visits", ct.Visits+1)
+		dbCtx(c).Model(&model.Content{}).Where("id = ?", ct.ID).
+			UpdateColumn("visits", gorm.Expr("visits + 1"))
 	}
 
 	// 載入擴展字段
@@ -292,14 +294,23 @@ func GetContent(c *gin.Context) {
 
 	// 上一篇/下一篇
 	var prev, next model.Content
-	dbCtx(c).Where("status = 1 AND date <= ? AND id < ? AND scode = ?", time.Now(), ct.ID, ct.Scode).
-		Order("id DESC").Limit(1).First(&prev)
-	dbCtx(c).Where("status = 1 AND date <= ? AND id > ? AND scode = ?", time.Now(), ct.ID, ct.Scode).
-		Order("id ASC").Limit(1).First(&next)
+	hasPrev := dbCtx(c).Where("status = 1 AND date <= ? AND id < ? AND scode = ?", time.Now(), ct.ID, ct.Scode).
+		Order("id DESC").Limit(1).First(&prev).Error == nil
+	hasNext := dbCtx(c).Where("status = 1 AND date <= ? AND id > ? AND scode = ?", time.Now(), ct.ID, ct.Scode).
+		Order("id ASC").Limit(1).First(&next).Error == nil
 
 	// 欄目資訊
 	var sort model.ContentSort
 	dbCtx(c).Where("scode = ?", ct.Scode).First(&sort)
+
+	// 構建 prev/next 回應（不存在時為 null）
+	var prevData, nextData interface{}
+	if hasPrev {
+		prevData = gin.H{"id": prev.ID, "title": prev.Title, "url": buildContentURL(&prev)}
+	}
+	if hasNext {
+		nextData = gin.H{"id": next.ID, "title": next.Title, "url": buildContentURL(&next)}
+	}
 
 	apiOK(c, gin.H{
 		"id":          ct.ID,
@@ -326,12 +337,8 @@ func GetContent(c *gin.Context) {
 		"update_time": formatTime(ct.UpdateTime),
 		"ext":         extData,
 		"sort":        sort,
-		"prev":        prev.ID,
-		"prev_title":  prev.Title,
-		"prev_url":    buildContentURL(&prev),
-		"next":        next.ID,
-		"next_title":  next.Title,
-		"next_url":    buildContentURL(&next),
+		"prev":        prevData,
+		"next":        nextData,
 	})
 }
 
@@ -441,7 +448,7 @@ func SearchContent(c *gin.Context) {
 	query := dbCtx(c).Model(&model.Content{}).Where("status = 1 AND date <= ? AND "+whereClause, append([]interface{}{time.Now()}, args...)...)
 
 	var total int64
-	query.Count(&total)
+	query.Session(&gorm.Session{}).Order("").Count(&total)
 
 	var contents []model.Content
 	query.Order("date DESC, id DESC").
@@ -449,7 +456,7 @@ func SearchContent(c *gin.Context) {
 		Limit(pagesize).
 		Find(&contents)
 
-	var items []gin.H
+	items := []gin.H{}
 	for _, ct := range contents {
 		items = append(items, gin.H{
 			"id":          ct.ID,
@@ -469,6 +476,12 @@ func SearchContent(c *gin.Context) {
 // CreateMessage 提交留言
 // POST /api/v1/messages
 func CreateMessage(c *gin.Context) {
+	// 速率限制：同一 IP 60 秒內最多 3 次留言
+	if !checkMessageRate(c) {
+		apiFail(c, http.StatusTooManyRequests, "提交過於頻繁，請稍後再試")
+		return
+	}
+
 	var req struct {
 		Contacts string `json:"contacts" binding:"required"`
 		Mobile   string `json:"mobile"`
@@ -529,7 +542,7 @@ func ListMessages(c *gin.Context) {
 	var total int64
 	query.Count(&total)
 
-	var messages []model.Message
+	var messages []model.Message = []model.Message{}
 	query.Order("id DESC").
 		Offset((page - 1) * pagesize).
 		Limit(pagesize).
@@ -589,7 +602,7 @@ func ListFormData(c *gin.Context) {
 	dbCtx(c).Raw(fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)).Scan(&total)
 
 	offset := (page - 1) * pagesize
-	var results []map[string]interface{}
+	results := []map[string]interface{}{}
 	dbCtx(c).Raw(fmt.Sprintf("SELECT * FROM %s ORDER BY id DESC LIMIT ? OFFSET ?", tableName), pagesize, offset).Scan(&results)
 
 	apiOKWithMeta(c, results, &apiMeta{Page: page, Pagesize: pagesize, Total: total})
@@ -602,7 +615,7 @@ func ListSlides(c *gin.Context) {
 	if gid := c.Query("gid"); gid != "" {
 		query = query.Where("gid = ?", gid)
 	}
-	var slides []model.Slide
+	var slides []model.Slide = []model.Slide{}
 	query.Order("sorting ASC, id ASC").Find(&slides)
 	apiOK(c, slides)
 }
@@ -614,7 +627,7 @@ func ListLinks(c *gin.Context) {
 	if gid := c.Query("gid"); gid != "" {
 		query = query.Where("gid = ?", gid)
 	}
-	var links []model.Link
+	var links []model.Link = []model.Link{}
 	query.Order("sorting ASC, id ASC").Find(&links)
 	apiOK(c, links)
 }
@@ -622,7 +635,7 @@ func ListLinks(c *gin.Context) {
 // ListTags 標籤列表
 // GET /api/v1/tags
 func ListTags(c *gin.Context) {
-	var tags []model.Tags
+	var tags []model.Tags = []model.Tags{}
 	dbCtx(c).Order("id DESC").Find(&tags)
 	apiOK(c, tags)
 }
