@@ -23,7 +23,7 @@
 
 # 腳本
 *.sh text eol=lf
-*.bat text eol=lf
+*.bat text eol=crlf
 *.ps1 text eol=lf
 
 # 配置
