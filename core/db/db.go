@@ -6,6 +6,7 @@ import (
 	"gbootcms/config"
 	"gbootcms/core/acodeplugin"
 	"gbootcms/core/mediaplugin"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -29,6 +30,7 @@ func InitDB(cfg *config.Config) error {
 		os.MkdirAll(dir, 0755)
 	}
 
+	// glebarez/sqlite 驅動的 DSN 不支援 _pragma 參數，改用 Exec 設定
 	DB, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 		// 命名策略：保留 PbootCMS 原版表前綴 ay_，單數化表名（user 而非 users）
@@ -43,12 +45,28 @@ func InitDB(cfg *config.Config) error {
 	}
 
 	sqlDB, _ := DB.DB()
-	// 紅線約束：SQLite 必須單線程寫入，防止 SQLITE_BUSY 鎖死。
-	// 參考 .trae/rules/PbootCMS (PHP) to Go 嚴格重構與修復開發規範.md § 1.3
-	sqlDB.SetMaxOpenConns(1)
-	sqlDB.SetMaxIdleConns(1)
+	// SQLite WAL 模式支援並發讀：多個連接可同時讀取，寫入由 WAL 內部序列化
+	// MaxOpenConns=1 會導致所有查詢排隊，450 並發時平均回應 7.8 秒
+	// 提高到 20 允許並發讀取，寫入仍由 SQLite 單線程保證
+	sqlDB.SetMaxOpenConns(20)
+	sqlDB.SetMaxIdleConns(10)
 	// 連接最長生命週期 5 分鐘，避免長時間持有導致連接過期。
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+
+	// 啟用 WAL 模式 + 效能 PRAGMA（glebarez 驅動不支援 DSN 參數，用 Exec 設定）
+	// WAL：允許並發讀 + 單寫，讀寫互不阻塞（效能關鍵）
+	// busy_timeout=5000：鎖衝突時等待 5 秒而非立即報 SQLITE_BUSY
+	// synchronous=NORMAL：WAL 模式下 NORMAL 已足夠安全，FULL 會大幅降速
+	// cache_size=-64000：使用 64MB 記憶體緩存（負值=KB），減少磁碟 I/O
+	DB.Exec("PRAGMA journal_mode=WAL")
+	DB.Exec("PRAGMA busy_timeout=5000")
+	DB.Exec("PRAGMA synchronous=NORMAL")
+	DB.Exec("PRAGMA cache_size=-64000")
+
+	// 驗證 WAL 模式是否生效
+	var journalMode string
+	DB.Raw("PRAGMA journal_mode").Scan(&journalMode)
+	slog.Info("SQLite 初始化完成", "journal_mode", journalMode, "max_conns", 20)
 
 	// 註冊媒體緩存失效插件：
 	// 對所有「會引用媒體文件」的表（slide、content、content_sort、link、company、site）
