@@ -6,7 +6,7 @@ set APP_DIR=%~dp0
 set DIST_DIR=%APP_DIR%dist
 set PKG_NAME=gbootcms-linux
 set PKG_DIR=%DIST_DIR%\%PKG_NAME%
-set LINUX_PORT=8081
+set LINUX_PORT=8080
 
 echo ========================================
 echo  Gbootcms Linux Builder & Packager

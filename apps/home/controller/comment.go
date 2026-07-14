@@ -114,8 +114,19 @@ func (cc *CommentController) Add(c *gin.Context) {
 
 	// 評論郵件通知（comment_send_mail=1 時啟用，與 webhook 獨立判斷）
 	commentIP := c.ClientIP()
+	referer := c.Request.Referer()
+	// 查詢文章標題
+	var contentTitle string
+	if cid, err := strconv.Atoi(contentid); err == nil && cid > 0 {
+		var ct model.Content
+		if err := model.DB.WithContext(c.Request.Context()).Select("title").First(&ct, cid).Error; err == nil {
+			contentTitle = ct.Title
+		}
+	}
 	mailFields := []map[string]string{
 		{"label": "評論內容", "value": comment},
+		{"label": "文章標題", "value": contentTitle},
+		{"label": "來源頁面", "value": referer},
 		{"label": "來源IP", "value": commentIP},
 		{"label": "作業系統", "value": commentOS},
 		{"label": "瀏覽器", "value": commentBS},

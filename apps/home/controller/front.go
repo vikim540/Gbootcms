@@ -506,6 +506,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 				{"label": "聯繫人", "value": msg.Contacts},
 				{"label": "手機", "value": msg.Mobile},
 				{"label": "內容", "value": msg.Content},
+				{"label": "來源頁面", "value": c.Request.Referer()},
 				{"label": "IP", "value": msg.IP},
 				{"label": "操作系統", "value": msg.OS},
 				{"label": "瀏覽器", "value": msg.Browser},

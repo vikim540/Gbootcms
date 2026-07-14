@@ -1764,6 +1764,18 @@ func buildIfContext(ctx *Context) map[string]interface{} {
 	} else {
 		data["likesstatus"] = 0
 	}
+	// 評論功能開關（與 commentstatus provider 一致，空值默認啟用）
+	if model.GetConfigValue("comment_status", "1") != "0" {
+		data["commentstatus"] = 1
+	} else {
+		data["commentstatus"] = 0
+	}
+	// 評論驗證碼開關
+	if model.GetConfigValue("comment_check_code", "1") != "0" {
+		data["commentcodestatus"] = 1
+	} else {
+		data["commentcodestatus"] = 0
+	}
 	return data
 }
 

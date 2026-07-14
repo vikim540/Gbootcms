@@ -88,10 +88,6 @@ func resolveCondVars(cond string, data map[string]interface{}) string {
 				return "0"
 			case "loginstatus":
 				return "0"
-			case "commentstatus":
-				return "1"
-			case "commentcodestatus":
-				return "0"
 			case "msgcodestatus":
 				return "0"
 			}
