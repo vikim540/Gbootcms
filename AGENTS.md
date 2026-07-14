@@ -177,7 +177,9 @@ gbootcms/
 39. **API 模塊統一使用 RESTful 設計規範** — 不兼容 PbootCMS `api.php` 路由與 `appid+timestamp+MD5` 簽名鑑權；路由固定 `/api/v1/` 前綴，認證體系為 JWT + API Key 雙方案；響應結構為 `{code, msg, data, meta}`；GET 查詢、POST 新建、PUT 全量更新、PATCH 局部修改、DELETE 刪除
 40. **API 對外開放接口輸入必須執行 XSS 過濾與敏感詞過濾** — 會員留言類接口必須採集訪客基礎資訊（IP、OS、瀏覽器 UA、會員 UID）；密鑰/密碼比對必須使用 `crypto/subtle.ConstantTimeCompare` 常量時間校驗，禁止 `==` 直接比較
 41. **API 多語言數據過濾統一依賴 GORM AcodePlugin** — 禁止業務層手動編寫 `Where("acode = ?", acode)` 查詢條件；所有 DB 查詢必須使用 `model.DB.WithContext(c.Request.Context())` 使 AcodePlugin 自動注入 acode 過濾
-42. **SQLite 必須啟用 WAL 模式** — `SetMaxOpenConns(1)` 會導致所有查詢串行排隊（450 並發時平均 7.8 秒）；必須用 WAL 模式 + `MaxOpenConns(20)` + `busy_timeout=5000` + `synchronous=NORMAL`，WAL 允許並發讀 + 單寫互不阻塞（修正後 300 並發平均 27ms，提升 290 倍）
+42. **SQLite 必須啟用 WAL 模式** — `SetMaxOpenConns(1)` 會導致所有查詢串行排隊（450 並發時平均 7.8 秒）；必須用 WAL 模式 + `MaxOpenConns(20)` + `busy_timeout=5000` + `synchronous=NORMAL` + `cache_size=-64000`，WAL 允許並發讀 + 單寫互不阻塞（注意：DB 層優化僅解決 SQL 排隊，前台完整頁面渲染的 CPU 瓶頸需靠 #43 正則預編譯 + #44 記憶體緩存解決）
+43. **正則表達式必須全局預編譯** — 前台 TagParser 的 30 個正則表達式必須用 `sync.Once` 全局預編譯（`globalRegexes`），禁止每個請求 `regexp.Compile`；每個 `parser.New()` 只建立空的 providers map，正則從全局池取用，否則 450 並發下 CPU 被正則編譯徹底吃滿
+44. **HTML 頁面必須啟用記憶體緩存** — `html_cache.go` 的 `sync.Map` 記憶體緩存層永遠開啟（無需配置），TTL 由 `tpl_html_cache_time` 控制（預設 900 秒）；後台任何數據變更（Create/Update/Delete）通過 GORM 回調自動呼叫 `ClearHTMLCache()` 清除快取，確保前台即時更新；帶 `p`/`s` 參數或已登入會員的請求不快取
 
 ---
 

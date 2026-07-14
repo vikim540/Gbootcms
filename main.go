@@ -25,6 +25,7 @@ import (
 	"gbootcms/config"
 	"gbootcms/core/acodeplugin"
 	"gbootcms/core/basic"
+	gdb "gbootcms/core/db"
 
 	"github.com/gin-gonic/gin"
 )
@@ -72,6 +73,9 @@ func main() {
 		log.Fatalf("Database init failed: %v", err)
 	}
 	defer model.CloseDB()
+
+	// 註冊 HTML 緩存清除回調（後台任何數據變更自動清除前台快取）
+	gdb.OnDataChange = middleware.ClearHTMLCache
 
 	// AutoMigrate all models: system + content + member
 	system.AutoMigrate()

@@ -17,6 +17,10 @@ import (
 	"gorm.io/gorm/schema"
 )
 
+// OnDataChange 是數據變更回調，由 main.go 在啟動時設定為 middleware.ClearHTMLCache
+// 使用回調變數而非直接 import middleware，避免循環依賴
+var OnDataChange func()
+
 // DB is the shared GORM database instance.
 var DB *gorm.DB
 
@@ -84,6 +88,18 @@ func InitDB(cfg *config.Config) error {
 	if err := DB.Use(&acodeplugin.AcodePlugin{}); err != nil {
 		return err
 	}
+
+	// 註冊 HTML 緩存自動清除回調：
+	// 任何表的 Create/Update/Delete 操作都會清除前台 HTML 記憶體緩存
+	// 確保後台發布/編輯/刪除內容後，前台立即看到最新內容
+	clearHTMLCache := func(db *gorm.DB) {
+		if db.Error == nil && db.RowsAffected > 0 && OnDataChange != nil {
+			OnDataChange()
+		}
+	}
+	DB.Callback().Create().After("gorm:create").Register("clear_html_cache", clearHTMLCache)
+	DB.Callback().Update().After("gorm:update").Register("clear_html_cache", clearHTMLCache)
+	DB.Callback().Delete().After("gorm:delete").Register("clear_html_cache", clearHTMLCache)
 
 	return nil
 }

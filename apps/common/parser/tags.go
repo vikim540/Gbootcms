@@ -12,21 +12,69 @@ import (
 
 type DataProvider func(tagName string, params map[string]string, inner string) string
 
+// globalRegexes 全局預編譯正則表達式，所有請求共享，避免每個請求重複編譯 30 個正則
+// 效能影響：每次 parser.New() 省去 ~30 次 regexp.Compile，450 並發下節省大量 CPU
+var (
+	globalRegexes     map[string]*regexp.Regexp
+	globalRegexesOnce sync.Once
+)
+
+func initGlobalRegexes() {
+	globalRegexes = make(map[string]*regexp.Regexp)
+	defs := map[string]string{
+		"pre":           `(?s)\{gboot:pre\}(.*?)\{\/gboot:pre\}`,
+		"include":       `\{include\s+file\s?=\s?["']?([\w.\-\/@]+)["']?\s*\}`,
+		"site":          `\{gboot:site(\w+)(?:\s+([^}]+))?\}`,
+		"company":       `\{gboot:company(\w+)(?:\s+([^}]+))?\}`,
+		"label":         `\{label:(\w+)(?:\s+([^}]+))?\}`,
+		"user":          `\{user:(\w+)(?:\s+([^}]+))?\}`,
+		"sort_single":   `\{sort:(\w+)(?:\s+([^}]+))?\}`,
+		"content_single": `\{content:(\w+)(?:\s+([^}]+))?\}`,
+		"page":          `\{page:(\w+)\}`,
+		"gboot_single":  `\{gboot:(\w+)(?:\s+([^}]+))?\}`,
+		"position":      `\{gboot:position(?:\s+([^}]+))?\}`,
+		"selectall":     `\{gboot:selectall(?:\s+([^}]+))?\}`,
+		"qrcode":        `\{gboot:qrcode(?:\s+([^}]+))?\}`,
+		"form_single":   `\{gboot:form(?:\s+([^}]+))?\}`,
+		"nav":           `(?s)\{gboot:nav(?:\s+([^}]+))?\}(.*?)\{\/gboot:nav\}`,
+		"sort_loop":     `(?s)\{gboot:sort(?:\s+([^}]+))?\}(.*?)\{\/gboot:sort\}`,
+		"list":          `(?s)\{gboot:list(?:\s+([^}]+))?\}(.*?)\{\/gboot:list\}`,
+		"content_loop":  `(?s)\{gboot:content(?:\s+([^}]+))?\}(.*?)\{\/gboot:content\}`,
+		"pics":          `(?s)\{gboot:pics(?:\s+([^}]+))?\}(.*?)\{\/gboot:pics\}`,
+		"checkbox":      `(?s)\{gboot:checkbox(?:\s+([^}]+))?\}(.*?)\{\/gboot:checkbox\}`,
+		"tags":          `(?s)\{gboot:tags(?:\s+([^}]+))?\}(.*?)\{\/gboot:tags\}`,
+		"slide":         `(?s)\{gboot:slide(?:\s+([^}]+))?\}(.*?)\{\/gboot:slide\}`,
+		"link":          `(?s)\{gboot:link(?:\s+([^}]+))?\}(.*?)\{\/gboot:link\}`,
+		"language":      `(?s)\{gboot:language(?:\s+([^}]+))?\}(.*?)\{\/gboot:language\}`,
+		"message":       `(?s)\{gboot:message(?:\s+([^}]+))?\}(.*?)\{\/gboot:message\}`,
+		"formlist":      `(?s)\{gboot:formlist(?:\s+([^}]+))?\}(.*?)\{\/gboot:formlist\}`,
+		"search":        `(?s)\{gboot:search(?:\s+([^}]+))?\}(.*?)\{\/gboot:search\}`,
+		"comment":       `(?s)\{gboot:comment(?:\s+([^}]+))?\}(.*?)\{\/gboot:comment\}`,
+		"commentsub":    `(?s)\{gboot:commentsub(?:\s+([^}]+))?\}(.*?)\{\/gboot:commentsub\}`,
+		"mycomment":     `(?s)\{gboot:mycomment(?:\s+([^}]+))?\}(.*?)\{\/gboot:mycomment\}`,
+		"loop":          `(?s)\{gboot:loop(?:\s+([^}]+))?\}(.*?)\{\/gboot:loop\}`,
+		"select":        `(?s)\{gboot:select(?:\s+([^}]+))?\}(.*?)\{\/gboot:select\}`,
+		"gboot_if":      `(?s)\{gboot:if\(([^}]+)\)\}(.*?)(?:\{else\}(.*?))?\{\/gboot:if\}`,
+	}
+	for name, pattern := range defs {
+		if re, err := regexp.Compile(pattern); err == nil {
+			globalRegexes[name] = re
+		}
+	}
+}
+
 type TagParser struct {
 	providers  map[string]DataProvider
-	regexes    map[string]*regexp.Regexp
 	mu         sync.RWMutex
 	preBlocks  []string
 	ctx        *Context // 用於 checkLabelLevel 權限檢查
 }
 
 func New() *TagParser {
-	p := &TagParser{
+	globalRegexesOnce.Do(initGlobalRegexes)
+	return &TagParser{
 		providers: make(map[string]DataProvider),
-		regexes:   make(map[string]*regexp.Regexp),
 	}
-	p.initRegexes()
-	return p
 }
 
 func (p *TagParser) Register(name string, provider DataProvider) {
@@ -145,51 +193,9 @@ func (p *TagParser) provider(name string) (DataProvider, bool) {
 	return pr, ok
 }
 
-func (p *TagParser) initRegexes() {
-	defs := map[string]string{
-		"pre":           `(?s)\{gboot:pre\}(.*?)\{\/gboot:pre\}`,
-		"include":       `\{include\s+file\s?=\s?["']?([\w.\-\/@]+)["']?\s*\}`,
-		"site":          `\{gboot:site(\w+)(?:\s+([^}]+))?\}`,
-		"company":       `\{gboot:company(\w+)(?:\s+([^}]+))?\}`,
-		"label":         `\{label:(\w+)(?:\s+([^}]+))?\}`,
-		"user":          `\{user:(\w+)(?:\s+([^}]+))?\}`,
-		"sort_single":   `\{sort:(\w+)(?:\s+([^}]+))?\}`,
-		"content_single": `\{content:(\w+)(?:\s+([^}]+))?\}`,
-		"page":          `\{page:(\w+)\}`,
-		"gboot_single":  `\{gboot:(\w+)(?:\s+([^}]+))?\}`,
-		"position":      `\{gboot:position(?:\s+([^}]+))?\}`,
-		"selectall":     `\{gboot:selectall(?:\s+([^}]+))?\}`,
-		"qrcode":        `\{gboot:qrcode(?:\s+([^}]+))?\}`,
-		"form_single":   `\{gboot:form(?:\s+([^}]+))?\}`,
-		"nav":           `(?s)\{gboot:nav(?:\s+([^}]+))?\}(.*?)\{\/gboot:nav\}`,
-		"sort_loop":     `(?s)\{gboot:sort(?:\s+([^}]+))?\}(.*?)\{\/gboot:sort\}`,
-		"list":          `(?s)\{gboot:list(?:\s+([^}]+))?\}(.*?)\{\/gboot:list\}`,
-		"content_loop":  `(?s)\{gboot:content(?:\s+([^}]+))?\}(.*?)\{\/gboot:content\}`,
-		"pics":          `(?s)\{gboot:pics(?:\s+([^}]+))?\}(.*?)\{\/gboot:pics\}`,
-		"checkbox":      `(?s)\{gboot:checkbox(?:\s+([^}]+))?\}(.*?)\{\/gboot:checkbox\}`,
-		"tags":          `(?s)\{gboot:tags(?:\s+([^}]+))?\}(.*?)\{\/gboot:tags\}`,
-		"slide":         `(?s)\{gboot:slide(?:\s+([^}]+))?\}(.*?)\{\/gboot:slide\}`,
-		"link":          `(?s)\{gboot:link(?:\s+([^}]+))?\}(.*?)\{\/gboot:link\}`,
-		"language":      `(?s)\{gboot:language(?:\s+([^}]+))?\}(.*?)\{\/gboot:language\}`,
-		"message":       `(?s)\{gboot:message(?:\s+([^}]+))?\}(.*?)\{\/gboot:message\}`,
-		"formlist":      `(?s)\{gboot:formlist(?:\s+([^}]+))?\}(.*?)\{\/gboot:formlist\}`,
-		"search":        `(?s)\{gboot:search(?:\s+([^}]+))?\}(.*?)\{\/gboot:search\}`,
-		"comment":       `(?s)\{gboot:comment(?:\s+([^}]+))?\}(.*?)\{\/gboot:comment\}`,
-		"commentsub":    `(?s)\{gboot:commentsub(?:\s+([^}]+))?\}(.*?)\{\/gboot:commentsub\}`,
-		"mycomment":     `(?s)\{gboot:mycomment(?:\s+([^}]+))?\}(.*?)\{\/gboot:mycomment\}`,
-		"loop":          `(?s)\{gboot:loop(?:\s+([^}]+))?\}(.*?)\{\/gboot:loop\}`,
-		"select":        `(?s)\{gboot:select(?:\s+([^}]+))?\}(.*?)\{\/gboot:select\}`,
-		"gboot_if":      `(?s)\{gboot:if\(([^}]+)\)\}(.*?)(?:\{else\}(.*?))?\{\/gboot:if\}`,
-	}
-	for name, pattern := range defs {
-		if re, err := regexp.Compile(pattern); err == nil {
-			p.regexes[name] = re
-		}
-	}
-}
-
+// re 返回全局預編譯的正則表達式（所有請求共享，避免重複編譯）
 func (p *TagParser) re(name string) *regexp.Regexp {
-	return p.regexes[name]
+	return globalRegexes[name]
 }
 
 func ParseParams(s string) map[string]string {
