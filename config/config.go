@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -81,7 +82,11 @@ func Load(path string) *Config {
 		// 從 JSON 配置檔讀取
 		v.SetConfigFile(path)
 		v.SetConfigType("json")
-		_ = v.ReadInConfig()
+		if err := v.ReadInConfig(); err != nil {
+			log.Printf("[WARN] 配置文件載入失敗: %s (%v)，使用預設值", path, err)
+		} else {
+			log.Printf("[INFO] 配置文件已載入: %s", path)
+		}
 
 		// 環境變數覆蓋（PBOOTCMS_GO_ 前綴，例如 PBOOTCMS_GO_APP_SESSION_KEY）
 		v.SetEnvPrefix("PBOOTCMS_GO")

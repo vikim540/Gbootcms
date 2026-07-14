@@ -6,6 +6,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -169,7 +170,10 @@ func main() {
 
 	r.Static("/static", cfg.App.StaticDir)
 	// PbootCMS 兼容: 前台模板靜態資源（CSS/JS/圖片）
-	r.Static("/template/default/static", "template/default/static")
+	r.Static("/template/default/static", filepath.Join(cfg.App.TemplateDir, "static"))
+	// 多語言模板靜態資源
+	r.Static("/template/sc/static", filepath.Join(filepath.Dir(cfg.App.TemplateDir), "sc", "static"))
+	r.Static("/template/en/static", filepath.Join(filepath.Dir(cfg.App.TemplateDir), "en", "static"))
 
 	route.SetupAdminRoutes(r)
 	route.SetupAPIRoutes(r)
