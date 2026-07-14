@@ -168,6 +168,8 @@ gbootcms/
 30. **前台配置開關的單標籤與條件標籤必須同步** — 在 `providers.go` 中註冊的 `{gboot:xxx}` 單標籤 provider 若返回配置值（如 `commentstatus`、`logincodestatus`），則同時必須在 `buildIfContext()` 中注入同名 key，否則 `{gboot:if({gboot:xxx})}` 條件判斷走 `if_eval.go` fallback 會返回錯誤值
 31. **後台模板配置值比較用整數無引號** — `loadConfigToData` 將 `ay_config` 的數字字串轉為 int 存入 `data["Config"]`，所以模板中 `{if([$configs.xxx.value]==1)}` 必須用整數比較（無引號），嚴禁 `=='1'`（字串比較會因 `int(1)!="1"` 而永遠 false）；但 GORM string 類型欄位（如 `is_default string`）的比較用 `=='1'`（有引號），兩者不可混淆
 32. **PHP 鬆散類型 vs Go 強類型** — 從 PbootCMS PHP 移植模板時，PHP 的 `'1' == 1` 為 true（鬆散比較），但 Go+pongo2 中 `int(1) == "1"` 為 false（強類型）。所有從 PHP 模板複製的條件判斷，必須檢查比較值的類型是否與 Go 端一致
+33. **圖片壓縮僅在前端處理** — 禁止在後端新增圖片壓縮、格式轉換代碼（CGO_ENABLED=0 下 Go 無法編碼 WebP）；所有圖片壓縮通過瀏覽器 Canvas API 完成，原始大圖不傳輸至伺服器；後端僅負責文件存儲 + 水印 + 權限校驗
+34. **後台配置輸出用 `{$configs.xxx.value}`** — pongo2 模板中 HTML 屬性值輸出必須用 `{$configs.xxx.value}`（花括號，轉為 `{{ Config.Xxx }}`），方括號 `[$configs.xxx.value]` 僅用於 `{if()}` 條件判斷內部（轉為 `Config.Xxx` 純文本），兩者不可混淆
 
 ---
 
@@ -388,6 +390,8 @@ if !member.RegisterTime.IsZero() {
 | 29 | 新增配置開關單標籤但忘記在 `buildIfContext()` 同步注入 | 單標籤 provider 和 `buildIfContext()` 必須同步，否則 `{gboot:if}` 條件判斷走 fallback 返回錯誤值 |
 | 30 | 後台模板用 `=='1'` 比較 ay_config 數字配置值 | `loadConfigToData` 轉為 int，必須用 `==1`（整數無引號）比較 |
 | 31 | 從 PHP 模板直接複製條件判斷不檢查類型 | PHP 鬆散類型 `'1'==1` 為 true，Go+pongo2 強類型 `int(1)=="1"` 為 false，必須統一比較類型 |
+| 32 | 在後端新增圖片壓縮/格式轉換代碼 | CGO_ENABLED=0 下 Go 無法編碼 WebP；圖片壓縮全由前端 Canvas 處理，後端僅存儲+水印 |
+| 33 | 模板輸出配置值用 `[$configs.xxx.value]` | 方括號僅用於 `{if()}` 條件內；HTML 輸出必須用 `{$configs.xxx.value}`（轉為 `{{ Config.Xxx }}`） |
 
 ---
 
