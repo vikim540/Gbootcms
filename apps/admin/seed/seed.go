@@ -286,6 +286,11 @@ func seedConfigs() {
 		{Name: "watermark_text_font", Value: ""},
 		{Name: "watermark_pic", Value: ""},
 		{Name: "watermark_position", Value: "4"},
+		// 圖片壓縮配置（純前端 Canvas WebP，Google web.dev 建議質量 75-80，最大寬度 1920px）
+		{Name: "image_compress_enable", Value: "1"},
+		{Name: "image_quality", Value: "80"},
+		{Name: "image_max_width", Value: "1920"},
+		{Name: "image_warn_size", Value: "1024"},
 		// MeiliSearch 全文搜索配置
 		{Name: "meilisearch_url", Value: ""},
 		{Name: "meilisearch_key", Value: ""},

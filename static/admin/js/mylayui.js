@@ -243,38 +243,70 @@ layui.use(['element','upload','laydate','form'], function(){
   var sitedir=$('#sitedir').data('sitedir');
   var uploadurl = $("#preurl").data('preurl')+'/index/upload';
   
-  //執行單圖片實例
+  // 單圖片上傳（整合 Squoosh 前端壓縮，大圖自動彈出對比框）
   var uploadInst = upload.render({
-	elem: '.upload' //綁定元素
-	,url: uploadurl //上傳接口
-	,field: 'upload' //欄位名稱
-	,multiple: false //多檔案上傳
-	,accept: 'images' //接收檔案類型 images（圖片）、file（所有檔案）、video（影片）、audio（音訊）
+	elem: '.upload'
+	,url: uploadurl
+	,field: 'upload'
+	,multiple: false
+	,accept: 'images'
 	,acceptMime: 'image/*'
-    ,before: function(obj){ 
-       //判斷是否需要加水印
-       if($(this.item).hasClass('watermark')){
-	  	 uploadInst.config.url=uploadurl+'/watermark/1';//改變URL
-	   }
-	   layer.load(); //上傳loading
-	}
-	,done: function(res){
-	   var item = this.item;
-	   var des=$(item).data('des');
-	   layer.closeAll('loading'); //關閉loading
-	   if(res.code==1){
-		   $('#'+des).val(res.data[0]); 
-		   $('#'+des+'_box').html("<dl><dt><img src='"+sitedir+res.data[0]+"' data-url='"+res.data[0]+"' ></dt><dd>刪除</dd></dl>"); 
-		   layer.msg('上傳成功！', {icon: 1}); 
-	   }else{
-		   layer.msg('上傳失敗：'+res.data, {icon: 2}); 
-	   }
-	}
-	,error: function(){
-		layer.closeAll('loading'); //關閉loading
-		layer.msg('上傳發生錯誤!', {icon: 5}); 
+	,auto: false
+	,choose: function(obj){
+		var item = this.item;  // 當前點擊的上傳按鈕 DOM
+		obj.preview(function(index, file, result){
+			var cfg = (typeof gbootImageConfig !== 'undefined') ? gbootImageConfig : {};
+			var enable = parseInt(cfg.enable) === 1;
+			var warnSize = parseInt(cfg.warnSize) || 1024;
+			var fileSizeKB = file.size / 1024;
+
+			if (enable && fileSizeKB > warnSize && typeof layui.squoosh !== 'undefined') {
+				// 大圖片 → Squoosh 壓縮對比
+				layui.squoosh.open(file, function(compressedFile){
+					doImageUpload(compressedFile, item);
+				});
+			} else {
+				// 小圖片或未啟用 → 直接上傳
+				doImageUpload(file, item);
+			}
+		});
 	}
   });
+
+  // 單圖片 AJAX 上傳（壓縮後或原圖統一走此函數）
+  function doImageUpload(file, item){
+		var $btn = $(item);
+		var des = $btn.data('des');
+		var needWatermark = $btn.hasClass('watermark');
+		var url = uploadurl;
+		if (needWatermark) url += '/watermark/1';
+
+		var formData = new FormData();
+		formData.append('upload', file);
+
+		layer.load();
+		$.ajax({
+			url: url,
+			type: 'POST',
+			data: formData,
+			processData: false,
+			contentType: false,
+			success: function(res){
+				layer.closeAll('loading');
+				if (res.code == 1) {
+					$('#' + des).val(res.data[0]);
+					$('#' + des + '_box').html("<dl><dt><img src='" + sitedir + res.data[0] + "' data-url='" + res.data[0] + "' ></dt><dd>刪除</dd></dl>");
+					layer.msg('上傳成功', {icon: 1});
+				} else {
+					layer.msg('上傳失敗：' + res.data, {icon: 2});
+				}
+			},
+			error: function(){
+				layer.closeAll('loading');
+				layer.msg('上傳發生錯誤', {icon: 5});
+			}
+		});
+  }
   
    //執行多圖片上傳實例
    var files='';

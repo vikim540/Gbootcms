@@ -85,6 +85,8 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			"watermark_open", "watermark_text", "watermark_text_font",
 			"watermark_text_size", "watermark_text_color", "watermark_pic",
 			"watermark_position",
+			"image_compress_enable", "image_quality", "image_max_width",
+			"image_warn_size",
 			"turnstile_sitekey", "turnstile_secret",
 			"message_turnstile", "form_turnstile",
 			"likes_status",

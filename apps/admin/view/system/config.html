@@ -634,12 +634,73 @@
 
 		                <div class="layui-form-item">
 		                   <label class="layui-form-label">點讚/反對</label>
-		                   <div class="layui-input-block">
-		                     	<input type="radio" name="likes_status" value="1" {if([$configs.likes_status.value]==1)} checked="checked" {/if} title="啟用">
-		                     	<input type="radio" name="likes_status" value="0" {if([$configs.likes_status.value]==0||[$configs.likes_status.value]=='')} checked="checked" {/if} title="禁用">
-		                     	<div class="layui-form-mid layui-word-aux">啟用後前台內容頁顯示點讚/反對按鈕，禁用時隱藏且API不可訪問</div>
-		                   </div>
-		                </div>
+	                   <div class="layui-input-block">
+	                     	<input type="radio" name="likes_status" value="1" {if([$configs.likes_status.value]==1)} checked="checked" {/if} title="啟用">
+	                     	<input type="radio" name="likes_status" value="0" {if([$configs.likes_status.value]==0||[$configs.likes_status.value]=='')} checked="checked" {/if} title="禁用">
+	                     	<div class="layui-form-mid layui-word-aux">啟用後前台內容頁顯示點讚/反對按鈕，禁用時隱藏且API不可訪問</div>
+	                   </div>
+	                </div>
+
+	                <fieldset class="layui-elem-field" style="margin-top:15px;">
+				<legend>圖片壓縮</legend>
+				<div class="layui-form-item">
+					<label class="layui-form-label">前端壓縮</label>
+					<div class="layui-input-block">
+						<input type="radio" name="image_compress_enable" value="1" {if([$configs.image_compress_enable.value]==1||[$configs.image_compress_enable.value]=='')} checked="checked" {/if} title="啟用">
+						<input type="radio" name="image_compress_enable" value="0" {if([$configs.image_compress_enable.value]==0)} checked="checked" {/if} title="禁用">
+						<div class="layui-form-mid layui-word-aux">上傳圖片超過預警大小時，彈出 Squoosh 壓縮對比框，瀏覽器 Canvas 轉 WebP，原始大圖不傳輸至伺服器</div>
+					</div>
+				</div>
+				<div class="layui-form-item">
+					<label class="layui-form-label">壓縮質量</label>
+					<div class="layui-input-inline" style="width:300px;">
+						<div id="imageQualitySlider"></div>
+					</div>
+					<div class="layui-input-inline" style="width:60px;">
+						<input type="text" name="image_quality" id="imageQualityInput" value="{$configs.image_quality.value}" class="layui-input" style="text-align:center;">
+					</div>
+					<div class="layui-form-mid layui-word-aux">1-100，Google 建議 75-80</div>
+				</div>
+				<div class="layui-form-item">
+					<label class="layui-form-label">最大寬度</label>
+					<div class="layui-input-inline" style="width:120px;">
+						<input type="text" name="image_max_width" value="{$configs.image_max_width.value}" class="layui-input" placeholder="1920">
+					</div>
+					<div class="layui-form-mid layui-word-aux">像素，超過則等比縮放（0=不限制）</div>
+				</div>
+				<div class="layui-form-item">
+					<label class="layui-form-label">預警大小</label>
+					<div class="layui-input-inline" style="width:120px;">
+						<input type="text" name="image_warn_size" value="{$configs.image_warn_size.value}" class="layui-input" placeholder="1024">
+					</div>
+					<div class="layui-form-mid layui-word-aux">KB，超過此大小彈出壓縮對比框（0=不壓縮）</div>
+				</div>
+			</fieldset>
+
+					<script>
+					layui.use(function(){
+						var slider = layui.slider;
+						var $ = layui.$;
+						var qVal = parseInt($('#imageQualityInput').val()) || 80;
+						var sliderInst = slider.render({
+							elem: '#imageQualitySlider',
+							value: qVal,
+							min: 1,
+							max: 100,
+							step: 1,
+							theme: '#1E9FFF',
+							change: function(val){
+								$('#imageQualityInput').val(val);
+							}
+						});
+						$(document).on('input', '#imageQualityInput', function(){
+							var v = parseInt($(this).val());
+							if(v >= 1 && v <= 100){
+								sliderInst.setValue(v);
+							}
+						});
+					});
+					</script>
 
 		                <div class="layui-form-item">
 							 <div class="layui-input-block">
