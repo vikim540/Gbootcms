@@ -959,14 +959,15 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 				picmobile = "/" + picmobile
 			}
 			data := map[string]interface{}{
-				"n":         i,
-				"i":         i + 1,
-				"src":       src,
-				"pic":       pic,
-				"picmobile": picmobile,
-				"link":      s.Link,
-				"title":     s.Title,
-				"subtitle":  s.Subtitle,
+				"n":           i,
+				"i":           i + 1,
+				"src":         src,
+				"pic":         pic,
+				"picmobile":   picmobile,
+				"link":        s.Link,
+				"title":       s.Title,
+				"subtitle":    s.Subtitle,
+				"button_text": s.ButtonText,
 			}
 			row := ReplaceInnerTags(inner, "slide", data)
 			// 處理內嵌的 {gboot:if(...)} 標籤（在 slide 數據上下文中）

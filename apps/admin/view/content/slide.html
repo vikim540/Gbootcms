@@ -20,6 +20,7 @@
                         <th>鏈接</th>
                         <th>標題</th>
                         <th>副標題</th>
+                        <th>按鈕文字</th>
                         <th>排序</th>
                         <th>更新時間</th>
                         <th>操作</th>
@@ -34,6 +35,7 @@
                         <td>[value->link]</td>
                         <td>[value->title]</td>
                         <td>[value->subtitle]</td>
+                        <td>[value->button_text]</td>
                         <td class="table-input">
                         <input type="hidden" name="listall[]" value="[value->id]">
                         <input type="text" lay-ignore class="layui-input" name="sorting[]" value="[value->sorting]">
@@ -107,6 +109,13 @@
                      <label class="layui-form-label">副標題</label>
                      <div class="layui-input-block">
                      	<input type="text" name="subtitle" placeholder="請輸入副標題"  class="layui-input">
+                     </div>
+                </div>
+                
+                <div class="layui-form-item">
+                     <label class="layui-form-label">按鈕文字</label>
+                     <div class="layui-input-block">
+                     	<input type="text" name="button_text" placeholder="輪播按鈕文字(可選)，如：了解更多"  class="layui-input">
                      </div>
                 </div>
                 
@@ -186,6 +195,13 @@
                      <label class="layui-form-label">副標題</label>
                      <div class="layui-input-block">
                      	<input type="text" name="subtitle" value="{$slide->subtitle}" placeholder="請輸入副標題"  class="layui-input">
+                     </div>
+                </div>
+                
+                 <div class="layui-form-item">
+                     <label class="layui-form-label">按鈕文字</label>
+                     <div class="layui-input-block">
+                     	<input type="text" name="button_text" value="{$slide->button_text}" placeholder="輪播按鈕文字(可選)，如：了解更多"  class="layui-input">
                      </div>
                 </div>
                 

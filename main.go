@@ -172,11 +172,14 @@ func main() {
 	// 蜘蛛訪問記錄（對齊 PHP SpiderController，異步寫入日誌）
 	r.Use(middleware.SpiderLog())
 
-	// 動態頁面緩存（對齊 PHP View::cache，tpl_html_cache 開啟時生效）
-	r.Use(middleware.HTMLCache())
-
 	// 頁面壓縮：Brotli 優先，Gzip 回退（對齊 PHP Controller::gzip）
+	// 必須在 HTMLCache 之前：壓縮先包裹 ResponseWriter，緩存再包裹壓縮層
+	// 這樣緩存存的是未壓縮 HTML，命中時經壓縮層正常壓縮返回
 	r.Use(middleware.Compress())
+
+	// 動態頁面緩存（記憶體層永遠開啟，檔案層由 tpl_html_cache 控制）
+	// 在 Compress 之後：快取未壓縮的原始 HTML，命中時自動經壓縮層返回
+	r.Use(middleware.HTMLCache())
 
 	// 區域隔離：後台從 session 讀取 acode，前台依域名匹配
 	// 注入到 request context，供 GORM AcodePlugin 自動過濾

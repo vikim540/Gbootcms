@@ -11,6 +11,7 @@ type Slide struct {
 	Link       string `gorm:"column:link" json:"link"`
 	Title      string `gorm:"column:title" json:"title"`
 	Subtitle   string `gorm:"column:subtitle" json:"subtitle"`
+	ButtonText string `gorm:"column:button_text" json:"button_text"`
 	Sorting    int    `gorm:"column:sorting" json:"sorting"`
 	CreateUser string `gorm:"column:create_user" json:"create_user"`
 	UpdateUser string `gorm:"column:update_user" json:"update_user"`
