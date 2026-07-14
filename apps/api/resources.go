@@ -611,7 +611,7 @@ func ListFormData(c *gin.Context) {
 // ListSlides 幻燈片列表
 // GET /api/v1/slides?gid=1
 func ListSlides(c *gin.Context) {
-	query := dbCtx(c).Model(&model.Slide{}).Where("status = 1")
+	query := dbCtx(c).Model(&model.Slide{})
 	if gid := c.Query("gid"); gid != "" {
 		query = query.Where("gid = ?", gid)
 	}
@@ -623,7 +623,7 @@ func ListSlides(c *gin.Context) {
 // ListLinks 友情連結列表
 // GET /api/v1/links?gid=1
 func ListLinks(c *gin.Context) {
-	query := dbCtx(c).Model(&model.Link{}).Where("status = 1")
+	query := dbCtx(c).Model(&model.Link{})
 	if gid := c.Query("gid"); gid != "" {
 		query = query.Where("gid = ?", gid)
 	}
