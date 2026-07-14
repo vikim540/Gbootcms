@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Gbootcms Build & Restart
+title Gbootcms Build ^& Restart
 
 set APP_DIR=%~dp0
 set BIN_PATH=%APP_DIR%bin\gbootcms.exe

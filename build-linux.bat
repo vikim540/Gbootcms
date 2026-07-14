@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Gbootcms Linux Build & Package
+title Gbootcms Linux Build ^& Package
 
 set APP_DIR=%~dp0
 set DIST_DIR=%APP_DIR%dist
@@ -9,7 +9,7 @@ set PKG_DIR=%DIST_DIR%\%PKG_NAME%
 set LINUX_PORT=8080
 
 echo ========================================
-echo  Gbootcms Linux Builder & Packager
+echo  Gbootcms Linux Builder ^& Packager
 echo  Target: linux/amd64  Port: %LINUX_PORT%
 echo ========================================
 echo.
