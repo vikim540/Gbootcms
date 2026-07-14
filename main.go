@@ -181,6 +181,11 @@ func main() {
 	// 初始化 MeiliSearch 全文搜索（如果已配置）
 	go api.InitMeiliSearch()
 
+	// API JWT 密鑰檢查：未配置時輸出警告（不阻止啟動，但登入會回傳 500）
+	if !api.IsJWTConfigured() {
+		slog.Warn("API JWT 密鑰未配置（api_jwt_secret），API 登入將不可用，請在後台系統配置中設定")
+	}
+
 	// 載入敏感詞列表
 	common.LoadSensitiveWords()
 

@@ -170,42 +170,50 @@ type refTable struct {
 
 // fileRefs 是整個媒體庫中「哪些欄位可能含有文件路徑」的唯壹權威定義。
 // getUsedPaths() 和 findUsages() 都從這裏讀取，修改欄位只需改此壹處。
+// 注意：nameCol 必須與實際 DB 欄位名一致（ay_slide 用 title 非 name，ay_member 用 username 非 name）。
+// 新增含文件引用的表時，必須同步更新 core/mediaplugin/dirty.go 的 MediaReferencingTables 白名單。
 var fileRefs = []refTable{
-	{"ay_content",      "id", "title", []refColumn{{"ico", "ico(封面)"}, {"pics", "pics(多圖)"}, {"enclosure", "enclosure(附件)"}}},
-	{"ay_content_sort", "id", "name",  []refColumn{{"ico", "ico(圖標)"}, {"pic", "pic(圖片)"}}},
-	{"ay_slide",        "id", "name",  []refColumn{{"pic", "pic(輪播圖)"}, {"pic_mobile", "pic_mobile(移動端)"}}},
-	{"ay_link",         "id", "name",  []refColumn{{"logo", "logo(Logo)"}}},
-	{"ay_company",      "id", "name",  []refColumn{{"weixin", "weixin(微信)"}, {"blicense", "blicense(證照)"}}},
-	{"ay_site",         "id", "name",  []refColumn{{"logo", "logo(Logo)"}}},
-	{"ay_member",       "id", "name",  []refColumn{{"headpic", "headpic(頭像)"}}},
+	{"ay_content",      "id", "title",    []refColumn{{"ico", "ico(封面)"}, {"pics", "pics(多圖)"}, {"enclosure", "enclosure(附件)"}}},
+	{"ay_content_sort", "id", "name",     []refColumn{{"ico", "ico(圖標)"}, {"pic", "pic(圖片)"}}},
+	{"ay_slide",        "id", "title",    []refColumn{{"pic", "pic(輪播圖)"}, {"pic_mobile", "pic_mobile(移動端)"}}},
+	{"ay_link",         "id", "name",     []refColumn{{"logo", "logo(Logo)"}}},
+	{"ay_company",      "id", "name",     []refColumn{{"weixin", "weixin(微信)"}, {"blicense", "blicense(證照)"}}},
+	{"ay_site",         "id", "name",     []refColumn{{"logo", "logo(Logo)"}}},
+	{"ay_member",       "id", "username", []refColumn{{"headpic", "headpic(頭像)"}}},
 }
 
 // validateOnce 確保 PRAGMA 校驗只運行壹次
 var validateOnce sync.Once
 
 // validateFileRefs 啟動校驗：PRAGMA table_info 檢查 fileRefs 中所有表-列是否存在
+// 校驗範圍包含 idCol、nameCol 和所有文件引用列，確保 nameCol 與實際 DB 欄位名一致
 func validateFileRefs() {
 	validateOnce.Do(func() {
-		byTable := make(map[string][]refColumn)
 		for _, rt := range fileRefs {
-			byTable[rt.table] = rt.columns
-		}
-		for tableName, cols := range byTable {
 			type colInfo struct {
 				Name string `gorm:"column:name"`
 			}
 			var actualCols []colInfo
-			if err := model.DB.Raw(fmt.Sprintf("PRAGMA table_info(`%s`)", tableName)).Scan(&actualCols).Error; err != nil {
-				slog.Warn("[MediaController] 無法查詢", "table", tableName, "err", err)
+			if err := model.DB.Raw(fmt.Sprintf("PRAGMA table_info(`%s`)", rt.table)).Scan(&actualCols).Error; err != nil {
+				slog.Warn("[MediaController] 無法查詢表結構", "table", rt.table, "err", err)
 				continue
 			}
 			actualSet := make(map[string]bool, len(actualCols))
 			for _, c := range actualCols {
 				actualSet[c.Name] = true
 			}
-			for _, c := range cols {
+			// 校驗 idCol
+			if !actualSet[rt.idCol] {
+				slog.Warn("[MediaController] idCol 在數據庫中不存在", "table", rt.table, "idCol", rt.idCol)
+			}
+			// 校驗 nameCol
+			if !actualSet[rt.nameCol] {
+				slog.Warn("[MediaController] nameCol 在數據庫中不存在", "table", rt.table, "nameCol", rt.nameCol)
+			}
+			// 校驗文件引用列
+			for _, c := range rt.columns {
 				if !actualSet[c.column] {
-					slog.Warn("[MediaController] 檔案引用欄位在數據庫中不存在", "table", tableName, "column", c.column, "label", c.label)
+					slog.Warn("[MediaController] 檔案引用欄位在數據庫中不存在", "table", rt.table, "column", c.column, "label", c.label)
 				}
 			}
 		}
@@ -223,6 +231,9 @@ func (c *MediaController) Index(ctx *gin.Context) {
 		total = len(cache.Files)
 		for _, f := range cache.Files {
 			np := normalizePath(f.Path)
+			if np == "" {
+				continue
+			}
 			isUsed := cache.UsedPaths[np] || cache.UsedPaths["/"+np]
 			isMarked := cache.MarkedPaths[np]
 			totalSize += f.Size
@@ -270,6 +281,9 @@ func (c *MediaController) List(ctx *gin.Context) {
 	var items []MediaFile
 	for _, f := range cache.Files {
 		np := normalizePath(f.Path)
+		if np == "" {
+			continue
+		}
 		f.Used = cache.UsedPaths[np] || cache.UsedPaths["/"+np]
 		f.Marked = cache.MarkedPaths[np]
 		f.Category = getCategory(f.Name)
@@ -349,12 +363,19 @@ func (c *MediaController) Mark(ctx *gin.Context) {
 		return
 	}
 
+	// 標準化路徑，確保與 scanFiles 的路徑格式一致
+	np := normalizePath(path)
+	if np == "" {
+		ctx.JSON(http.StatusOK, gin.H{"code": 0, "msg": "無效的文件路徑"})
+		return
+	}
+
 	var mark content.MediaMark
-	if err := model.DB.Where("path = ?", path).First(&mark).Error; err == nil {
+	if err := model.DB.Where("path = ?", np).First(&mark).Error; err == nil {
 		model.DB.Delete(&mark)
 		c.JSONOKMsg(ctx, "已取消標記")
 	} else {
-		model.DB.Create(&content.MediaMark{Path: path})
+		model.DB.Create(&content.MediaMark{Path: np})
 		c.JSONOKMsg(ctx, "已標記為保護")
 	}
 }
@@ -377,6 +398,9 @@ func (c *MediaController) Clean(ctx *gin.Context) {
 
 	for _, f := range cache.Files {
 		np := normalizePath(f.Path)
+		if np == "" {
+			continue
+		}
 		isUsed := cache.UsedPaths[np] || cache.UsedPaths["/"+np]
 		isMarked := cache.MarkedPaths[np]
 
@@ -396,6 +420,7 @@ func (c *MediaController) Clean(ctx *gin.Context) {
 		os.MkdirAll(filepath.Dir(dstPath), 0755)
 
 		if err := os.Rename(fullPath, dstPath); err != nil {
+			slog.Error("[MediaController] 清理文件失敗", "file", f.Name, "src", fullPath, "dst", dstPath, "err", err)
 			errors = append(errors, fmt.Sprintf("%s: %s", f.Name, err.Error()))
 		} else {
 			deleted++
@@ -567,6 +592,22 @@ func (c *MediaController) Detail(ctx *gin.Context) {
 	}
 
 	np := normalizePath(path)
+	if np == "" {
+		ctx.JSON(http.StatusOK, gin.H{"code": 0, "msg": "無效的文件路徑"})
+		return
+	}
+
+	// 安全檢查：只允許訪問 static/upload/ 目錄下的文件
+	// 用正斜線統一比較，避免 Windows 反斜線差異
+	absPath, _ := filepath.Abs(np)
+	uploadRoot, _ := filepath.Abs(filepath.Join("static", "upload"))
+	absPathSlash := filepath.ToSlash(absPath) + "/"
+	uploadRootSlash := filepath.ToSlash(uploadRoot) + "/"
+	if !strings.HasPrefix(absPathSlash, uploadRootSlash) {
+		ctx.JSON(http.StatusOK, gin.H{"code": 0, "msg": "拒絕訪問此路徑"})
+		return
+	}
+
 	fullPath := np
 
 	// 基礎信息
@@ -683,16 +724,41 @@ func findUsages(filePath string) []UsageInfo {
 		}
 	}
 
+	// 特殊處理：ay_label.value 中的 HTML img src（自定義標籤可能含圖片）
+	type LabelRow struct {
+		ID    int
+		Name  string
+		Value string
+	}
+	var labels []LabelRow
+	model.DB.Table("ay_label").Select("id, name, value").Find(&labels)
+	for _, row := range labels {
+		decoded := strings.ReplaceAll(row.Value, "&quot;", "\"")
+		if containsImgSrc(decoded, np, base) {
+			usages = append(usages, UsageInfo{"ay_label", row.ID, row.Name, "value(標籤值)"})
+		}
+	}
+
 	return usages
 }
 
-// pathMatchField 判斷字段值是否包含目標路徑
+// pathMatchField 判斷欄位值是否包含目標路徑
+// 逗號分隔的多值欄位（如 ay_content.pics）需逐一拆分比對
 func pathMatchField(fieldVal, np, base string) bool {
 	if fieldVal == "" {
 		return false
 	}
-	fv := normalizePath(fieldVal)
-	return fv == np || fv == base || fv == "/"+np || fv == "/"+base
+	for _, p := range strings.Split(fieldVal, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		fv := normalizePath(p)
+		if fv == np || fv == base || fv == "/"+np || fv == "/"+base {
+			return true
+		}
+	}
+	return false
 }
 
 // containsImgSrc 判斷 HTML 內容中是否引用了目標圖片
@@ -706,11 +772,21 @@ func containsImgSrc(html, np, base string) bool {
 
 // ─── Helpers ────────────────────────────────────────────────────
 
-// normalizePath 標準化路徑為 static/upload/... 格式
+// normalizePath 標準化路徑為 static/upload/... 格式（正斜線）
+// 包含路徑穿越防護：拒絕包含 ../ 的路徑逃逸到上層目錄
+// 注意：不使用 filepath.Clean，因為它在 Windows 上會將正斜線轉為反斜線，
+// 導致 map key 不匹配。純字串操作確保跨平台行為一致。
 func normalizePath(path string) string {
+	if path == "" {
+		return ""
+	}
 	path = filepath.ToSlash(path)
 	path = strings.TrimPrefix(path, "/")
 	path = strings.TrimPrefix(path, "./")
+	// 路徑穿越防護：拒絕包含 ../ 的路徑（攻擊者可能用各種變體如 ..\ 或 ..%2f）
+	if strings.Contains(path, "..") {
+		return ""
+	}
 	return path
 }
 
@@ -828,13 +904,25 @@ func getMarkedPaths() map[string]bool {
 	return marked
 }
 
+// addPaths 將文件路徑加入 used 集合
+// 對齊 PbootCMS PHP 原版 explode(',', $value['pics']) 邏輯：
+// 逗號分隔的多值欄位（如 ay_content.pics）需逐一路徑處理
 func addPaths(set map[string]bool, val string) {
 	if val == "" {
 		return
 	}
-	np := normalizePath(val)
-	set[np] = true
-	set["/"+np] = true
+	for _, p := range strings.Split(val, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		np := normalizePath(p)
+		if np == "" {
+			continue
+		}
+		set[np] = true
+		set["/"+np] = true
+	}
 }
 
 // fileTypes 是副檔名 → 分類 + MIME 的單一數據源。

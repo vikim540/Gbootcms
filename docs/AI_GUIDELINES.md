@@ -2,7 +2,7 @@
 
 > **所有在本倉庫工作的 AI 助手必須閱讀本文檔並嚴格遵守。**
 > AI 助手包括但不限於:Trae、Cursor、Copilot、Cline、Windsurf、ChatGPT、Claude 等。
-> 最後更新：2026-07-08
+> 最後更新：2026-07-14
 
 ---
 
@@ -167,6 +167,9 @@ mg.JSONOKMsg(c, "新增成功")
 | 29 | AJAX 攔截回應只有 `msg` 缺少 `data` | `auth.go` 中 AJAX 回應必須同時包含 `data` + `msg` | 高 |
 | 30 | 刪除操作用 GET 請求 | 刪除操作必須用 POST（防 CSRF） | 高 |
 | 31 | 通知文案帶感嘆號 | 統一風格，通知文案**不加感嘆號** | 中 |
+| 32 | API 密鑰/密碼用 `==` 比較 | 必須用 `crypto/subtle.ConstantTimeCompare` 常量時間校驗，防時序攻擊 | 高 |
+| 33 | API 查詢手動拼接 `Where("acode = ?")` | 禁止；必須用 `model.DB.WithContext(ctx)` 走 AcodePlugin 自動過濾 | 高 |
+| 34 | API 留言提交未採集訪客資訊 | 必須填充 IP、OS、瀏覽器 UA、UID；必須過 `FilterUserInput` + 敏感詞過濾 | 高 |
 
 ### 1.4 路由大小寫陷阱（Gin + 模板引擎）
 
@@ -529,6 +532,7 @@ db.Where("id = ?", id).Find(&items)
 |---|---|---|
 | `apps/admin/` | 後台管理 API | 自由修改 |
 | `apps/home/` | 前台渲染 + 會員系統 | 自由修改 |
+| `apps/api/` | RESTful API（JWT + API Key） | 自由修改 |
 | `apps/common/parser/` | PbootCMS 標籤解析 | 自由修改 |
 | `core/basic/view.go` | PHP 模板轉譯器 | 自由修改 |
 | `template/default/` | 前台模板 | 自由修改 |

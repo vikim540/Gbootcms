@@ -170,6 +170,13 @@ gbootcms/
 32. **PHP 鬆散類型 vs Go 強類型** — 從 PbootCMS PHP 移植模板時，PHP 的 `'1' == 1` 為 true（鬆散比較），但 Go+pongo2 中 `int(1) == "1"` 為 false（強類型）。所有從 PHP 模板複製的條件判斷，必須檢查比較值的類型是否與 Go 端一致
 33. **圖片壓縮僅在前端處理** — 禁止在後端新增圖片壓縮、格式轉換代碼（CGO_ENABLED=0 下 Go 無法編碼 WebP）；所有圖片壓縮通過瀏覽器 Canvas API 完成，原始大圖不傳輸至伺服器；後端僅負責文件存儲 + 水印 + 權限校驗
 34. **後台配置輸出用 `{$configs.xxx.value}`** — pongo2 模板中 HTML 屬性值輸出必須用 `{$configs.xxx.value}`（花括號，轉為 `{{ Config.Xxx }}`），方括號 `[$configs.xxx.value]` 僅用於 `{if()}` 條件判斷內部（轉為 `Config.Xxx` 純文本），兩者不可混淆
+35. **fileRefs 的 nameCol/idCol 必須與實際 DB 欄位名一致** — `MediaController.go` 中 `fileRefs` 的 `nameCol`（顯示名稱列）和 `idCol` 必須與數據庫實際欄位名完全一致；`ay_slide` 用 `title` 非 `name`，`ay_member` 用 `username` 非 `name`；修改 fileRefs 前必須 Grep 確認 Model struct 的 `gorm:"column:xxx"` tag
+36. **多值欄位（逗號分隔）必須拆分後逐一路徑匹配** — `ay_content.pics` 等多值欄位存儲逗號分隔的多個路徑，`addPaths()` 和 `pathMatchField()` 必須先按逗號拆分再逐一 normalizePath 比對，嚴禁將整串作為單一路徑處理（對齊 PbootCMS PHP 原版 `explode(',', $value['pics'])`）
+37. **validateFileRefs 必須校驗 idCol 和 nameCol** — `validateFileRefs()` 的 PRAGMA table_info 校驗範圍不能只覆蓋 `rt.columns`，必須同時校驗 `rt.idCol` 和 `rt.nameCol` 是否存在於實際表結構中，否則 nameCol 錯誤無法在啟動時被發現
+38. **新增含文件引用的表時，fileRefs 與 MediaReferencingTables 必須同步** — `MediaController.go` 的 `fileRefs` 和 `core/mediaplugin/dirty.go` 的 `MediaReferencingTables` 是兩份獨立維護的列表，新增含文件引用的表時必須同時修改兩處：fileRefs 加入掃描欄位定義，MediaReferencingTables 加入短表名（去 `ay_` 前綴）以觸發寫後緩存失效
+39. **API 模塊統一使用 RESTful 設計規範** — 不兼容 PbootCMS `api.php` 路由與 `appid+timestamp+MD5` 簽名鑑權；路由固定 `/api/v1/` 前綴，認證體系為 JWT + API Key 雙方案；響應結構為 `{code, msg, data, meta}`；GET 查詢、POST 新建、PUT 全量更新、PATCH 局部修改、DELETE 刪除
+40. **API 對外開放接口輸入必須執行 XSS 過濾與敏感詞過濾** — 會員留言類接口必須採集訪客基礎資訊（IP、OS、瀏覽器 UA、會員 UID）；密鑰/密碼比對必須使用 `crypto/subtle.ConstantTimeCompare` 常量時間校驗，禁止 `==` 直接比較
+41. **API 多語言數據過濾統一依賴 GORM AcodePlugin** — 禁止業務層手動編寫 `Where("acode = ?", acode)` 查詢條件；所有 DB 查詢必須使用 `model.DB.WithContext(c.Request.Context())` 使 AcodePlugin 自動注入 acode 過濾
 
 ---
 
@@ -392,6 +399,9 @@ if !member.RegisterTime.IsZero() {
 | 31 | 從 PHP 模板直接複製條件判斷不檢查類型 | PHP 鬆散類型 `'1'==1` 為 true，Go+pongo2 強類型 `int(1)=="1"` 為 false，必須統一比較類型 |
 | 32 | 在後端新增圖片壓縮/格式轉換代碼 | CGO_ENABLED=0 下 Go 無法編碼 WebP；圖片壓縮全由前端 Canvas 處理，後端僅存儲+水印 |
 | 33 | 模板輸出配置值用 `[$configs.xxx.value]` | 方括號僅用於 `{if()}` 條件內；HTML 輸出必須用 `{$configs.xxx.value}`（轉為 `{{ Config.Xxx }}`） |
+| 34 | fileRefs 中 nameCol 與實際 DB 欄位名不匹配（如 ay_slide 寫 `name` 實為 `title`） | 修改 fileRefs 前必須 Grep Model struct 的 `gorm:"column:xxx"` 確認欄位名 |
+| 35 | 多值欄位（如 `pics`）未按逗號拆分就進行路徑匹配 | `addPaths()` / `pathMatchField()` 必須先 `strings.Split(val, ",")` 再逐一比對 |
+| 36 | 新增含文件引用的表只改 fileRefs 或只改 MediaReferencingTables | 兩份列表必須同步修改，遺漏任一處都會導致掃描遺漏或緩存不失效 |
 
 ---
 
@@ -472,7 +482,7 @@ git diff
 # 暫存所有改動（排除 runtime 產物）
 git add -A
 
-# 提交（建議使用 Conventional Commits 格式）
+# 提交（建議使用 Conventional Commits 格式，其次支持在 commit 信息中携带大量Emoji內容）
 git commit -m "fix: 簡述修復內容"
 git commit -m "feat: 簡述新增功能"
 git commit -m "refactor: 簡述重構內容"

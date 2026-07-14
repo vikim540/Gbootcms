@@ -256,6 +256,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 // SetupAPIRoutes 註冊 RESTful API 路由
 func SetupAPIRoutes(r *gin.Engine) {
 	apiGroup := r.Group("/api/v1")
+	apiGroup.Use(api.CORS())
 	apiGroup.Use(api.APIAuth())
 	{
 		// 認證
@@ -264,20 +265,28 @@ func SetupAPIRoutes(r *gin.Engine) {
 
 		// 站點資訊
 		apiGroup.GET("/site", api.GetSite)
+		apiGroup.GET("/company", api.GetCompany)
 
 		// 欄目
 		apiGroup.GET("/sorts", api.ListSorts)
 		apiGroup.GET("/sorts/:scode", api.GetSort)
+		apiGroup.GET("/nav", api.ListNav)
 
 		// 內容
 		apiGroup.GET("/contents", api.ListContents)
 		apiGroup.GET("/contents/:id", api.GetContent)
+		apiGroup.GET("/contents/:id/images", api.GetContentImages)
 
 		// 搜索
 		apiGroup.GET("/search", api.SearchContent)
 
 		// 留言
 		apiGroup.POST("/messages", api.CreateMessage)
+		apiGroup.GET("/messages", api.ListMessages) // 需認證
+
+		// 自定義表單（需認證）
+		apiGroup.GET("/forms/:fcode/fields", api.ListFormFields)
+		apiGroup.GET("/forms/:fcode/data", api.ListFormData)
 
 		// 幻燈片
 		apiGroup.GET("/slides", api.ListSlides)

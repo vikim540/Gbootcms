@@ -9,18 +9,16 @@ import (
 
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/admin/model/content"
-	"gbootcms/apps/common/middleware"
+	"gbootcms/apps/common"
+	"gbootcms/core/acodeplugin"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-// getAcode 取得語言代碼，預設使用系統預設語言
-func getAcode(c *gin.Context) string {
-	acode := c.Query("acode")
-	if acode == "" {
-		acode = middleware.GetDefaultAcode()
-	}
-	return acode
+// dbCtx 返回帶當前請求 context 的 DB 實例，使 AcodePlugin 自動注入 acode 過濾
+func dbCtx(c *gin.Context) *gorm.DB {
+	return model.DB.WithContext(c.Request.Context())
 }
 
 // buildContentURL 構建內容 URL
@@ -48,40 +46,42 @@ func formatTime(t time.Time) string {
 // GetSite 站點資訊
 // GET /api/v1/site
 func GetSite(c *gin.Context) {
-	acode := getAcode(c)
 	var site model.Site
-	model.DB.Where("acode = ?", acode).First(&site)
-	var company model.Company
-	model.DB.Where("acode = ?", acode).First(&company)
+	dbCtx(c).First(&site)
 
 	apiOK(c, gin.H{
-		"site": gin.H{
-			"title":       site.Title,
-			"subtitle":    site.Subtitle,
-			"domain":      site.Domain,
-			"logo":        site.Logo,
-			"keywords":    site.Keywords,
-			"description": site.Description,
-			"icp":         site.ICP,
-			"theme":       site.Theme,
-		},
-		"company": gin.H{
-			"name":    company.Name,
-			"address": company.Address,
-			"phone":   company.Phone,
-			"mobile":  company.Mobile,
-			"email":   company.Email,
-			"qq":      company.Qq,
-			"wechat":  company.Weixin,
-		},
+		"title":       site.Title,
+		"subtitle":    site.Subtitle,
+		"domain":      site.Domain,
+		"logo":        site.Logo,
+		"keywords":    site.Keywords,
+		"description": site.Description,
+		"icp":         site.ICP,
+		"theme":       site.Theme,
+	})
+}
+
+// GetCompany 公司資訊
+// GET /api/v1/company
+func GetCompany(c *gin.Context) {
+	var company model.Company
+	dbCtx(c).First(&company)
+
+	apiOK(c, gin.H{
+		"name":    company.Name,
+		"address": company.Address,
+		"phone":   company.Phone,
+		"mobile":  company.Mobile,
+		"email":   company.Email,
+		"qq":      company.Qq,
+		"wechat":  company.Weixin,
 	})
 }
 
 // ListSorts 欄目列表
 // GET /api/v1/sorts?scode=&mcode=&status=1
 func ListSorts(c *gin.Context) {
-	acode := getAcode(c)
-	query := model.DB.Model(&model.ContentSort{}).Where("acode = ?", acode)
+	query := dbCtx(c).Model(&model.ContentSort{})
 
 	if scode := c.Query("scode"); scode != "" {
 		query = query.Where("scode = ? OR pcode = ?", scode, scode)
@@ -106,28 +106,85 @@ func ListSorts(c *gin.Context) {
 // GetSort 欄目詳情
 // GET /api/v1/sorts/:scode
 func GetSort(c *gin.Context) {
-	acode := getAcode(c)
 	scode := c.Param("scode")
 	var sort model.ContentSort
-	if err := model.DB.Where("acode = ? AND (scode = ? OR filename = ? OR urlname = ?)", acode, scode, scode, scode).First(&sort).Error; err != nil {
+	if err := dbCtx(c).Where("scode = ? OR filename = ? OR urlname = ?", scode, scode, scode).First(&sort).Error; err != nil {
 		apiFail(c, http.StatusNotFound, "欄目不存在")
 		return
 	}
 	apiOK(c, sort)
 }
 
+// ListNav 導航樹
+// GET /api/v1/nav?scode=
+func ListNav(c *gin.Context) {
+	query := dbCtx(c).Model(&model.ContentSort{}).Where("status = 1")
+
+	if scode := c.Query("scode"); scode != "" {
+		query = query.Where("scode = ? OR pcode = ?", scode, scode)
+	}
+
+	var sorts []model.ContentSort
+	query.Order("sorting ASC, id ASC").Find(&sorts)
+
+	// 構建樹狀結構
+	type navItem struct {
+		ID       uint      `json:"id"`
+		Scode    string    `json:"scode"`
+		Pcode    string    `json:"pcode"`
+		Name     string    `json:"name"`
+		Filename string    `json:"filename"`
+		URLName  string    `json:"urlname"`
+		Mcode    string    `json:"mcode"`
+		Listtpl  string    `json:"listtpl"`
+		Content  string    `json:"contenttpl"`
+		ICO      string    `json:"ico"`
+		Pic      string    `json:"pic"`
+		Sorting  int       `json:"sorting"`
+		Children []navItem `json:"children,omitempty"`
+	}
+
+	var buildNav func(items []model.ContentSort, parentCode string) []navItem
+	buildNav = func(items []model.ContentSort, parentCode string) []navItem {
+		var result []navItem
+		for _, s := range items {
+			if s.Pcode == parentCode {
+				item := navItem{
+					ID:       s.ID,
+					Scode:    s.Scode,
+					Pcode:    s.Pcode,
+					Name:     s.Name,
+					Filename: s.Filename,
+					URLName:  s.URLName,
+					Mcode:    s.Mcode,
+					Listtpl:  s.ListTpl,
+					Content:  s.ContentTpl,
+					ICO:      s.Ico,
+					Pic:      s.Pic,
+					Sorting:  s.Sort,
+				}
+				item.Children = buildNav(items, s.Scode)
+				result = append(result, item)
+			}
+		}
+		return result
+	}
+
+	tree := buildNav(sorts, "0")
+	apiOK(c, tree)
+}
+
 // ListContents 內容列表
-// GET /api/v1/contents?scode=&mcode=&keyword=&page=&pagesize=&status=1
+// GET /api/v1/contents?scode=&mcode=&keyword=&page=&pagesize=&istop=&isrecommend=&order=
 func ListContents(c *gin.Context) {
-	acode := getAcode(c)
 	page, pagesize := parsePagination(c)
 
-	query := model.DB.Model(&model.Content{}).Where("acode = ? AND status = 1 AND date <= ?", acode, time.Now())
+	query := dbCtx(c).Model(&model.Content{}).Where("status = 1 AND date <= ?", time.Now())
 
 	if scode := c.Query("scode"); scode != "" {
 		// 查找欄目及其子欄目
 		var childScodes []string
-		model.DB.Model(&model.ContentSort{}).Where("pcode = ?", scode).Pluck("scode", &childScodes)
+		dbCtx(c).Model(&model.ContentSort{}).Where("pcode = ?", scode).Pluck("scode", &childScodes)
 		allScodes := append([]string{scode}, childScodes...)
 		query = query.Where("scode IN ?", allScodes)
 	}
@@ -181,23 +238,23 @@ func ListContents(c *gin.Context) {
 	var items []gin.H
 	for _, ct := range contents {
 		item := gin.H{
-			"id":           ct.ID,
-			"title":        ct.Title,
-			"subtitle":     ct.Subtitle,
-			"date":         formatTime(ct.Date),
-			"ico":          ct.Ico,
-			"description":  ct.Description,
-			"keywords":     ct.Keywords,
-			"visits":       ct.Visits,
-			"likes":        ct.Likes,
-			"scode":        ct.Scode,
-			"istop":        ct.IsTop,
-			"isrecommend":  ct.IsRecommend,
-			"isheadline":   ct.IsHeadline,
-			"url":          buildContentURL(&ct),
-			"create_time":  formatTime(ct.CreateTime),
-			"update_time":  formatTime(ct.UpdateTime),
-			"ext":          extMap[ct.ID],
+			"id":          ct.ID,
+			"title":       ct.Title,
+			"subtitle":    ct.Subtitle,
+			"date":        formatTime(ct.Date),
+			"ico":         ct.Ico,
+			"description": ct.Description,
+			"keywords":    ct.Keywords,
+			"visits":      ct.Visits,
+			"likes":       ct.Likes,
+			"scode":       ct.Scode,
+			"istop":       ct.IsTop,
+			"isrecommend": ct.IsRecommend,
+			"isheadline":  ct.IsHeadline,
+			"url":         buildContentURL(&ct),
+			"create_time": formatTime(ct.CreateTime),
+			"update_time": formatTime(ct.UpdateTime),
+			"ext":         extMap[ct.ID],
 		}
 		items = append(items, item)
 	}
@@ -206,9 +263,9 @@ func ListContents(c *gin.Context) {
 }
 
 // GetContent 內容詳情
-// GET /api/v1/contents/:id
+// GET /api/v1/contents/:id?track=1
+// track=1 時累加訪問量（預設不計數，避免 API 輪詢污染統計）
 func GetContent(c *gin.Context) {
-	acode := getAcode(c)
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -217,9 +274,14 @@ func GetContent(c *gin.Context) {
 	}
 
 	var ct model.Content
-	if err := model.DB.Where("acode = ? AND id = ? AND status = 1 AND date <= ?", acode, id, time.Now()).First(&ct).Error; err != nil {
+	if err := dbCtx(c).Where("id = ? AND status = 1 AND date <= ?", id, time.Now()).First(&ct).Error; err != nil {
 		apiFail(c, http.StatusNotFound, "內容不存在")
 		return
+	}
+
+	// 可選訪問量追蹤
+	if c.Query("track") == "1" {
+		dbCtx(c).Model(&ct).UpdateColumn("visits", ct.Visits+1)
 	}
 
 	// 載入擴展字段
@@ -230,51 +292,85 @@ func GetContent(c *gin.Context) {
 
 	// 上一篇/下一篇
 	var prev, next model.Content
-	model.DB.Where("acode = ? AND status = 1 AND date <= ? AND id < ? AND scode = ?", acode, time.Now(), ct.ID, ct.Scode).
+	dbCtx(c).Where("status = 1 AND date <= ? AND id < ? AND scode = ?", time.Now(), ct.ID, ct.Scode).
 		Order("id DESC").Limit(1).First(&prev)
-	model.DB.Where("acode = ? AND status = 1 AND date <= ? AND id > ? AND scode = ?", acode, time.Now(), ct.ID, ct.Scode).
+	dbCtx(c).Where("status = 1 AND date <= ? AND id > ? AND scode = ?", time.Now(), ct.ID, ct.Scode).
 		Order("id ASC").Limit(1).First(&next)
 
 	// 欄目資訊
 	var sort model.ContentSort
-	model.DB.Where("scode = ?", ct.Scode).First(&sort)
+	dbCtx(c).Where("scode = ?", ct.Scode).First(&sort)
 
 	apiOK(c, gin.H{
-		"id":           ct.ID,
-		"title":        ct.Title,
-		"subtitle":     ct.Subtitle,
-		"titlecolor":   ct.TitleColor,
-		"author":       ct.Author,
-		"source":       ct.Source,
-		"date":         formatTime(ct.Date),
-		"ico":          ct.Ico,
-		"pics":         ct.Pics,
-		"content":      ct.Content,
-		"tags":         ct.Tags,
-		"keywords":     ct.Keywords,
-		"description":  ct.Description,
-		"visits":       ct.Visits,
-		"likes":        ct.Likes,
-		"scode":        ct.Scode,
-		"istop":        ct.IsTop,
-		"isrecommend":  ct.IsRecommend,
-		"isheadline":   ct.IsHeadline,
-		"url":          buildContentURL(&ct),
-		"create_time":  formatTime(ct.CreateTime),
-		"update_time":  formatTime(ct.UpdateTime),
-		"ext":          extData,
-		"sort":         sort,
-		"prev":         prev.ID,
-		"prev_title":   prev.Title,
-		"prev_url":     buildContentURL(&prev),
-		"next":         next.ID,
-		"next_title":   next.Title,
-		"next_url":     buildContentURL(&next),
+		"id":          ct.ID,
+		"title":       ct.Title,
+		"subtitle":    ct.Subtitle,
+		"titlecolor":  ct.TitleColor,
+		"author":      ct.Author,
+		"source":      ct.Source,
+		"date":        formatTime(ct.Date),
+		"ico":         ct.Ico,
+		"pics":        ct.Pics,
+		"content":     ct.Content,
+		"tags":        ct.Tags,
+		"keywords":    ct.Keywords,
+		"description": ct.Description,
+		"visits":      ct.Visits,
+		"likes":       ct.Likes,
+		"scode":       ct.Scode,
+		"istop":       ct.IsTop,
+		"isrecommend": ct.IsRecommend,
+		"isheadline":  ct.IsHeadline,
+		"url":         buildContentURL(&ct),
+		"create_time": formatTime(ct.CreateTime),
+		"update_time": formatTime(ct.UpdateTime),
+		"ext":         extData,
+		"sort":        sort,
+		"prev":        prev.ID,
+		"prev_title":  prev.Title,
+		"prev_url":    buildContentURL(&prev),
+		"next":        next.ID,
+		"next_title":  next.Title,
+		"next_url":    buildContentURL(&next),
+	})
+}
+
+// GetContentImages 內容附件圖片
+// GET /api/v1/contents/:id/images
+func GetContentImages(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		apiFail(c, http.StatusBadRequest, "無效的 ID")
+		return
+	}
+
+	var ct model.Content
+	if err := dbCtx(c).Where("id = ? AND status = 1", id).First(&ct).Error; err != nil {
+		apiFail(c, http.StatusNotFound, "內容不存在")
+		return
+	}
+
+	var images []string = []string{}
+	if ct.Pics != "" {
+		for _, p := range strings.Split(ct.Pics, ",") {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				images = append(images, p)
+			}
+		}
+	}
+
+	apiOK(c, gin.H{
+		"id":     ct.ID,
+		"title":  ct.Title,
+		"ico":    ct.Ico,
+		"images": images,
 	})
 }
 
 // SearchContent 搜索內容
-// GET /api/v1/search?keyword=&page=&pagesize=
+// GET /api/v1/search?keyword=&field=title|keywords|description&fuzzy=1&page=&pagesize=
 func SearchContent(c *gin.Context) {
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	if keyword == "" {
@@ -282,12 +378,11 @@ func SearchContent(c *gin.Context) {
 		return
 	}
 
-	acode := getAcode(c)
 	page, pagesize := parsePagination(c)
 
 	// 嘗試使用 MeiliSearch（如果已配置）
 	if meiliAvailable {
-		results, err := meiliSearch(keyword, acode, page, pagesize)
+		results, err := meiliSearch(keyword, acodeplugin.GetAcode(c.Request.Context()), page, pagesize)
 		if err == nil && results != nil {
 			apiOKWithMeta(c, results.Hits, &apiMeta{
 				Page:     page,
@@ -299,9 +394,51 @@ func SearchContent(c *gin.Context) {
 		// MeiliSearch 失敗則降級到 SQL LIKE
 	}
 
-	// SQL LIKE 降級搜索
-	like := "%" + keyword + "%"
-	query := model.DB.Model(&model.Content{}).Where("acode = ? AND status = 1 AND date <= ? AND (title LIKE ? OR keywords LIKE ? OR description LIKE ?)", acode, time.Now(), like, like, like)
+	// 解析搜索字段（預設 title+keywords+description）
+	field := c.DefaultQuery("field", "title|keywords|description")
+	fuzzy := c.DefaultQuery("fuzzy", "1")
+
+	var whereClause string
+	var args []interface{}
+
+	if fuzzy == "0" {
+		// 精準匹配
+		fields := strings.Split(field, "|")
+		conditions := make([]string, 0, len(fields))
+		for _, f := range fields {
+			f = strings.TrimSpace(f)
+			if f == "title" || f == "keywords" || f == "description" {
+				conditions = append(conditions, f+" = ?")
+				args = append(args, keyword)
+			}
+		}
+		if len(conditions) > 0 {
+			whereClause = "(" + strings.Join(conditions, " OR ") + ")"
+		} else {
+			whereClause = "title = ?"
+			args = append(args, keyword)
+		}
+	} else {
+		// 模糊匹配
+		like := "%" + keyword + "%"
+		fields := strings.Split(field, "|")
+		conditions := make([]string, 0, len(fields))
+		for _, f := range fields {
+			f = strings.TrimSpace(f)
+			if f == "title" || f == "keywords" || f == "description" {
+				conditions = append(conditions, f+" LIKE ?")
+				args = append(args, like)
+			}
+		}
+		if len(conditions) > 0 {
+			whereClause = "(" + strings.Join(conditions, " OR ") + ")"
+		} else {
+			whereClause = "title LIKE ?"
+			args = append(args, like)
+		}
+	}
+
+	query := dbCtx(c).Model(&model.Content{}).Where("status = 1 AND date <= ? AND "+whereClause, append([]interface{}{time.Now()}, args...)...)
 
 	var total int64
 	query.Count(&total)
@@ -336,26 +473,41 @@ func CreateMessage(c *gin.Context) {
 		Contacts string `json:"contacts" binding:"required"`
 		Mobile   string `json:"mobile"`
 		Content  string `json:"content" binding:"required"`
-		Acode    string `json:"acode"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		apiFail(c, http.StatusBadRequest, "請求參數錯誤")
 		return
 	}
 
-	if req.Acode == "" {
-		req.Acode = getAcode(c)
+	// XSS 過濾 + 敏感詞替換（與前台邏輯完全統一）
+	contacts := common.FilterSensitiveWords(common.FilterUserInput(req.Contacts))
+	mobile := common.FilterUserInput(req.Mobile)
+	contentText := common.FilterSensitiveWords(common.FilterUserInput(req.Content))
+
+	// 採集訪客基礎資訊
+	clientIP := c.ClientIP()
+	ua := c.Request.UserAgent()
+	chPlatformVer := c.GetHeader("Sec-CH-UA-Platform-Version")
+	osName, bsName := common.ParseUserAgent(ua, chPlatformVer)
+
+	// 會員 UID（如果攜帶了 JWT Token）
+	uid := 0
+	if v, exists := c.Get("api_uid"); exists {
+		uid = v.(int)
 	}
 
 	msg := model.Message{
-		Contacts:   req.Contacts,
-		Mobile:     req.Mobile,
-		Content:    req.Content,
-		Acode:      req.Acode,
+		Contacts:   contacts,
+		Mobile:     mobile,
+		Content:    contentText,
+		IP:         clientIP,
+		OS:         osName,
+		Browser:    bsName,
+		UID:        uid,
 		Status:     0,
 		CreateTime: time.Now(),
 	}
-	if err := model.DB.Create(&msg).Error; err != nil {
+	if err := dbCtx(c).Create(&msg).Error; err != nil {
 		apiFail(c, http.StatusInternalServerError, "提交失敗")
 		return
 	}
@@ -363,11 +515,90 @@ func CreateMessage(c *gin.Context) {
 	apiOK(c, gin.H{"id": msg.ID})
 }
 
+// ListMessages 留言列表（需認證）
+// GET /api/v1/messages?page=&pagesize=&status=
+func ListMessages(c *gin.Context) {
+	page, pagesize := parsePagination(c)
+
+	query := dbCtx(c).Model(&model.Message{})
+
+	if status := c.Query("status"); status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var messages []model.Message
+	query.Order("id DESC").
+		Offset((page - 1) * pagesize).
+		Limit(pagesize).
+		Find(&messages)
+
+	apiOKWithMeta(c, messages, &apiMeta{Page: page, Pagesize: pagesize, Total: total})
+}
+
+// ListFormFields 表單字段定義（需認證）
+// GET /api/v1/forms/:fcode/fields
+func ListFormFields(c *gin.Context) {
+	fcode := c.Param("fcode")
+	if fcode == "" {
+		apiFail(c, http.StatusBadRequest, "請提供表單編號 fcode")
+		return
+	}
+
+	fields := content.GetFormFieldByCode(fcode)
+	form := content.GetFormByCode(fcode)
+
+	apiOK(c, gin.H{
+		"form":   form,
+		"fields": fields,
+	})
+}
+
+// ListFormData 表單數據列表（需認證）
+// GET /api/v1/forms/:fcode/data?page=&pagesize=
+func ListFormData(c *gin.Context) {
+	fcode := c.Param("fcode")
+	if fcode == "" {
+		apiFail(c, http.StatusBadRequest, "請提供表單編號 fcode")
+		return
+	}
+
+	page, pagesize := parsePagination(c)
+
+	form := content.GetFormByCode(fcode)
+	if form == nil {
+		apiFail(c, http.StatusNotFound, "表單不存在")
+		return
+	}
+
+	tableName := form.TableName
+	if tableName == "" {
+		apiFail(c, http.StatusNotFound, "表單未配置數據表")
+		return
+	}
+
+	// 安全驗證表名（白名單）
+	if !common.CheckVarType(tableName) {
+		apiFail(c, http.StatusBadRequest, "非法表名")
+		return
+	}
+
+	var total int64
+	dbCtx(c).Raw(fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)).Scan(&total)
+
+	offset := (page - 1) * pagesize
+	var results []map[string]interface{}
+	dbCtx(c).Raw(fmt.Sprintf("SELECT * FROM %s ORDER BY id DESC LIMIT ? OFFSET ?", tableName), pagesize, offset).Scan(&results)
+
+	apiOKWithMeta(c, results, &apiMeta{Page: page, Pagesize: pagesize, Total: total})
+}
+
 // ListSlides 幻燈片列表
 // GET /api/v1/slides?gid=1
 func ListSlides(c *gin.Context) {
-	acode := getAcode(c)
-	query := model.DB.Model(&model.Slide{}).Where("acode = ? AND status = 1", acode)
+	query := dbCtx(c).Model(&model.Slide{}).Where("status = 1")
 	if gid := c.Query("gid"); gid != "" {
 		query = query.Where("gid = ?", gid)
 	}
@@ -379,8 +610,7 @@ func ListSlides(c *gin.Context) {
 // ListLinks 友情連結列表
 // GET /api/v1/links?gid=1
 func ListLinks(c *gin.Context) {
-	acode := getAcode(c)
-	query := model.DB.Model(&model.Link{}).Where("acode = ? AND status = 1", acode)
+	query := dbCtx(c).Model(&model.Link{}).Where("status = 1")
 	if gid := c.Query("gid"); gid != "" {
 		query = query.Where("gid = ?", gid)
 	}
@@ -392,8 +622,7 @@ func ListLinks(c *gin.Context) {
 // ListTags 標籤列表
 // GET /api/v1/tags
 func ListTags(c *gin.Context) {
-	acode := getAcode(c)
 	var tags []model.Tags
-	model.DB.Where("acode = ?", acode).Order("id DESC").Find(&tags)
+	dbCtx(c).Order("id DESC").Find(&tags)
 	apiOK(c, tags)
 }

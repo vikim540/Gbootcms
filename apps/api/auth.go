@@ -2,9 +2,10 @@ package api
 
 import (
 	"crypto/md5"
+	"crypto/subtle"
 	"fmt"
 	"net/http"
-	"time"
+	"strconv"
 
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/admin/model/system"
@@ -24,18 +25,42 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// 登入鎖定檢查
+	if remain := checkLoginLock(c); remain > 0 {
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"code": 0,
+			"msg":  fmt.Sprintf("登入嘗試過多，請 %d 秒後再試", remain),
+		})
+		return
+	}
+
 	// 查詢管理員
 	var user system.AdminUser
 	if err := model.DB.Where("username = ? AND status = 1", req.Username).First(&user).Error; err != nil {
+		recordLoginFailure(c)
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 0, "msg": "用戶名或密碼錯誤"})
 		return
 	}
 
-	// 驗證密碼（雙 MD5 向後相容）
+	// 驗證密碼（雙 MD5 向後相容 + 常量時間比較防時序攻擊）
 	firstMd5 := fmt.Sprintf("%x", md5.Sum([]byte(req.Password)))
 	encPwd := fmt.Sprintf("%x", md5.Sum([]byte(firstMd5)))
-	if user.Password != encPwd && user.Password != req.Password {
+
+	pwdMatch := subtle.ConstantTimeCompare([]byte(user.Password), []byte(encPwd)) == 1 ||
+		subtle.ConstantTimeCompare([]byte(user.Password), []byte(req.Password)) == 1
+
+	if !pwdMatch {
+		recordLoginFailure(c)
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 0, "msg": "用戶名或密碼錯誤"})
+		return
+	}
+
+	// 登入成功，清除失敗記錄
+	clearLoginFailure(c)
+
+	// 檢查 JWT 密鑰是否已配置
+	if !IsJWTConfigured() {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 0, "msg": "API 未正確配置，請聯繫管理員設定 api_jwt_secret"})
 		return
 	}
 
@@ -116,25 +141,14 @@ func parsePagination(c *gin.Context) (int, int) {
 	page := 1
 	pagesize := 15
 	if p := c.Query("page"); p != "" {
-		if v, err := fmtAtoi(p); err == nil && v > 0 {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
 			page = v
 		}
 	}
 	if ps := c.Query("pagesize"); ps != "" {
-		if v, err := fmtAtoi(ps); err == nil && v > 0 && v <= 100 {
+		if v, err := strconv.Atoi(ps); err == nil && v > 0 && v <= 100 {
 			pagesize = v
 		}
 	}
 	return page, pagesize
-}
-
-func fmtAtoi(s string) (int, error) {
-	var v int
-	_, err := fmt.Sscanf(s, "%d", &v)
-	return v, err
-}
-
-// getCurrentTime 返回當前時間（用於格式化）
-func getCurrentTime() time.Time {
-	return time.Now()
 }

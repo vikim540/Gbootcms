@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,20 +85,7 @@ func InitMeiliSearch() {
 
 // isIndexAlreadyExistsError 判斷是否為「索引已存在」錯誤
 func isIndexAlreadyExistsError(err error) bool {
-	return err != nil && contains(err.Error(), "already exists")
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || indexOf(s, substr) >= 0)
-}
-
-func indexOf(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
+	return err != nil && strings.Contains(err.Error(), "already exists")
 }
 
 // IsMeiliAvailable 返回 MeiliSearch 是否可用

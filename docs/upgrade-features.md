@@ -140,49 +140,71 @@ CREATE TABLE ay_301_redirect (
 
 ### 4. RESTful API 系統
 
-**目標**：提供標準 RESTful API，支援前端分離、小程式、APP 開發。
+**目標**：提供標準 RESTful API，支援前端分離、小程式、APP 開發。不兼容 PbootCMS `api.php` 舊式路由與簽名體系。
 
 **認證方式**：
-- **JWT Bearer Token**：`Authorization: Bearer <token>`，登入後取得
-- **API Key**：`X-API-Key: <key>`，適合伺服器間通訊
+- **JWT Bearer Token**：`Authorization: Bearer <token>`，登入後取得（72h 有效期）
+- **API Key**：`X-API-Key: <key>` 或 query `?api_key=<key>`，適合伺服器間通訊
+- **常量時間比較**：密鑰/密碼比對使用 `crypto/subtle.ConstantTimeCompare`，防時序攻擊
+- **登入鎖定**：記憶體 TTL 鎖定機制（`sync.Map`），複用後台 `lock_count`/`lock_time` 配置
+- **CORS 跨域**：配置項 `api_cors_origins` 控制允許域名（逗號分隔，`*` 允許全部）
+- **JWT 密鑰**：配置項 `api_jwt_secret` 為空時 API 登入返回 500，啟動時 `slog.Warn` 警告
 
 **API 端點**：
 
-### 認證
+#### 認證
 
 | 端點 | 方法 | 認證 | 說明 |
 |------|------|------|------|
-| `/api/v1/auth/login` | POST | 公開 | 管理員登入，返回 JWT |
+| `/api/v1/auth/login` | POST | 公開 | 管理員登入，返回 JWT（含登入鎖定） |
 | `/api/v1/auth/refresh` | POST | JWT | 刷新 Token |
 
-### 資源
+#### 公開資源
 
 | 端點 | 方法 | 認證 | 說明 |
 |------|------|------|------|
 | `/api/v1/site` | GET | 公開 | 站點資訊 |
-| `/api/v1/sorts` | GET | 公開 | 欄目列表 |
+| `/api/v1/company` | GET | 公開 | 公司聯絡資訊 |
+| `/api/v1/sorts` | GET | 公開 | 欄目列表（支援 scode/mcode 篩選） |
 | `/api/v1/sorts/:scode` | GET | 公開 | 欄目詳情 |
-| `/api/v1/contents` | GET | 公開 | 內容列表（支援分頁、篩選） |
-| `/api/v1/contents/:id` | GET | 公開 | 內容詳情（含上/下一篇） |
-| `/api/v1/search` | GET | 公開 | 全文搜索（MeiliSearch 優先） |
-| `/api/v1/messages` | POST | 公開 | 提交留言 |
+| `/api/v1/nav` | GET | 公開 | 導航樹狀結構（含子欄目遞迴） |
+| `/api/v1/contents` | GET | 公開 | 內容列表（支援分頁、篩選、排序） |
+| `/api/v1/contents/:id` | GET | 公開 | 內容詳情（含上/下一篇、擴展字段） |
+| `/api/v1/contents/:id/images` | GET | 公開 | 內容附件圖片列表 |
+| `/api/v1/search` | GET | 公開 | 全文搜索（MeiliSearch 優先 + SQL LIKE 降級） |
+| `/api/v1/messages` | POST | 公開 | 提交留言（自動採集 IP/OS/UA + XSS 過濾 + 敏感詞） |
 | `/api/v1/slides` | GET | 公開 | 幻燈片列表 |
 | `/api/v1/links` | GET | 公開 | 友情連結列表 |
 | `/api/v1/tags` | GET | 公開 | 標籤列表 |
 
+#### 需認證資源
+
+| 端點 | 方法 | 認證 | 說明 |
+|------|------|------|------|
+| `/api/v1/messages` | GET | JWT/APIKey | 留言列表（支援分頁、狀態篩選） |
+| `/api/v1/forms/:fcode/fields` | GET | JWT/APIKey | 自定義表單字段定義 |
+| `/api/v1/forms/:fcode/data` | GET | JWT/APIKey | 自定義表單數據列表 |
+
 **查詢參數**：
-- `acode` — 語言代碼（預設使用系統預設語言）
-- `page` — 頁頁碼（預設 1）
-- `pagesize` — 每頁筆數（預設 15）
+- `page` — 頁碼（預設 1）
+- `pagesize` — 每頁筆數（預設 15，最大 100）
 - `scode` — 欄目編號
 - `mcode` — 模型編號
 - `keyword` — 搜尋關鍵字
+- `field` — 搜索字段（`title|keywords|description`，預設全部）
+- `fuzzy` — 模糊匹配開關（`1`=模糊，`0`=精準，預設 1）
 - `order` — 排序方式（date/visits/sorting）
+- `track` — 訪問量追蹤（`1`=累加瀏覽計數，預設不計數）
+- `gid` — 幻燈片/友情連結分組 ID
+- `status` — 留言狀態篩選
+
+**多語言**：所有 DB 查詢通過 `model.DB.WithContext(c.Request.Context())` 走 GORM AcodePlugin 自動注入 acode 過濾，無需手動拼接 `Where("acode = ?")`。
 
 **回應格式**：
 ```json
 {
     "code": 1,
+    "msg": "success",
     "data": [...],
     "meta": {
         "page": 1,
@@ -193,9 +215,10 @@ CREATE TABLE ay_301_redirect (
 ```
 
 **相關文件**：
-- `apps/api/middleware.go` — JWT + API Key 認證中介軟體
-- `apps/api/auth.go` — 登入、Token 刷新
-- `apps/api/resources.go` — 資源端點
+- `apps/api/middleware.go` — JWT + API Key 認證、CORS、登入鎖定
+- `apps/api/auth.go` — 登入、Token 刷新、分頁工具
+- `apps/api/resources.go` — 資源端點（含 AcodePlugin 整合）
+- `apps/api/meilisearch.go` — MeiliSearch 全文搜索整合
 - `apps/route/route.go` — `SetupAPIRoutes()`
 
 ---

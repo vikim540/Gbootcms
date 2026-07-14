@@ -22,7 +22,7 @@ go build -o bin/gbootcms.exe .
 
 - 前台：http://localhost:8080/
 - 後台：http://localhost:8080/admin
-- 預設帳號：`admin` / `admin`
+- 預設帳號：`admin` / `123456`
 
 ## 技術棧
 
@@ -70,6 +70,12 @@ go build -o bin/gbootcms.exe .
 - **會員等級**：等級列表/新增/修改/刪除（含狀態切換、刪除保護）
 - **會員欄位**：欄位列表/新增/修改/刪除（含必填切換、狀態切換）
 - **文章評論**：評論列表/詳情/回覆/刪除（含批量審核、Excel 匯出）
+- **RESTful API**：JWT + API Key 雙認證、CORS 跨域、登入鎖定、XSS 防護
+  - 站點/公司資訊、欄目導航樹、內容列表/詳情/多圖
+  - 全文搜索（MeiliSearch 優先 + SQL LIKE 降級）
+  - 留言提交（公開）/留言列表（需認證）
+  - 自定義表單字段定義/數據查詢（需認證）
+  - 幻燈片、友情連結、標籤列表
 
 ### 前台展示
 
@@ -114,6 +120,7 @@ pbootcms-go/
 ├── core/                      # 核心引擎（DB、模板、媒體插件）
 ├── apps/
 │   ├── route/                 # 路由註冊
+│   ├── api/                   # RESTful API（JWT + API Key 認證）
 │   ├── common/                # 公共組件（Session、BaseController、Parser）
 │   ├── admin/                 # 後台（Controller/Model/View/Service）
 │   └── home/                  # 前台（FrontController + MemberController）
@@ -133,6 +140,7 @@ pbootcms-go/
 |------|------|
 | [開發技術文檔](docs/pbootcms-go-dev-guide.md) | 完整技術文檔（含防遺忘清單、API 速查、反模式） |
 | [AI 開發指南](docs/AI_GUIDELINES.md) | AI 輔助開發約定 |
+| [功能升級文檔](docs/upgrade-features.md) | MeiliSearch、RESTful API、301 重定向等功能升級記錄 |
 | [多語言架構文檔](docs/multilingual.md) | 區域隔離、URL 前綴路由、語言切換器設計 |
 
 ## 開發約束

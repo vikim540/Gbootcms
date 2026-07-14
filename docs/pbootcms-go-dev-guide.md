@@ -775,3 +775,55 @@ if err != nil {
 | 權限攔截 | 雙欄位 `data` + `msg` | 視場景 | 視場景 |
 
 > `auth.go` 中的 AJAX 攔截回應必須同時包含 `data` 和 `msg` 欄位。通知文案**不加感嘆號**。
+
+---
+
+## 二十二、RESTful API 系統（2026-07-14 新增）
+
+### 22.1 架構概述
+
+API 模塊位於 `apps/api/`，採用標準 RESTful 設計，**不兼容 PbootCMS `api.php` 路由與 `appid+timestamp+MD5` 簽名體系**。
+
+| 文件 | 職責 |
+|------|------|
+| `apps/api/middleware.go` | JWT/API Key 認證、CORS、登入鎖定、公開路徑白名單 |
+| `apps/api/auth.go` | 登入、Token 刷新、分頁工具函數 |
+| `apps/api/resources.go` | 資源端點（站點、欄目、內容、搜索、留言、表單等） |
+| `apps/api/meilisearch.go` | MeiliSearch 全文搜索整合 |
+| `apps/route/route.go` | `SetupAPIRoutes()` 路由註冊 |
+
+### 22.2 認證機制
+
+- **JWT**：`Authorization: Bearer <token>`，72h 有效期，密鑰存於 `ay_config` 的 `api_jwt_secret`
+- **API Key**：`X-API-Key` header 或 `?api_key=` query，密鑰存於 `ay_config` 的 `api_key`
+- 密鑰/密碼比對必須用 `crypto/subtle.ConstantTimeCompare`（禁止 `==`）
+- 登入鎖定用記憶體 `sync.Map` + TTL，複用後台 `lock_count`/`lock_time` 配置
+
+### 22.3 公開 vs 需認證
+
+`isPublicAPIPath(path, method)` 按 HTTP 方法區分：
+- `POST /messages` 公開（留言提交），`GET /messages` 需認證（留言列表）
+- 所有 `GET` 資源查詢端點公開（site/company/sorts/contents/nav/slides/links/tags/search）
+- `auth/login` 和 `auth/refresh` 公開
+
+### 22.4 多語言整合
+
+所有 DB 查詢必須使用 `model.DB.WithContext(c.Request.Context())`，使 GORM AcodePlugin 自動注入 acode 過濾。**禁止手動拼接 `Where("acode = ?", acode)`**。
+
+### 22.5 安全約束
+
+- 留言提交必須：採集 IP/OS/UA/UID + `FilterUserInput()` + `FilterSensitiveWords()`
+- 訪問量追蹤用 `?track=1` 參數控制（預設不計數，避免 API 輪詢污染統計）
+- CORS 允許域名由 `api_cors_origins` 配置項控制
+- JWT 密鑰未配置時啟動 `slog.Warn` 警告，登入返回 500
+
+### 22.6 回應格式
+
+```go
+type apiResponse struct {
+    Code int         `json:"code"`           // 1=成功, 0=失敗
+    Msg  string      `json:"msg"`            // 訊息
+    Data interface{} `json:"data,omitempty"` // 數據
+    Meta *apiMeta    `json:"meta,omitempty"` // 分頁元資訊
+}
+```

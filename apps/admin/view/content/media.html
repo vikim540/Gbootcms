@@ -1,4 +1,6 @@
 {include file='common/head.html'}
+<!-- CSRF token（POST 請求需要） -->
+<input type="hidden" name="formcheck" id="formcheck" value="{$formcheck}">
 <style>
 .media-toolbar { display: flex; gap: 15px; padding: 12px 15px; background: #fafafa; border-bottom: 1px solid #eee; align-items: center; flex-wrap: wrap; }
 .media-toolbar .stat { font-size: 13px; color: #666; }
@@ -108,6 +110,17 @@ layui.use(['layer'], function(){
     var layer = layui.layer;
     var $ = _jq;
 
+    // ─── XSS 防護：HTML 轉義函數 ──────────────────────────
+    function esc(s) {
+        if (s == null) return '';
+        return String(s).replace(/[&<>"']/g, function(c) {
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+        });
+    }
+
+    // ─── CSRF 輔助：取得 formcheck token ──────────────────
+    function fc() { return $('#formcheck').val(); }
+
     var currentPage = 1;
     var currentFilter = 'all';
     var currentSearch = '';
@@ -162,18 +175,18 @@ layui.use(['layer'], function(){
             else if (f.used) { cls += ' is-used'; badge = '<span class="media-badge badge-used">已用</span>'; }
             else { cls += ' is-unused'; badge = '<span class="media-badge badge-unused">未用</span>'; }
 
-            html += '<div class="' + cls + '" data-path="' + f.path + '">';
+            html += '<div class="' + cls + '" data-path="' + esc(f.path) + '">';
             html += '<div class="media-thumb">';
             if (f.category === 'image') {
-                html += '<img src="/' + f.path + '" loading="lazy">';
+                html += '<img src="/' + esc(f.path) + '" loading="lazy">';
             } else {
                 html += '<i class="fa ' + getFileIcon(f.category) + ' file-icon"></i>';
             }
             html += badge;
             html += '</div>';
             html += '<div class="media-info">';
-            html += '<div class="name" title="' + f.name + '">' + f.name + '</div>';
-            html += '<div class="meta">' + f.size_str + '</div>';
+            html += '<div class="name" title="' + esc(f.name) + '">' + esc(f.name) + '</div>';
+            html += '<div class="meta">' + esc(f.size_str) + '</div>';
             html += '</div>';
             html += '<button class="mark-btn' + (f.marked ? ' is-marked' : '') + '" title="' + (f.marked ? '取消保護' : '標記保護') + '"><i class="fa ' + (f.marked ? 'fa-bookmark' : 'fa-bookmark-o') + '"></i></button>';
             html += '</div>';
@@ -252,7 +265,7 @@ layui.use(['layer'], function(){
         $.ajax({
             url: '/admin/content/media/mark',
             type: 'POST',
-            data: { path: path },
+            data: { path: path, formcheck: fc() },
             dataType: 'json',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             success: function(res) {
@@ -306,16 +319,16 @@ layui.use(['layer'], function(){
                 html += '<table class="layui-table" lay-skin="line" style="margin:0;">';
                 html += '<colgroup><col width="90"><col></colgroup>';
                 html += '<tbody>';
-                html += '<tr><td><i class="fa fa-file-o"></i> 文件名</td><td style="word-break:break-all;">' + d.name + '</td></tr>';
-                html += '<tr><td><i class="fa fa-folder-o"></i> 路徑</td><td style="word-break:break-all;color:#999;">' + d.path + '</td></tr>';
-                html += '<tr><td><i class="fa fa-database"></i> 大小</td><td>' + d.size_str + '</td></tr>';
+                html += '<tr><td><i class="fa fa-file-o"></i> 文件名</td><td style="word-break:break-all;">' + esc(d.name) + '</td></tr>';
+                html += '<tr><td><i class="fa fa-folder-o"></i> 路徑</td><td style="word-break:break-all;color:#999;">' + esc(d.path) + '</td></tr>';
+                html += '<tr><td><i class="fa fa-database"></i> 大小</td><td>' + esc(d.size_str) + '</td></tr>';
                 if (d.mime) {
-                    html += '<tr><td><i class="fa fa-tag"></i> 類型</td><td>' + d.mime + '</td></tr>';
+                    html += '<tr><td><i class="fa fa-tag"></i> 類型</td><td>' + esc(d.mime) + '</td></tr>';
                 }
                 if (d.dimension) {
-                    html += '<tr><td><i class="fa fa-arrows-alt"></i> 尺寸</td><td>' + d.dimension + '</td></tr>';
+                    html += '<tr><td><i class="fa fa-arrows-alt"></i> 尺寸</td><td>' + esc(d.dimension) + '</td></tr>';
                 }
-                html += '<tr><td><i class="fa fa-clock-o"></i> 修改時間</td><td>' + d.mod_time + '</td></tr>';
+                html += '<tr><td><i class="fa fa-clock-o"></i> 修改時間</td><td>' + esc(d.mod_time) + '</td></tr>';
                 html += '</tbody></table>';
 
                 html += '<div style="margin-top:15px;">';
@@ -327,7 +340,7 @@ layui.use(['layer'], function(){
                     html += '<tbody>';
                     for (var i = 0; i < d.usages.length; i++) {
                         var u = d.usages[i];
-                        html += '<tr><td>' + u.table + '</td><td>' + u.id + '</td><td>' + (u.name||'-') + '</td><td>' + u.field + '</td></tr>';
+                        html += '<tr><td>' + esc(u.table) + '</td><td>' + esc(u.id) + '</td><td>' + esc(u.name||'-') + '</td><td>' + esc(u.field) + '</td></tr>';
                     }
                     html += '</tbody></table>';
                 } else {
@@ -337,7 +350,7 @@ layui.use(['layer'], function(){
 
                 if (d.category === 'image') {
                     html += '<div style="margin-top:15px;text-align:center;">';
-                    html += '<img src="/' + d.path + '" style="max-width:100%;max-height:300px;border:1px solid #eee;border-radius:4px;">';
+                    html += '<img src="/' + esc(d.path) + '" style="max-width:100%;max-height:300px;border:1px solid #eee;border-radius:4px;">';
                     html += '</div>';
                 }
 
@@ -368,7 +381,7 @@ layui.use(['layer'], function(){
                 $.ajax({
                     url: '/admin/content/media/clean',
                     type: 'POST',
-                    data: {},
+                    data: { formcheck: fc() },
                     dataType: 'json',
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     success: function(res) {
@@ -411,16 +424,16 @@ layui.use(['layer'], function(){
                         var isImg = ['jpg','jpeg','png','gif','bmp','webp','avif','svg','ico'].indexOf(ext) >= 0;
                         html += '<div class="backup-item">';
                         if (isImg) {
-                            html += '<img src="/static/backup/media/' + f.path + '">';
+                            html += '<img src="/static/backup/media/' + esc(f.path) + '">';
                         } else {
                             html += '<div class="bi-icon"><i class="fa fa-file-o"></i></div>';
                         }
                         html += '<div class="bi-info">';
-                        html += '<div class="bi-name" title="' + f.name + '">' + f.name + '</div>';
-                        html += '<div class="bi-meta">' + f.size_str + ' · ' + f.mod_time + '</div>';
+                        html += '<div class="bi-name" title="' + esc(f.name) + '">' + esc(f.name) + '</div>';
+                        html += '<div class="bi-meta">' + esc(f.size_str) + ' · ' + esc(f.mod_time) + '</div>';
                         html += '</div>';
                         html += '<div class="bi-actions">';
-                        html += '<button class="layui-btn layui-btn-xs layui-btn-normal btn-restore" data-path="' + f.path + '"><i class="fa fa-undo"></i> 還原</button>';
+                        html += '<button class="layui-btn layui-btn-xs layui-btn-normal btn-restore" data-path="' + esc(f.path) + '"><i class="fa fa-undo"></i> 還原</button>';
                         html += '</div>';
                         html += '</div>';
                     }
@@ -452,7 +465,7 @@ layui.use(['layer'], function(){
         $.ajax({
             url: '/admin/content/media/restore',
             type: 'POST',
-            data: { path: path },
+            data: { path: path, formcheck: fc() },
             dataType: 'json',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             success: function(res) {
@@ -475,6 +488,7 @@ layui.use(['layer'], function(){
                 $.ajax({
                     url: '/admin/content/media/backupClear',
                     type: 'POST',
+                    data: { formcheck: fc() },
                     dataType: 'json',
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     success: function(res) {
@@ -497,6 +511,7 @@ layui.use(['layer'], function(){
                 $.ajax({
                     url: '/admin/content/media/refresh',
                     type: 'POST',
+                    data: { formcheck: fc() },
                     dataType: 'json',
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     success: function(res) {

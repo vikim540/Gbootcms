@@ -107,11 +107,27 @@ func (cf *ConfigController) Index(c *gin.Context) {
 				val = strings.ReplaceAll(val, "，", ",")
 			}
 			// 危險擴展名過濾（對齊 PHP ConfigController.php:199-204）
+			// 改用精確比對取代正則子串匹配，避免 sh 誤匹配 flash 等合法副檔名
 			if name == "home_upload_ext" {
-				dangerExt := regexp.MustCompile(`(?i)(php|jsp|asp|exe|sh|cmd|vb|vbs|phtml)`)
-				if dangerExt.MatchString(val) {
-					cf.JSONFail(c, "上傳副檔名包含危險類型（php/jsp/asp/exe 等），已拒絕")
-					return
+				dangerExts := map[string]bool{
+					"php": true, "php3": true, "php4": true, "php5": true, "php7": true,
+					"phtml": true, "pht": true, "phar": true, "shtml": true,
+					"jsp": true, "jspx": true, "asp": true, "aspx": true, "asa": true, "cer": true,
+					"exe": true, "com": true, "bat": true, "cmd": true, "scr": true, "msi": true,
+					"sh": true, "bash": true, "csh": true, "zsh": true,
+					"vb": true, "vbs": true, "vbe": true,
+					"cgi": true, "pl": true, "py": true, "rb": true,
+					"htaccess": true, "htc": true,
+					"svg": true, "html": true, "htm": true, "js": true, "mjs": true,
+					"xml": true, "xsl": true, "xslt": true,
+					"ws": true, "wsf": true, "wsh": true, "pif": true,
+				}
+				for _, ext := range strings.Split(val, ",") {
+					ext = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(ext), ".")))
+					if dangerExts[ext] {
+						cf.JSONFail(c, "上傳副檔名包含危險類型（"+ext+"），已拒絕")
+						return
+					}
 				}
 			}
 			var config model.Config
