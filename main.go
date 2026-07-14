@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	home "gbootcms/apps/home/controller"
 	"gbootcms/apps/admin/model"
@@ -74,8 +75,17 @@ func main() {
 	}
 	defer model.CloseDB()
 
-	// 註冊 HTML 緩存清除回調（後台任何數據變更自動清除前台快取）
-	gdb.OnDataChange = middleware.ClearHTMLCache
+	// 註冊數據變更回調：後台任何 Create/Update/Delete 自動清除所有快取
+	// 1. HTML 頁面快取（middleware.ClearHTMLCache）
+	// 2. 配置快取（model.ClearConfigCache）— GetConfigValue 不再逐次查 SQL
+	// 3. 區域快取（model.ClearAreasCache）— 6+ 處共用一份記憶體
+	// 4. Site/Company 快取（home.ClearDataCache）— buildContext 不再逐次查 SQL
+	gdb.OnDataChange = func() {
+		middleware.ClearHTMLCache()
+		model.ClearConfigCache()
+		model.ClearAreasCache()
+		home.ClearDataCache()
+	}
 
 	// AutoMigrate all models: system + content + member
 	system.AutoMigrate()
@@ -287,6 +297,21 @@ func main() {
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
 	slog.Info("Gbootcms 已啟動", "url", "http://localhost"+addr)
 	slog.Info("後台管理", "url", "http://localhost"+addr+"/admin")
+
+	// 啟動時預熱快取：對首頁發一次內部 HTTP 請求，填充記憶體快取
+	// 這樣第一個真實訪客也不會遇到冷緩存的高延遲
+	go func() {
+		time.Sleep(500 * time.Millisecond) // 等待 HTTP 伺服器完全就緒
+		warmURL := fmt.Sprintf("http://localhost%s/", addr)
+		resp, err := http.Get(warmURL)
+		if err != nil {
+			slog.Warn("快取預熱失敗", "error", err)
+			return
+		}
+		resp.Body.Close()
+		slog.Info("快取預熱完成", "url", warmURL, "status", resp.StatusCode)
+	}()
+
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}

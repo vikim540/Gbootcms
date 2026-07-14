@@ -26,6 +26,61 @@ import (
 
 // 統一驗證碼已移至 apps/common/captcha.go
 
+// ──────────────────────────────────────────────
+// 公共數據快取 — site/company 極少變化，用記憶體快取避免每個請求重複查詢
+// 由 GORM 回調 ClearDataCache() 連帶清除（在 main.go 中組合）
+// areas 快取統一放在 model.GetCachedAreas()，此處不再重複
+// ──────────────────────────────────────────────
+
+type dataCacheEntry struct {
+	site    *model.Site
+	company *model.Company
+}
+
+var dataCache sync.Map // key: acode(string), value: dataCacheEntry
+
+// getCachedSite 從記憶體快取取得 Site（未命中則查 DB 並快取）
+func getCachedSite(c *gin.Context) *model.Site {
+	acode := acodeplugin.GetAcode(c.Request.Context())
+	if v, ok := dataCache.Load(acode); ok {
+		return v.(dataCacheEntry).site
+	}
+	var site model.Site
+	if model.DB.WithContext(c.Request.Context()).First(&site).Error == nil {
+		dataCache.Store(acode, dataCacheEntry{site: &site})
+		return &site
+	}
+	return nil
+}
+
+// getCachedCompany 從記憶體快取取得 Company（未命中則查 DB 並快取）
+func getCachedCompany(c *gin.Context) *model.Company {
+	acode := acodeplugin.GetAcode(c.Request.Context())
+	if v, ok := dataCache.Load(acode); ok {
+		return v.(dataCacheEntry).company
+	}
+	var company model.Company
+	if model.DB.WithContext(c.Request.Context()).First(&company).Error == nil {
+		// 更新快取（保留可能已存在的 site）
+		entry, _ := dataCache.Load(acode)
+		s := (*model.Site)(nil)
+		if entry != nil {
+			s = entry.(dataCacheEntry).site
+		}
+		dataCache.Store(acode, dataCacheEntry{site: s, company: &company})
+		return &company
+	}
+	return nil
+}
+
+// ClearDataCache 清除公共數據快取（由 GORM 回調觸發）
+func ClearDataCache() {
+	dataCache.Range(func(key, value interface{}) bool {
+		dataCache.Delete(key)
+		return true
+	})
+}
+
 // rateLimitInterval 頻率限制間隔（秒）
 const rateLimitInterval = 60
 
@@ -1106,12 +1161,14 @@ func (fc *FrontController) buildContext(c *gin.Context) *parser.Context {
 	}
 
 	var site model.Site
-	if model.DB.WithContext(c.Request.Context()).First(&site).Error == nil {
+	if s := getCachedSite(c); s != nil {
+		site = *s
 		ctx.Site = &site
 	}
 
 	var company model.Company
-	if model.DB.WithContext(c.Request.Context()).First(&company).Error == nil {
+	if comp := getCachedCompany(c); comp != nil {
+		company = *comp
 		ctx.Company = &company
 	}
 
@@ -1177,8 +1234,7 @@ func rewriteLangLinks(htmlContent string, ctx context.Context) string {
 	}
 
 	// 查默認區域：默認語言不需要重寫
-	var areas []model.Area
-	model.DB.WithContext(acodeplugin.SkipAcode(ctx)).Find(&areas)
+	areas := model.GetCachedAreas()
 	isDefault := false
 	for _, a := range areas {
 		if a.Acode == acode && a.IsDefault == "1" {

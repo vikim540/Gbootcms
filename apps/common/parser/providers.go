@@ -1013,8 +1013,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 	// 用法：{gboot:language}[language:name]{/gboot:language}
 	// 切換時保持當前頁面路徑（如 /sc/article → /tc/article → /en/article）
 	p.Register("language", func(tagName string, params map[string]string, inner string) string {
-		var areas []model.Area
-		model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Order("pcode, acode").Find(&areas)
+		areas := model.GetCachedAreas()
 		if len(areas) <= 1 {
 			return ""
 		}
@@ -2378,8 +2377,7 @@ func currentHomePath(ctx *Context) string {
 		return "/"
 	}
 	// 查默認區域
-	var areas []model.Area
-	model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Find(&areas)
+	areas := model.GetCachedAreas()
 	for _, a := range areas {
 		if a.IsDefault == "1" && a.Acode == acode {
 			return "/"
@@ -2404,8 +2402,7 @@ func acodeToHreflang(acode string) string {
 
 // buildHreflang 生成 hreflang 標籤組（自引用 + 雙向對稱 + x-default）
 func buildHreflang(ctx *Context) string {
-	var areas []model.Area
-	model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Find(&areas)
+	areas := model.GetCachedAreas()
 	if len(areas) <= 1 {
 		return ""
 	}
@@ -2490,8 +2487,7 @@ func buildCanonical(ctx *Context) string {
 
 	link := currentPath
 	if acode != "" {
-		var areas []model.Area
-		model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Find(&areas)
+		areas := model.GetCachedAreas()
 		isDefault := false
 		for _, a := range areas {
 			if a.Acode == acode && a.IsDefault == "1" {
@@ -2553,8 +2549,7 @@ func buildOpenGraph(ctx *Context) string {
 
 	link := currentPath
 	if acode != "" {
-		var areas []model.Area
-		model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Find(&areas)
+		areas := model.GetCachedAreas()
 		isDefault := false
 		for _, a := range areas {
 			if a.Acode == acode && a.IsDefault == "1" {
@@ -2593,9 +2588,7 @@ func buildOpenGraph(ctx *Context) string {
 	sb.WriteString(fmt.Sprintf(`<meta property="og:locale" content="%s" />`, acodeToLocale(acode)))
 
 	// og:locale:alternate — 其他語言
-	var areas []model.Area
-	model.DB.WithContext(acodeplugin.SkipAcode(ctx.Ctx)).Find(&areas)
-	for _, a := range areas {
+	for _, a := range model.GetCachedAreas() {
 		if a.Acode != acode {
 			sb.WriteString(fmt.Sprintf(`<meta property="og:locale:alternate" content="%s" />`, acodeToLocale(a.Acode)))
 		}

@@ -5,8 +5,11 @@
 package model
 
 import (
+	"context"
 	"gbootcms/config"
+	"gbootcms/core/acodeplugin"
 	"gbootcms/core/db"
+	"sync"
 
 	// Import sub-packages so their AutoMigrate / helpers are accessible.
 	"gbootcms/apps/admin/model/content"
@@ -75,18 +78,91 @@ type Comment = member.MemberComment
 type CommentView = member.CommentView
 
 // ──────────────────────────────────────────────
-// Helper functions (previously missing)
+// Config cache — 避免每個請求 15+ 次 SQL 查 ay_config
+// 後台修改配置後由 GORM 回調自動清除
 // ──────────────────────────────────────────────
 
-// GetConfigValue reads a config value by name, returning defaultVal if not found or empty.
-func GetConfigValue(name, defaultVal string) string {
-	var cfg system.Config
-	if db.DB.Where("name = ?", name).First(&cfg).Error == nil {
-		if cfg.Value != "" {
-			return cfg.Value
+var (
+	configCache   map[string]string
+	configCacheMu sync.RWMutex
+	configCacheOK bool
+)
+
+// preloadConfigCache 一次性載入所有配置到記憶體
+func preloadConfigCache() {
+	var configs []system.Config
+	db.DB.Find(&configs)
+	m := make(map[string]string, len(configs))
+	for _, c := range configs {
+		if c.Value != "" {
+			m[c.Name] = c.Value
 		}
 	}
+	configCacheMu.Lock()
+	configCache = m
+	configCacheOK = true
+	configCacheMu.Unlock()
+}
+
+// ClearConfigCache 清除配置快取（由 GORM 回調觸發）
+func ClearConfigCache() {
+	configCacheMu.Lock()
+	configCacheOK = false
+	configCache = nil
+	configCacheMu.Unlock()
+}
+
+// GetConfigValue reads a config value by name, returning defaultVal if not found or empty.
+// 使用記憶體快取，避免每次調用都查 SQL
+func GetConfigValue(name, defaultVal string) string {
+	configCacheMu.RLock()
+	if !configCacheOK {
+		configCacheMu.RUnlock()
+		preloadConfigCache()
+		configCacheMu.RLock()
+	}
+	if v, ok := configCache[name]; ok {
+		configCacheMu.RUnlock()
+		return v
+	}
+	configCacheMu.RUnlock()
 	return defaultVal
+}
+
+// ──────────────────────────────────────────────
+// Areas cache — 區域列表極少變化，6+ 處查詢共用一份記憶體快取
+// ──────────────────────────────────────────────
+
+var (
+	areasCache     []Area
+	areasCacheMu   sync.RWMutex
+	areasCacheReady bool
+)
+
+// GetCachedAreas 返回快取的區域列表（未命中則查 DB 並快取）
+func GetCachedAreas() []Area {
+	areasCacheMu.RLock()
+	if areasCacheReady {
+		defer areasCacheMu.RUnlock()
+		return areasCache
+	}
+	areasCacheMu.RUnlock()
+
+	var areas []Area
+	db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Order("pcode, acode").Find(&areas)
+	areasCacheMu.Lock()
+	areasCache = areas
+	areasCacheReady = true
+	areasCacheMu.Unlock()
+	return areas
+}
+
+// ClearAreasCache 清除區域快取（由 GORM 回調觸發）
+func ClearAreasCache() {
+	areasCacheMu.Lock()
+	areasCacheReady = false
+	areasCache = nil
+	areasCacheMu.Unlock()
 }
 
 // GetDBName returns the current database file name from config.

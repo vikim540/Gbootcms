@@ -51,7 +51,7 @@ echo [Step 3/4] Copying files...
 :: Binary
 copy "%APP_DIR%bin\gbootcms" "%PKG_DIR%\bin\" >nul
 
-:: Config (port changed to 8081)
+:: Config (port: 8080, 與本地開發一致)
 powershell -Command "(Get-Content '%APP_DIR%config\config.json') -replace '\"port\": 8080', '\"port\": %LINUX_PORT%' | Set-Content '%PKG_DIR%\config\config.json' -Encoding UTF8"
 
 :: Database
@@ -130,8 +130,8 @@ echo  5. As service:        cp gbootcms.service /etc/systemd/system/
 echo                        systemctl daemon-reload ^&^& systemctl enable gbootcms
 echo                        systemctl start gbootcms
 echo.
-echo  Site:  http://your-server:8081
-echo  Admin: http://your-server:8081/admin
+echo  Site:  http://your-server:%LINUX_PORT%
+echo  Admin: http://your-server:%LINUX_PORT%/admin
 echo ========================================
 echo.
 pause
