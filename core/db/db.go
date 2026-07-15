@@ -103,10 +103,9 @@ func InitDB(cfg *config.Config) error {
 		}
 		// 這些表的變更不需要清除快取（純統計/日誌用途）
 		skipTables := map[string]bool{
-			"syslog":          true, // 系統日誌
-			"member":          true, // 會員資料（不影響前台頁面）
-			"member_comment":  true, // 評論數據（評論單獨 AJAX 加載）
-			"message":         true, // 留言（不影響已渲染頁面）
+			"syslog": true, // 系統日誌
+			"member": true, // 會員資料（不影響前台頁面）
+			"message": true, // 留言（不影響已渲染頁面）
 		}
 		if skipTables[tableName] {
 			return

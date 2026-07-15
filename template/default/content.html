@@ -7,7 +7,7 @@
     <meta name="description" content="{content:description}">
 </head>
 <body>
-    {include file=head.html}
+    {include file=comm/head.html}
 
     <div class="breadcrumb">{gboot:position separator=/}</div>
 
@@ -42,7 +42,12 @@
 
     {include file=comm/comment.html}
 
-    {include file=foot.html}
+<script>
+// 訪問量異步統計（不阻塞渲染，GORM 回調已過濾 visits 欄位不清快取）
+$.get('/api/visits?id={content:id}');
+</script>
+
+    {include file=comm/foot.html}
 
     {gboot:if({gboot:likesstatus})}
     <script>

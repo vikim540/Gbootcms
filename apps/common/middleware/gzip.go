@@ -59,6 +59,7 @@ func Compress() gin.HandlerFunc {
 
 		// 快取命中時 HTMLCache 已預壓縮，直接輸出不重複壓縮
 		if c.GetBool("pre-compressed") {
+			cw.Header().Del("Content-Length") // 預壓縮內容長度與原始不同，必須刪除
 			cw.ResponseWriter.WriteHeader(cw.Status())
 			cw.ResponseWriter.Write(cw.buf.Bytes())
 			return
