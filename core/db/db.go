@@ -128,11 +128,33 @@ func InitDB(cfg *config.Config) error {
 		if skipTables[tableName] {
 			return
 		}
-		// visits/likes/oppose 欄位更新不清除快取
-		if db.Statement != nil && len(db.Statement.Selects) > 0 {
-			for _, col := range db.Statement.Selects {
-				if col == "visits" || col == "likes" || col == "oppose" ||
-					col == "login_count" || col == "last_login_ip" || col == "last_login_time" || col == "score" {
+		// visits/likes/oppose 等統計欄位更新不清除快取
+		// 雙重檢查：Statement.Selects（Select().Update() 鏈式）+ Statement.Dest（UpdateColumn/Update/Updates）
+		// 注意：GORM 的 UpdateColumn("visits", ...) 只設 Dest 不設 Selects，
+		// 因此必須同時檢查 Dest 才能攔截所有路徑
+		skipCols := map[string]bool{
+			"visits": true, "likes": true, "oppose": true,
+			"login_count": true, "last_login_ip": true, "last_login_time": true, "score": true,
+		}
+		if db.Statement != nil {
+			// 路徑 1：Select("visits").Update(...) 設置 Selects
+			if len(db.Statement.Selects) > 0 {
+				for _, col := range db.Statement.Selects {
+					if skipCols[col] {
+						return
+					}
+				}
+			}
+			// 路徑 2：UpdateColumn("visits", ...) / Update("visits", ...) 設置 Dest 為 map
+			if dest, ok := db.Statement.Dest.(map[string]interface{}); ok && len(dest) > 0 {
+				allSkipped := true
+				for col := range dest {
+					if !skipCols[col] {
+						allSkipped = false
+						break
+					}
+				}
+				if allSkipped {
 					return
 				}
 			}

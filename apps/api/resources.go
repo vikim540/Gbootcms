@@ -280,10 +280,10 @@ func GetContent(c *gin.Context) {
 		return
 	}
 
-	// 可選訪問量追蹤（使用 gorm.Expr 避免競態條件）
+	// 可選訪問量追蹤（使用 .Exec() 繞過 GORM 回調，避免觸發快取失效）
 	if c.Query("track") == "1" {
-		dbCtx(c).Model(&model.Content{}).Where("id = ?", ct.ID).
-			UpdateColumn("visits", gorm.Expr("visits + 1"))
+		// 使用 .Exec() 原始 SQL 繞過 GORM 回調（避免觸發快取失效）
+		dbCtx(c).Exec("UPDATE ay_content SET visits = visits + 1 WHERE id = ?", ct.ID)
 	}
 
 	// 載入擴展字段

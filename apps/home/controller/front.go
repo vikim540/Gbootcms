@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // 統一驗證碼已移至 apps/common/captcha.go
@@ -740,8 +739,11 @@ func (fc *FrontController) Visits(c *gin.Context) {
 			c.String(http.StatusOK, "ok")
 			return
 		}
-		model.DB.WithContext(c.Request.Context()).Model(&content.Content{}).Where("id = ?", id).
-			UpdateColumn("visits", gorm.Expr("visits + 1"))
+		// 使用 .Exec() 原始 SQL 繞過 GORM 回調
+		// UpdateColumn 會觸發 GORM after:update 回調，且不設置 Statement.Selects，
+		// 導致 db.go 的 column skip 無法攔截 → OnDataChange → InvalidateTag("content:list") → 快取反覆失效
+		model.DB.WithContext(c.Request.Context()).
+			Exec("UPDATE ay_content SET visits = visits + 1 WHERE id = ?", id)
 		c.SetCookie(cookieName, "1", 1800, "/", "", false, true)
 	}
 	c.String(http.StatusOK, "ok")
@@ -758,7 +760,7 @@ func (fc *FrontController) addVisits(c *gin.Context, id int) {
 		return
 	}
 	// 記憶體快取永遠開啟，訪問量由前端異步請求 /api/visits 處理，不自增
-	// 否則 UpdateColumn("visits") 會觸發 GORM 回調清除所有快取，導致快取失效
+	// /api/visits 使用 .Exec() 原始 SQL，不觸發 GORM 回調，不影響快取
 	return
 }
 
@@ -802,8 +804,9 @@ func (fc *FrontController) Likes(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "內容不存在"})
 		return
 	}
-	model.DB.WithContext(c.Request.Context()).Model(&content.Content{}).Where("id = ?", id).
-		UpdateColumn("likes", gorm.Expr("likes + 1"))
+	// 使用 .Exec() 原始 SQL 繞過 GORM 回調（同 Visits 方法，避免觸發快取失效）
+	model.DB.WithContext(c.Request.Context()).
+		Exec("UPDATE ay_content SET likes = likes + 1 WHERE id = ?", id)
 	c.SetCookie(cookieName, "1", 31536000, "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "點讚成功", "likes": ct.Likes + 1})
 }
@@ -833,8 +836,9 @@ func (fc *FrontController) Oppose(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "內容不存在"})
 		return
 	}
-	model.DB.WithContext(c.Request.Context()).Model(&content.Content{}).Where("id = ?", id).
-		UpdateColumn("oppose", gorm.Expr("oppose + 1"))
+	// 使用 .Exec() 原始 SQL 繞過 GORM 回調（同 Visits 方法，避免觸發快取失效）
+	model.DB.WithContext(c.Request.Context()).
+		Exec("UPDATE ay_content SET oppose = oppose + 1 WHERE id = ?", id)
 	c.SetCookie(cookieName, "1", 31536000, "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "反對成功", "oppose": ct.Oppose + 1})
 }
