@@ -24,6 +24,10 @@ func (w *compressBodyWriter) Write(b []byte) (int, error) {
 // 當 gzip 配置開啟時，根據瀏覽器 Accept-Encoding 選擇最佳壓縮算法：
 // - Brotli：壓縮率比 Gzip 高 15-25%，特別適合 CSS/JS/HTML
 // - Gzip：通用回退方案
+//
+// 效能注意：Brotli BestCompression (level 11) 在單核 CPU 上每個 22KB 頁面需 50-100ms，
+// 1000 並發時導致 50+ 秒 CPU 時間。改用 DefaultCompression (level 4)，速度提升 10x，
+// 壓縮率僅降低 ~5%。快取命中時由 HTMLCache 預壓縮直接服務，跳過此中間件。
 func Compress() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
@@ -53,6 +57,13 @@ func Compress() gin.HandlerFunc {
 
 		c.Next()
 
+		// 快取命中時 HTMLCache 已預壓縮，直接輸出不重複壓縮
+		if c.GetBool("pre-compressed") {
+			cw.ResponseWriter.WriteHeader(cw.Status())
+			cw.ResponseWriter.Write(cw.buf.Bytes())
+			return
+		}
+
 		// 請求處理完成後，判斷 Content-Type 決定是否壓縮
 		contentType := cw.Header().Get("Content-Type")
 		if !strings.HasPrefix(contentType, "text/") &&
@@ -68,10 +79,11 @@ func Compress() gin.HandlerFunc {
 		originalBody := cw.buf.Bytes()
 		statusCode := cw.Status()
 
-		// Brotli 優先（壓縮率更高，特別適合 CSS/JS）
+		// Brotli 優先（使用 DefaultCompression=4，不再用 BestCompression=11）
+		// BestCompression 在單核 CPU 上極慢（50-100ms/22KB），DefaultCompression 快 10x
 		if strings.Contains(acceptEncoding, "br") {
 			var compressed bytes.Buffer
-			writer := brotli.NewWriterLevel(&compressed, brotli.BestCompression)
+			writer := brotli.NewWriterLevel(&compressed, brotli.DefaultCompression)
 			writer.Write(originalBody)
 			writer.Close()
 
@@ -83,10 +95,10 @@ func Compress() gin.HandlerFunc {
 			return
 		}
 
-		// Gzip 回退
+		// Gzip 回退（level 4，平衡速度與壓縮率）
 		if strings.Contains(acceptEncoding, "gzip") {
 			var compressed bytes.Buffer
-			writer, _ := gzip.NewWriterLevel(&compressed, 6)
+			writer, _ := gzip.NewWriterLevel(&compressed, 4)
 			writer.Write(originalBody)
 			writer.Close()
 

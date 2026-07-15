@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/md5"
 	"fmt"
 	"net/http"
@@ -21,10 +22,10 @@ import (
 // --- 記憶體緩存層（永遠開啟，無需配置） ---
 
 type memCacheEntry struct {
-	content  []byte
-	expireAt int64
-	// staleUntil: 過期後仍可作為 stale 返回的截止時間
-	staleUntil int64
+	content     []byte
+	gzipContent []byte // 預壓縮 gzip 內容（level 6），快取命中時直接服務，跳過壓縮 CPU 開銷
+	expireAt    int64
+	staleUntil  int64
 }
 
 var (
@@ -32,16 +33,45 @@ var (
 	sfGroup  singleflight.Group
 )
 
+// gzipBytes 將數據壓縮為 gzip（level 6，平衡速度與壓縮率）
+func gzipBytes(data []byte) []byte {
+	var buf bytes.Buffer
+	w, _ := gzip.NewWriterLevel(&buf, 6)
+	w.Write(data)
+	w.Close()
+	return buf.Bytes()
+}
+
+// serveCacheEntry 服務快取條目：優先返回預壓縮 gzip（避免壓縮 CPU 開銷），否則返回原始內容
+// 返回 true 表示已服務（呼叫者應 return），false 表示繼續走壓縮流程
+func serveCacheEntry(c *gin.Context, entry memCacheEntry, cacheHeader string) bool {
+	acceptEncoding := c.GetHeader("Accept-Encoding")
+	if strings.Contains(acceptEncoding, "gzip") && len(entry.gzipContent) > 0 {
+		// 預壓縮命中：直接返回 gzip 內容，Compress 中間件看到 flag 後跳過壓縮
+		c.Set("pre-compressed", true)
+		c.Header("Content-Encoding", "gzip")
+		c.Header("Vary", "Accept-Encoding")
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.Header("X-Cache", cacheHeader+"-GZ")
+		c.Data(http.StatusOK, "text/html; charset=utf-8", entry.gzipContent)
+		c.Abort()
+		return true
+	}
+	// 客戶端不支援 gzip，返回原始內容（Compress 會用 Brotli/gzip 壓縮）
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.Header("X-Cache", cacheHeader)
+	c.Data(http.StatusOK, "text/html; charset=utf-8", entry.content)
+	c.Abort()
+	return true
+}
+
 // ClearHTMLCache 清除所有 HTML 緩存（記憶體 + 檔案）
-// 後台發布/編輯/刪除內容時呼叫
 func ClearHTMLCache() {
-	// 清除記憶體緩存
 	memCache.Range(func(key, value interface{}) bool {
 		memCache.Delete(key)
 		return true
 	})
 
-	// 清除檔案緩存
 	cacheDir := filepath.Join("runtime", "cache")
 	entries, err := os.ReadDir(cacheDir)
 	if err == nil {
@@ -68,38 +98,36 @@ type renderResult struct {
 	status      int
 	contentType string
 	body        []byte
-	cacheSource string // "FRESH"=剛渲染, "STALE"=過期但可用, "SF"=singleflight共享
+	gzipBody    []byte // 預壓縮 gzip 內容
+	cacheSource string
 }
 
 // HTMLCache 動態頁面緩存中間件
 // 記憶體緩存永遠開啟（TTL 由 tpl_html_cache_time 控制，預設 900 秒）
 // 使用 singleflight 防止快取擊穿 + stale-while-revalidate 避免阻塞
+// 快取預壓縮：存入快取時計算 gzip，命中時直接服務預壓縮內容，跳過壓縮 CPU 開銷
 // 檔案緩存由 tpl_html_cache 配置項控制（跨重啟持久化）
 // 帶 p（pathinfo）或 s（搜索）參數的請求不快取
 // 已登入會員不快取（避免個人化內容被快取導致資訊洩露）
 func HTMLCache() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		// 後台、API、靜態資源不快取
 		if strings.HasPrefix(path, "/admin") || strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/static") || strings.HasPrefix(path, "/template") {
 			c.Next()
 			return
 		}
 
-		// 帶 p 或 s 參數的請求不快取
 		if c.Query("p") != "" || c.Query("s") != "" {
 			c.Next()
 			return
 		}
 
-		// 已登入會員不快取（安全：避免個人化內容洩露給其他用戶）
 		if uid := common.GetSessionInt(c, "pboot_uid"); uid > 0 {
 			c.Next()
 			return
 		}
 
-		// 快取 TTL
 		cacheTTL := 900 * time.Second
 		if v := model.GetConfigValue("tpl_html_cache_time", "900"); v != "" {
 			if sec, err := time.ParseDuration(v + "s"); err == nil && sec > 0 {
@@ -107,42 +135,30 @@ func HTMLCache() gin.HandlerFunc {
 			}
 		}
 
-		// stale 寬限期：過期後仍可返回舊數據的時間（TTL 的 50%）
 		staleGrace := int64(cacheTTL.Seconds()) / 2
 		if staleGrace < 60 {
-			staleGrace = 60 // 至少 60 秒 stale 寬限
+			staleGrace = 60
 		}
 
-		// 計算快取鍵
 		cacheKey := fmt.Sprintf("%s%s", c.Request.Host, c.Request.RequestURI)
 		cacheKeyHash := fmt.Sprintf("%x", md5.Sum([]byte(cacheKey)))
 		now := time.Now().Unix()
 
-		// --- 第一層：記憶體緩存（永遠開啟） ---
+		// --- 第一層：記憶體緩存 ---
 		if entry, ok := memCache.Load(cacheKeyHash); ok {
 			e := entry.(memCacheEntry)
 			if now < e.expireAt {
-				// 快取有效，直接返回
-				c.Header("Content-Type", "text/html; charset=utf-8")
-				c.Header("X-Cache", "HIT-MEM")
-				c.Data(http.StatusOK, "text/html; charset=utf-8", e.content)
-				c.Abort()
+				serveCacheEntry(c, e, "HIT-MEM")
 				return
 			}
-			// 快取已過期，但在 stale 寬限期內：直接返回舊數據
-			// 快取自然過期（staleUntil 到期）後由 singleflight 重新渲染
 			if now < e.staleUntil {
-				c.Header("Content-Type", "text/html; charset=utf-8")
-				c.Header("X-Cache", "HIT-STALE")
-				c.Data(http.StatusOK, "text/html; charset=utf-8", e.content)
-				c.Abort()
+				serveCacheEntry(c, e, "HIT-STALE")
 				return
 			}
-			// 超過 stale 寬限期，刪除舊快取
 			memCache.Delete(cacheKeyHash)
 		}
 
-		// --- 第二層：檔案緩存（由 tpl_html_cache 控制開關） ---
+		// --- 第二層：檔案緩存 ---
 		fileCacheEnabled := model.GetConfigValue("tpl_html_cache", "0") == "1"
 		cacheFile := filepath.Join("runtime", "cache", cacheKeyHash+".html")
 
@@ -151,25 +167,23 @@ func HTMLCache() gin.HandlerFunc {
 				if time.Since(info.ModTime()) < cacheTTL {
 					data, err := os.ReadFile(cacheFile)
 					if err == nil {
-						memCache.Store(cacheKeyHash, memCacheEntry{
-							content:    data,
-							expireAt:   now + int64(cacheTTL.Seconds()),
-							staleUntil: now + int64(cacheTTL.Seconds()) + staleGrace,
-						})
-						c.Header("Content-Type", "text/html; charset=utf-8")
-						c.Header("X-Cache", "HIT-FILE")
-						c.Data(http.StatusOK, "text/html; charset=utf-8", data)
-						c.Abort()
+						e := memCacheEntry{
+							content:     data,
+							gzipContent: gzipBytes(data),
+							expireAt:    now + int64(cacheTTL.Seconds()),
+							staleUntil:  now + int64(cacheTTL.Seconds()) + staleGrace,
+						}
+						memCache.Store(cacheKeyHash, e)
+						serveCacheEntry(c, e, "HIT-FILE")
 						return
 					}
 				}
 			}
 		}
 
-		// --- 快取未命中：使用 singleflight 防止快取擊穿 ---
-		// 1000 並發冷啟動時，只有 1 個 goroutine 執行渲染，其餘等待結果
+		// --- 快取未命中：singleflight 防止快取擊穿 ---
 		result, _, shared := sfGroup.Do(cacheKeyHash, func() (interface{}, error) {
-			// 再次檢查快取（可能在等待期間已被其他請求填充）
+			// 雙重檢查
 			if entry, ok := memCache.Load(cacheKeyHash); ok {
 				e := entry.(memCacheEntry)
 				if time.Now().Unix() < e.expireAt {
@@ -177,31 +191,33 @@ func HTMLCache() gin.HandlerFunc {
 						status:      http.StatusOK,
 						contentType: "text/html; charset=utf-8",
 						body:        e.content,
+						gzipBody:    e.gzipContent,
 						cacheSource: "MEM",
 					}, nil
 				}
 			}
 
-			// 執行實際渲染
+			// 實際渲染
 			cw := &cacheBodyWriter{
 				ResponseWriter: c.Writer,
 				buf:            &bytes.Buffer{},
 			}
 			c.Writer = cw
 			c.Next()
-			// 恢復原始 ResponseWriter（關鍵！否則 c.Data() 會寫入緩衝區而非客戶端）
 			c.Writer = cw.ResponseWriter
 
 			contentType := cw.Header().Get("Content-Type")
 			body := cw.buf.Bytes()
 			nowInner := time.Now().Unix()
 
-			// 如果是成功的 HTML 響應，存入快取
+			var gzipBody []byte
 			if strings.HasPrefix(contentType, "text/html") && cw.Status() == http.StatusOK {
+				gzipBody = gzipBytes(body)
 				memCache.Store(cacheKeyHash, memCacheEntry{
-					content:    body,
-					expireAt:   nowInner + int64(cacheTTL.Seconds()),
-					staleUntil: nowInner + int64(cacheTTL.Seconds()) + staleGrace,
+					content:     body,
+					gzipContent: gzipBody,
+					expireAt:    nowInner + int64(cacheTTL.Seconds()),
+					staleUntil:  nowInner + int64(cacheTTL.Seconds()) + staleGrace,
 				})
 
 				if fileCacheEnabled {
@@ -214,6 +230,7 @@ func HTMLCache() gin.HandlerFunc {
 				status:      cw.Status(),
 				contentType: contentType,
 				body:        body,
+				gzipBody:    gzipBody,
 				cacheSource: "FRESH",
 			}, nil
 		})
@@ -224,12 +241,30 @@ func HTMLCache() gin.HandlerFunc {
 
 		rr := result.(*renderResult)
 
-		// 設置響應頭
+		// 優先服務預壓縮 gzip（避免 1000 並發同時壓縮的 CPU 風暴）
+		acceptEncoding := c.GetHeader("Accept-Encoding")
+		if strings.Contains(acceptEncoding, "gzip") && len(rr.gzipBody) > 0 {
+			c.Set("pre-compressed", true)
+			c.Header("Content-Encoding", "gzip")
+			c.Header("Vary", "Accept-Encoding")
+			if rr.contentType != "" {
+				c.Header("Content-Type", rr.contentType)
+			}
+			if shared {
+				c.Header("X-Cache", "HIT-SF-GZ")
+			} else if rr.cacheSource == "MEM" {
+				c.Header("X-Cache", "HIT-MEM-GZ")
+			} else {
+				c.Header("X-Cache", "MISS-GZ")
+			}
+			c.Data(rr.status, rr.contentType, rr.gzipBody)
+			return
+		}
+
+		// 降級：客戶端不支援 gzip，返回原始內容由 Compress 處理
 		if rr.contentType != "" {
 			c.Header("Content-Type", rr.contentType)
 		}
-
-		// 標記快取狀態
 		if shared && rr.cacheSource == "FRESH" {
 			c.Header("X-Cache", "HIT-SF")
 		} else if rr.cacheSource == "MEM" {
@@ -239,8 +274,6 @@ func HTMLCache() gin.HandlerFunc {
 		} else {
 			c.Header("X-Cache", "MISS")
 		}
-
-		// 輸出響應體
 		c.Data(rr.status, rr.contentType, rr.body)
 	}
 }
