@@ -317,14 +317,24 @@ func (p *TagParser) processSingleTags(content string) string {
 	singles := []struct {
 		reKey    string
 		provKey  string
+		prefix   string // 用於 strings.Contains 預判，不含則跳過正則掃描
 	}{
-		{"site", "site"}, {"company", "company"}, {"label", "label"},
-		{"user", "user"}, {"sort_single", "sort"}, {"content_single", "content"},
-		{"page", "page"}, {"position", "position"}, {"selectall", "selectall"},
-		{"qrcode", "qrcode"}, {"form_single", "form"},
+		// 前綴必須與正則實際匹配的標籤語法一致：
+		// {gboot:site(\w+)} → {gboot:siteconfig} → 前綴 "{gboot:site"
+		// {label:(\w+)} → {label:xxx} → 前綴 "{label:"
+		{"site", "site", "{gboot:site"}, {"company", "company", "{gboot:company"},
+		{"label", "label", "{label:"}, {"user", "user", "{user:"},
+		{"sort_single", "sort", "{sort:"}, {"content_single", "content", "{content:"},
+		{"page", "page", "{page:"}, {"position", "position", "{gboot:position"},
+		{"selectall", "selectall", "{gboot:selectall"}, {"qrcode", "qrcode", "{gboot:qrcode"},
+		{"form_single", "form", "{gboot:form"},
 	}
 
 	for _, s := range singles {
+		// strings.Contains 預判：content 中不含此標籤前綴則跳過正則掃描
+		if !strings.Contains(content, s.prefix) {
+			continue
+		}
 		re := p.re(s.reKey)
 		if re == nil {
 			continue
@@ -350,7 +360,7 @@ func (p *TagParser) processSingleTags(content string) string {
 	}
 
 	re := p.re("gboot_single")
-	if re != nil {
+	if re != nil && strings.Contains(content, "{gboot:") {
 		content = re.ReplaceAllStringFunc(content, func(match string) string {
 			subs := re.FindStringSubmatch(match)
 			if len(subs) < 2 {
@@ -376,16 +386,25 @@ func (p *TagParser) processPairTags(content string) string {
 	pairs := []struct {
 		reKey   string
 		provKey string
+		prefix  string // 用於 strings.Contains 預判，不含則跳過正則掃描
 	}{
-		{"nav", "nav"}, {"sort_loop", "sort_loop"}, {"list", "list"},
-		{"content_loop", "content_loop"}, {"pics", "pics"}, {"checkbox", "checkbox"},
-		{"tags", "tags"}, {"slide", "slide"}, {"link", "link"}, {"message", "message"},
-		{"formlist", "formlist"}, {"search", "search"}, {"comment", "comment"},
-		{"commentsub", "commentsub"}, {"mycomment", "mycomment"}, {"loop", "loop"},
-		{"select", "select"}, {"language", "language"},
+		// 注意：sort_loop 正則匹配 {gboot:sort}（非 {gboot:sort_loop}），content_loop 同理
+		{"nav", "nav", "{gboot:nav"}, {"sort_loop", "sort_loop", "{gboot:sort"},
+		{"list", "list", "{gboot:list"}, {"content_loop", "content_loop", "{gboot:content"},
+		{"pics", "pics", "{gboot:pics"}, {"checkbox", "checkbox", "{gboot:checkbox"},
+		{"tags", "tags", "{gboot:tags"}, {"slide", "slide", "{gboot:slide"},
+		{"link", "link", "{gboot:link"}, {"message", "message", "{gboot:message"},
+		{"formlist", "formlist", "{gboot:formlist"}, {"search", "search", "{gboot:search"},
+		{"comment", "comment", "{gboot:comment"}, {"commentsub", "commentsub", "{gboot:commentsub"},
+		{"mycomment", "mycomment", "{gboot:mycomment"}, {"loop", "loop", "{gboot:loop"},
+		{"select", "select", "{gboot:select"}, {"language", "language", "{gboot:language"},
 	}
 
 	for _, pt := range pairs {
+		// strings.Contains 預判：content 中不含此標籤前綴則跳過正則掃描
+		if !strings.Contains(content, pt.prefix) {
+			continue
+		}
 		re := p.re(pt.reKey)
 		if re == nil {
 			continue
@@ -766,6 +785,10 @@ func (p *TagParser) preResolveSingleInPairParams(content string) string {
 		"commentsub", "mycomment", "loop", "select", "language",
 	}
 	for _, name := range pairNames {
+		// strings.Contains 預判：content 中不含此標籤前綴則跳過正則掃描
+		if !strings.Contains(content, "{gboot:"+name) {
+			continue
+		}
 		pattern := globalRegexes["pair_"+name]
 		if pattern == nil {
 			continue

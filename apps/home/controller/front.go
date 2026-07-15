@@ -736,7 +736,6 @@ func (fc *FrontController) Visits(c *gin.Context) {
 		// cookie 去重：同一訪客對同一文章在有效期內只計一次
 		cookieName := fmt.Sprintf("pboot_visited_%d", id)
 		if _, err := c.Cookie(cookieName); err == nil {
-			middleware.IncrementVisitsRequest(false)
 			c.String(http.StatusOK, "ok")
 			return
 		}
@@ -744,7 +743,6 @@ func (fc *FrontController) Visits(c *gin.Context) {
 		model.DB.WithContext(c.Request.Context()).
 			Exec("UPDATE ay_content SET visits = visits + 1 WHERE id = ?", id)
 		c.SetCookie(cookieName, "1", 1800, "/", "", false, true)
-		middleware.IncrementVisitsRequest(true)
 	}
 	c.String(http.StatusOK, "ok")
 }

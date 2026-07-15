@@ -20,6 +20,7 @@ type Context struct {
 	Content      *model.Content
 	ContentExt   map[string]interface{}   // 當前內容的擴展字段快取（詳情頁避免重複查詢）
 	sortPathCache map[string]string        // 欄目路徑快取（scode → sortPath），避免重複查詢 ContentSort
+	ifContext    map[string]interface{}   // {gboot:if} 條件上下文快取，避免每個 if 標籤重複建構 + 8 次 GetConfigValue
 	Site         *model.Site
 	Company      *model.Company
 	Page         map[string]interface{}
@@ -854,6 +855,8 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			contentIDs[i] = c.ID
 		}
 		extMap := content.GetContentExtByContentIDs(contentIDs)
+		// 批量預載入欄目路徑，避免 contentURL 的 N+1 查詢
+		preloadSortPaths(ctx, contents)
 		for i, c := range contents {
 			data := contentToMap(ctx, &c, i, extMap)
 			row := ReplaceInnerTags(inner, "list", data)
@@ -1433,6 +1436,8 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			contentIDs[i] = c.ID
 		}
 		extMap := content.GetContentExtByContentIDs(contentIDs)
+		// 批量預載入欄目路徑，避免 contentURL 的 N+1 查詢
+		preloadSortPaths(ctx, contents)
 		for i, c := range contents {
 			data := contentToMap(ctx, &c, i, extMap)
 			row := ReplaceInnerTags(inner, "search", data)
@@ -1479,20 +1484,34 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		innerWithoutSub := commentSubRe.ReplaceAllString(inner, "{__COMMENTSUB__}")
 
 		var sb strings.Builder
+
+		// 批量預載入所有子評論，避免 N+1 查詢（20 條主評論 = 原本 21 次 DB 查詢 → 現在 2 次）
+		subMap := map[uint][]model.CommentView{}
+		if subInner != "" && len(comments) > 0 {
+			parentIDs := make([]uint, len(comments))
+			for i, cm := range comments {
+				parentIDs[i] = cm.ID
+			}
+			var allSubs []model.CommentView
+			model.DB.WithContext(ctx.Ctx).Table("ay_member_comment a").
+				Select("a.*, b.username, b.nickname, b.headpic, c.username as pusername, c.nickname as pnickname, c.headpic as pheadpic").
+				Joins("LEFT JOIN ay_member b ON a.uid=b.id").
+				Joins("LEFT JOIN ay_member c ON a.puid=c.id").
+				Where("a.contentid = ? AND a.pid IN ? AND a.status = 1", cid, parentIDs).
+				Order("a.pid ASC, a.id ASC").
+				Limit(100*len(comments)).
+				Find(&allSubs)
+			for i := range allSubs {
+				subMap[allSubs[i].Pid] = append(subMap[allSubs[i].Pid], allSubs[i])
+			}
+		}
+
 		for i, cm := range comments {
 			data := commentToMap(&cm, i+1)
 			row := ReplaceInnerTags(innerWithoutSub, "comment", data)
-			// 處理 commentsub 塊
+			// 處理 commentsub 塊（從預載入的 subMap 中取，無需再查 DB）
 			if subInner != "" {
-				var subs []model.CommentView
-				model.DB.WithContext(ctx.Ctx).Table("ay_member_comment a").
-					Select("a.*, b.username, b.nickname, b.headpic, c.username as pusername, c.nickname as pnickname, c.headpic as pheadpic").
-					Joins("LEFT JOIN ay_member b ON a.uid=b.id").
-					Joins("LEFT JOIN ay_member c ON a.puid=c.id").
-					Where("a.contentid = ? AND a.pid = ? AND a.status = 1", cid, cm.ID).
-					Order("a.id ASC").
-					Limit(100).
-					Find(&subs)
+				subs := subMap[cm.ID]
 
 				var subSB strings.Builder
 				for j, sc := range subs {
@@ -1730,6 +1749,10 @@ func registerIfProvider(p *TagParser, ctx *Context) {
 }
 
 func buildIfContext(ctx *Context) map[string]interface{} {
+	// 快取：同一頁面渲染期間 config 值不變，首次建構後直接返回
+	if ctx.ifContext != nil {
+		return ctx.ifContext
+	}
 	data := make(map[string]interface{})
 	if ctx.Content != nil {
 		data["title"] = ctx.Content.Title
@@ -1798,6 +1821,7 @@ func buildIfContext(ctx *Context) map[string]interface{} {
 	} else {
 		data["msgcodestatus"] = 0
 	}
+	ctx.ifContext = data // 快取供後續 {gboot:if} 標籤復用
 	return data
 }
 
@@ -1898,6 +1922,45 @@ func getSortField(ctx context.Context, s *model.ContentSort, field string) strin
 		return fmt.Sprintf("%d", s.Type)
 	default:
 		return ""
+	}
+}
+
+// preloadSortPaths 批量預載入欄目路徑到 ctx.sortPathCache
+// 避免 contentURL 在列表循環中逐個查 DB（N+1 → 1 次查詢）
+func preloadSortPaths(ctx *Context, contents []model.Content) {
+	if len(contents) == 0 {
+		return
+	}
+	if ctx.sortPathCache == nil {
+		ctx.sortPathCache = make(map[string]string)
+	}
+	// 收集未快取的 scode
+	var needed []string
+	seen := map[string]bool{}
+	for _, c := range contents {
+		if c.Scode != "" && !seen[c.Scode] {
+			seen[c.Scode] = true
+			if _, ok := ctx.sortPathCache[c.Scode]; !ok {
+				needed = append(needed, c.Scode)
+			}
+		}
+	}
+	if len(needed) == 0 {
+		return
+	}
+	// 單次批量查詢
+	var sorts []model.ContentSort
+	model.DB.WithContext(ctx.Ctx).
+		Where("scode IN ?", needed).
+		Find(&sorts)
+	for _, s := range sorts {
+		if s.Filename != "" {
+			ctx.sortPathCache[s.Scode] = s.Filename
+		} else if s.URLName != "" {
+			ctx.sortPathCache[s.Scode] = s.URLName
+		} else {
+			ctx.sortPathCache[s.Scode] = ""
+		}
 	}
 }
 
@@ -2339,35 +2402,42 @@ func buildSortCountMap(ctx context.Context) map[string]int {
 }
 
 // findAllChildScodes 遞歸查找指定 scode 及其所有子欄目的 scode 列表
+// 使用 SQLite 遞迴 CTE 單次查詢取代 N 次遞迴 DB 查詢（配合 idx_sort_pcode 索引）
 func findAllChildScodes(ctx context.Context, parentScode string) []string {
-	result := []string{parentScode}
-	childScodes := getDirectChildScodes(ctx, parentScode)
-	for _, child := range childScodes {
-		// 遞歸：查找孫子、曾孫...
-		grandchildren := findAllChildScodes(ctx, child)
-		result = append(result, grandchildren...)
-	}
-	return result
-}
+	acode := acodeplugin.GetAcode(ctx)
 
-// getDirectChildScodes 查找指定 scode 的直接子欄目 scode 列表
-// 注意：Table() 不帶 Schema，AcodePlugin 不會自動過濾，需手動加 acode 條件
-func getDirectChildScodes(ctx context.Context, parentScode string) []string {
-	var children []struct {
+	query := `WITH RECURSIVE descendants AS (
+		SELECT scode FROM ay_content_sort WHERE scode = ? AND status = 1`
+	if acode != "" {
+		query += ` AND acode = ?`
+	}
+	query += `
+		UNION ALL
+		SELECT s.scode FROM ay_content_sort s
+		INNER JOIN descendants d ON s.pcode = d.scode
+		WHERE s.status = 1`
+	if acode != "" {
+		query += ` AND s.acode = ?`
+	}
+	query += `
+	)
+	SELECT scode FROM descendants`
+
+	var rows []struct {
 		Scode string
 	}
-	q := model.DB.WithContext(ctx).Table("ay_content_sort").
-		Select("scode").
-		Where("pcode = ? AND status = 1", parentScode)
-	// Table() 不帶 Schema，AcodePlugin 無法自動過濾 acode，這裡手動補上
-	// 僅當 context 中設定了 acode 時過濾（與 AcodePlugin 的向後兼容語義一致）
-	if acode := acodeplugin.GetAcode(ctx); acode != "" {
-		q = q.Where("acode = ?", acode)
+	if acode != "" {
+		model.DB.WithContext(ctx).Raw(query, parentScode, acode, acode).Scan(&rows)
+	} else {
+		model.DB.WithContext(ctx).Raw(query, parentScode).Scan(&rows)
 	}
-	q.Find(&children)
-	scodes := make([]string, len(children))
-	for i, c := range children {
-		scodes[i] = c.Scode
+
+	if len(rows) == 0 {
+		return []string{parentScode}
+	}
+	scodes := make([]string, len(rows))
+	for i, r := range rows {
+		scodes[i] = r.Scode
 	}
 	return scodes
 }

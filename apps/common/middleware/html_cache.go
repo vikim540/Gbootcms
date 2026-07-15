@@ -37,58 +37,6 @@ var (
 	sfGroup  singleflight.Group
 )
 
-// --- 診斷計數器（原子操作，用於 /api/cache_debug 端點） ---
-var (
-	cacheHits       atomic.Int64
-	cacheMisses     atomic.Int64
-	cacheStale      atomic.Int64
-	cacheEvictions  atomic.Int64
-	cacheRenders    atomic.Int64
-	cacheInvalid    atomic.Int64 // tag checksum 不匹配導致的失效
-	concurrentRenders atomic.Int64 // 當前正在進行的渲染數
-	visitsRequests  atomic.Int64 // /api/visits 總請求數
-	visitsWrites    atomic.Int64 // 實際觸發 DB 寫入的 visits 數
-	slowRequests    atomic.Int64 // 超過 1 秒的請求數
-)
-
-// IncrementVisitsRequest 記錄 visits 請求計數
-func IncrementVisitsRequest(wrote bool) {
-	visitsRequests.Add(1)
-	if wrote {
-		visitsWrites.Add(1)
-	}
-}
-
-// CacheDebugInfo 返回快取診斷資訊
-func CacheDebugInfo() map[string]interface{} {
-	entryCount := 0
-	memCache.Range(func(_, _ interface{}) bool {
-		entryCount++
-		return true
-	})
-
-	tagList := map[string]int64{}
-	tagVersions.Range(func(key, val interface{}) bool {
-		tagList[key.(string)] = val.(*atomic.Int64).Load()
-		return true
-	})
-
-	return map[string]interface{}{
-		"memCache_entries":     entryCount,
-		"hits":                 cacheHits.Load(),
-		"misses":               cacheMisses.Load(),
-		"stale_hits":           cacheStale.Load(),
-		"evictions":            cacheEvictions.Load(),
-		"renders":              cacheRenders.Load(),
-		"tag_invalidations":    cacheInvalid.Load(),
-		"concurrent_renders":   concurrentRenders.Load(),
-		"visits_requests":      visitsRequests.Load(),
-		"visits_db_writes":     visitsWrites.Load(),
-		"slow_requests":        slowRequests.Load(),
-		"tag_versions":         tagList,
-	}
-}
-
 // --- Cache Tag 系統（對齊 Drupal Cache Tags + Checksum 懶失效機制） ---
 //
 // 設計原理：
@@ -110,8 +58,8 @@ var tagVersions sync.Map // tag(string) → *atomic.Int64
 // 所有帶有此 tag 的快取條目將在下次讀取時失效
 func InvalidateTag(tag string) {
 	val, _ := tagVersions.LoadOrStore(tag, new(atomic.Int64))
- newVal := val.(*atomic.Int64).Add(1)
- slog.Info("CacheTag invalidated", "tag", tag, "new_version", newVal)
+	newVal := val.(*atomic.Int64).Add(1)
+	slog.Info("CacheTag invalidated", "tag", tag, "new_version", newVal)
 }
 
 // InvalidateTags 批量遞增多個 tag 的版本號
@@ -257,21 +205,15 @@ func HTMLCache() gin.HandlerFunc {
 
 			if tagValid && now < e.expireAt {
 				// Fresh hit：TTL 有效 + tag checksum 一致
-				cacheHits.Add(1)
 				serveCacheEntry(c, e, "HIT-MEM")
 				return
 			}
 			if tagValid && now < e.staleUntil {
 				// Stale：TTL 過期但內容未變更（tag 仍有效），安全服務舊快取
-				cacheStale.Add(1)
 				serveCacheEntry(c, e, "HIT-STALE")
 				return
 			}
 			// tag 失效（內容已變更）或超過 stale 窗口 → 刪除過期條目
-			if !tagValid {
-				cacheInvalid.Add(1)
-			}
-			cacheEvictions.Add(1)
 			memCache.Delete(cacheKeyHash)
 		}
 
@@ -303,7 +245,6 @@ func HTMLCache() gin.HandlerFunc {
 		}
 
 		// --- 快取未命中：singleflight 防止快取擊穿 ---
-		cacheMisses.Add(1)
 		renderStart := time.Now()
 		result, _, shared := sfGroup.Do(cacheKeyHash, func() (interface{}, error) {
 			// 雙重檢查：可能在等待 singleflight 期間已有其他請求填入快取
@@ -321,16 +262,13 @@ func HTMLCache() gin.HandlerFunc {
 			}
 
 			// 實際渲染
-			cacheRenders.Add(1)
-			concurrentRenders.Add(1)
-			defer concurrentRenders.Add(-1)
 			cw := &cacheBodyWriter{
 				ResponseWriter: c.Writer,
 				buf:            &bytes.Buffer{},
 			}
 			c.Writer = cw
+			defer func() { c.Writer = cw.ResponseWriter }() // panic 時也能恢復原始 Writer
 			c.Next()
-			c.Writer = cw.ResponseWriter
 
 			contentType := cw.Header().Get("Content-Type")
 			body := cw.buf.Bytes()
@@ -413,17 +351,13 @@ func HTMLCache() gin.HandlerFunc {
 		c.Data(rr.status, rr.contentType, rr.body)
 
 		// 慢請求診斷日誌
-		elapsed := time.Since(reqStart)
-		if elapsed > time.Second {
-			slowRequests.Add(1)
-			sfWait := time.Since(renderStart)
+		if elapsed := time.Since(reqStart); elapsed > time.Second {
 			slog.Warn("SLOW REQUEST",
 				"path", c.Request.URL.Path,
 				"total_ms", elapsed.Milliseconds(),
-				"sf_wait_ms", sfWait.Milliseconds(),
+				"sf_wait_ms", time.Since(renderStart).Milliseconds(),
 				"shared", shared,
 				"cache_source", rr.cacheSource,
-				"concurrent_renders", concurrentRenders.Load(),
 			)
 		}
 	}

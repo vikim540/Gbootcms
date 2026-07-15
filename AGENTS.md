@@ -180,6 +180,13 @@ gbootcms/
 42. **SQLite 必須啟用 WAL 模式** — `SetMaxOpenConns(1)` 會導致所有查詢串行排隊（450 並發時平均 7.8 秒）；必須用 WAL 模式 + `MaxOpenConns(20)` + `busy_timeout=5000` + `synchronous=NORMAL` + `cache_size=-64000`，WAL 允許並發讀 + 單寫互不阻塞（注意：DB 層優化僅解決 SQL 排隊，前台完整頁面渲染的 CPU 瓶頸需靠 #43 正則預編譯 + #44 記憶體緩存解決）
 43. **正則表達式必須全局預編譯** — 前台 TagParser 的 30 個正則表達式必須用 `sync.Once` 全局預編譯（`globalRegexes`），禁止每個請求 `regexp.Compile`；每個 `parser.New()` 只建立空的 providers map，正則從全局池取用，否則 450 並發下 CPU 被正則編譯徹底吃滿
 44. **HTML 頁面必須啟用記憶體緩存** — `html_cache.go` 的 `sync.Map` 記憶體緩存層永遠開啟（無需配置），TTL 由 `tpl_html_cache_time` 控制（預設 900 秒）；後台任何數據變更（Create/Update/Delete）通過 GORM 回調自動呼叫 `ClearHTMLCache()` 清除快取，確保前台即時更新；帶 `p`/`s` 參數或已登入會員的請求不快取
+45. **高頻查詢欄位必須建索引** — `core/db/db.go` InitDB 中用 `CREATE INDEX IF NOT EXISTS` 冪等建立索引（不違反硬約束 #1，索引不改變表結構）；必須覆蓋 `ay_content(filename)`、`ay_content(urlname)`、`ay_content(scode,status,date)`、`ay_content(acode)`、`ay_content_sort(filename)`、`ay_content_sort(urlname)`、`ay_content_sort(scode)`、`ay_content_sort(pcode)`、`ay_member_comment(contentid,pid,status)`；缺少索引會導致冷渲染全表掃描，600 並發下回應時間從 1s 暴漲到 12s+
+46. **findAllChildScodes 必須使用遞迴 CTE** — 禁止用 N 次遞迴 DB 查詢（`getDirectChildScodes` 已刪除）；必須用 SQLite `WITH RECURSIVE` 單次查詢獲取所有子孫 scode，配合 `idx_sort_pcode` 索引；原遞迴方案在 3 層欄目樹下產生 13+ 次 DB 查詢，CTE 降為 1 次
+47. **列表渲染前必須批量預載入欄目路徑** — `{gboot:list}` 和 `{gboot:search}` 的渲染循環前必須呼叫 `preloadSortPaths(ctx, contents)`，避免 `contentURL` 在循環中逐個查 DB（N+1 → 1 次查詢）
+48. **評論子查詢必須批量預載入** — `{gboot:comment}` provider 中禁止逐條主評論查子評論（N+1）；必須用 `pid IN ?` 單次查詢所有子評論，在記憶體中按 `pid` 分組後渲染
+49. **正則掃描前必須 strings.Contains 預判** — `processSingleTags`、`processPairTags`、`preResolveSingleInPairParams` 中每個標籤類型在執行正則匹配前，必須先檢查 `strings.Contains(content, "{標籤前綴")`，不含則跳過正則掃描；頁面通常只含 3-5 種標籤，預判可削減 30-50% 正則執行量
+50. **buildIfContext 必須快取在 Context.ifContext** — `{gboot:if}` 條件上下文（含 8 次 `GetConfigValue` 調用）必須在首次建構後快取到 `ctx.ifContext`，後續 `{gboot:if}` 標籤直接復用；詳情頁通常有 5-10 個 if 標籤，快取後從 50-100 次重複調用降為 8 次
+51. **singleflight 中 c.Writer 恢復必須用 defer** — `html_cache.go` 中 `c.Writer = cw` 後必須用 `defer func() { c.Writer = c.Writer.(*cacheBodyWriter).ResponseWriter }()` 恢復，確保 panic 時也能恢復原始 Writer；直接寫 `c.Writer = cw.ResponseWriter` 在 panic 時不會執行
 
 ---
 

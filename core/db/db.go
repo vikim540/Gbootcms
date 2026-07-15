@@ -70,6 +70,29 @@ func InitDB(cfg *config.Config) error {
 	DB.Exec("PRAGMA busy_timeout=5000")
 	DB.Exec("PRAGMA synchronous=NORMAL")
 	DB.Exec("PRAGMA cache_size=-64000")
+	// mmap_size：記憶體映射 I/O，大型 SQLite 讀取效能提升顯著（256MB）
+	DB.Exec("PRAGMA mmap_size=268435456")
+	// temp_store=MEMORY：臨時表和排序用記憶體而非磁碟，提升 ORDER BY / GROUP BY 效能
+	DB.Exec("PRAGMA temp_store=MEMORY")
+
+	// 建立高頻查詢索引（冪等操作，不修改表結構，符合硬約束 #1）
+	// 這些索引覆蓋前台路由匹配、列表查詢、欄目遞迴等全表掃描熱點
+	indexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_content_filename ON ay_content(filename)",
+		"CREATE INDEX IF NOT EXISTS idx_content_urlname ON ay_content(urlname)",
+		"CREATE INDEX IF NOT EXISTS idx_content_scode_status ON ay_content(scode, status, date)",
+		"CREATE INDEX IF NOT EXISTS idx_content_acode ON ay_content(acode)",
+		"CREATE INDEX IF NOT EXISTS idx_sort_filename ON ay_content_sort(filename)",
+		"CREATE INDEX IF NOT EXISTS idx_sort_urlname ON ay_content_sort(urlname)",
+		"CREATE INDEX IF NOT EXISTS idx_sort_scode ON ay_content_sort(scode)",
+		"CREATE INDEX IF NOT EXISTS idx_sort_pcode ON ay_content_sort(pcode)",
+		"CREATE INDEX IF NOT EXISTS idx_comment_contentid ON ay_member_comment(contentid, pid, status)",
+	}
+	for _, idx := range indexes {
+		if err := DB.Exec(idx).Error; err != nil {
+			slog.Warn("建立索引失敗", "sql", idx, "error", err)
+		}
+	}
 
 	// 驗證 WAL 模式是否生效
 	var journalMode string

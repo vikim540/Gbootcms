@@ -264,16 +264,6 @@ func main() {
 	r.POST("/api/oppose", middleware.VoteRateLimit(), fc.Oppose)
 	r.GET("/api/checkcode", fc.CheckCode)
 
-	// 快取診斷端點（部署後用於排查快取命中/失效情況）
-	r.GET("/api/cache_debug", func(c *gin.Context) {
-		c.JSON(200, middleware.CacheDebugInfo())
-	})
-
-	// 基準延遲測試端點（無 DB、無快取、無中間件，純網絡 + Go 處理速度）
-	r.GET("/api/ping", func(c *gin.Context) {
-		c.String(200, "pong")
-	})
-
 	// SEO: sitemap 索引 + robots.txt
 	// 每語言獨立 sitemap（/sitemap-{acode}.xml）在 NoRoute 處理器中處理
 	// 因為 Gin 的 :param 不支援路徑段中間匹配（如 /sitemap-:acode.xml）
