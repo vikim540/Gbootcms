@@ -3,6 +3,7 @@
 package db
 
 import (
+	"fmt"
 	"gbootcms/config"
 	"gbootcms/core/acodeplugin"
 	"gbootcms/core/mediaplugin"
@@ -161,6 +162,7 @@ func InitDB(cfg *config.Config) error {
 		}
 		// 提取主鍵 ID（用於精準 tag 失效，如 content:37）
 		id := getPrimaryKeyID(db.Statement)
+		slog.Info("GORM callback → OnDataChange", "table", tableName, "id", id, "selects", db.Statement.Selects, "dest_type", fmt.Sprintf("%T", db.Statement.Dest))
 		OnDataChange(tableName, id)
 	}
 	DB.Callback().Create().After("gorm:create").Register("clear_html_cache", clearHTMLCache)

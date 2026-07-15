@@ -81,6 +81,8 @@ func main() {
 	//   - content:list  → 失效所有列表頁 + 首頁
 	//   - global        → 失效全部頁面（配置/站點/導航等全局數據變更）
 	gdb.OnDataChange = func(tableName string, id int) {
+		slog.Info("OnDataChange triggered", "table", tableName, "id", id)
+
 		// === HTML 頁面快取 tag 失效 ===
 		switch tableName {
 		case "content":
@@ -101,6 +103,7 @@ func main() {
 		default:
 			// site, company, config, menu, slide, link, tags, label, single 等
 			// 這些表的數據出現在多個頁面，安全起見失效全部
+			slog.Warn("OnDataChange default branch → global invalidation", "table", tableName, "id", id)
 			middleware.InvalidateTag("global")
 		}
 
@@ -260,6 +263,11 @@ func main() {
 	r.POST("/api/likes", middleware.VoteRateLimit(), fc.Likes)
 	r.POST("/api/oppose", middleware.VoteRateLimit(), fc.Oppose)
 	r.GET("/api/checkcode", fc.CheckCode)
+
+	// 快取診斷端點（部署後用於排查快取命中/失效情況）
+	r.GET("/api/cache_debug", func(c *gin.Context) {
+		c.JSON(200, middleware.CacheDebugInfo())
+	})
 
 	// SEO: sitemap 索引 + robots.txt
 	// 每語言獨立 sitemap（/sitemap-{acode}.xml）在 NoRoute 處理器中處理
