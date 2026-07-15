@@ -45,7 +45,19 @@ var (
 	cacheEvictions  atomic.Int64
 	cacheRenders    atomic.Int64
 	cacheInvalid    atomic.Int64 // tag checksum 不匹配導致的失效
+	concurrentRenders atomic.Int64 // 當前正在進行的渲染數
+	visitsRequests  atomic.Int64 // /api/visits 總請求數
+	visitsWrites    atomic.Int64 // 實際觸發 DB 寫入的 visits 數
+	slowRequests    atomic.Int64 // 超過 1 秒的請求數
 )
+
+// IncrementVisitsRequest 記錄 visits 請求計數
+func IncrementVisitsRequest(wrote bool) {
+	visitsRequests.Add(1)
+	if wrote {
+		visitsWrites.Add(1)
+	}
+}
 
 // CacheDebugInfo 返回快取診斷資訊
 func CacheDebugInfo() map[string]interface{} {
@@ -62,14 +74,18 @@ func CacheDebugInfo() map[string]interface{} {
 	})
 
 	return map[string]interface{}{
-		"memCache_entries":   entryCount,
-		"hits":               cacheHits.Load(),
-		"misses":             cacheMisses.Load(),
-		"stale_hits":         cacheStale.Load(),
-		"evictions":          cacheEvictions.Load(),
-		"renders":            cacheRenders.Load(),
-		"tag_invalidations":  cacheInvalid.Load(),
-		"tag_versions":       tagList,
+		"memCache_entries":     entryCount,
+		"hits":                 cacheHits.Load(),
+		"misses":               cacheMisses.Load(),
+		"stale_hits":           cacheStale.Load(),
+		"evictions":            cacheEvictions.Load(),
+		"renders":              cacheRenders.Load(),
+		"tag_invalidations":    cacheInvalid.Load(),
+		"concurrent_renders":   concurrentRenders.Load(),
+		"visits_requests":      visitsRequests.Load(),
+		"visits_db_writes":     visitsWrites.Load(),
+		"slow_requests":        slowRequests.Load(),
+		"tag_versions":         tagList,
 	}
 }
 
@@ -200,6 +216,7 @@ type renderResult struct {
 // 已登入會員不快取（避免個人化內容被快取導致資訊洩露）
 func HTMLCache() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		reqStart := time.Now()
 		path := c.Request.URL.Path
 		if strings.HasPrefix(path, "/admin") || strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/static") || strings.HasPrefix(path, "/template") {
@@ -287,6 +304,7 @@ func HTMLCache() gin.HandlerFunc {
 
 		// --- 快取未命中：singleflight 防止快取擊穿 ---
 		cacheMisses.Add(1)
+		renderStart := time.Now()
 		result, _, shared := sfGroup.Do(cacheKeyHash, func() (interface{}, error) {
 			// 雙重檢查：可能在等待 singleflight 期間已有其他請求填入快取
 			if entry, ok := memCache.Load(cacheKeyHash); ok {
@@ -304,6 +322,8 @@ func HTMLCache() gin.HandlerFunc {
 
 			// 實際渲染
 			cacheRenders.Add(1)
+			concurrentRenders.Add(1)
+			defer concurrentRenders.Add(-1)
 			cw := &cacheBodyWriter{
 				ResponseWriter: c.Writer,
 				buf:            &bytes.Buffer{},
@@ -391,5 +411,20 @@ func HTMLCache() gin.HandlerFunc {
 			c.Header("X-Cache", "MISS")
 		}
 		c.Data(rr.status, rr.contentType, rr.body)
+
+		// 慢請求診斷日誌
+		elapsed := time.Since(reqStart)
+		if elapsed > time.Second {
+			slowRequests.Add(1)
+			sfWait := time.Since(renderStart)
+			slog.Warn("SLOW REQUEST",
+				"path", c.Request.URL.Path,
+				"total_ms", elapsed.Milliseconds(),
+				"sf_wait_ms", sfWait.Milliseconds(),
+				"shared", shared,
+				"cache_source", rr.cacheSource,
+				"concurrent_renders", concurrentRenders.Load(),
+			)
+		}
 	}
 }

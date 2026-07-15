@@ -736,15 +736,15 @@ func (fc *FrontController) Visits(c *gin.Context) {
 		// cookie 去重：同一訪客對同一文章在有效期內只計一次
 		cookieName := fmt.Sprintf("pboot_visited_%d", id)
 		if _, err := c.Cookie(cookieName); err == nil {
+			middleware.IncrementVisitsRequest(false)
 			c.String(http.StatusOK, "ok")
 			return
 		}
 		// 使用 .Exec() 原始 SQL 繞過 GORM 回調
-		// UpdateColumn 會觸發 GORM after:update 回調，且不設置 Statement.Selects，
-		// 導致 db.go 的 column skip 無法攔截 → OnDataChange → InvalidateTag("content:list") → 快取反覆失效
 		model.DB.WithContext(c.Request.Context()).
 			Exec("UPDATE ay_content SET visits = visits + 1 WHERE id = ?", id)
 		c.SetCookie(cookieName, "1", 1800, "/", "", false, true)
+		middleware.IncrementVisitsRequest(true)
 	}
 	c.String(http.StatusOK, "ok")
 }
