@@ -38,21 +38,37 @@ func GetLabelById(id int) Label {
 
 func AddLabel(name, value, updateUser string, typ int) error {
 	now := nowStr()
-	return db.DB.Exec("INSERT INTO ay_label (name, value, type, description, create_user, update_user, create_time, update_time) VALUES (?, ?, ?, '', ?, ?, ?, ?)", name, value, typ, updateUser, updateUser, now, now).Error
+	err := db.DB.Exec("INSERT INTO ay_label (name, value, type, description, create_user, update_user, create_time, update_time) VALUES (?, ?, ?, '', ?, ?, ?, ?)", name, value, typ, updateUser, updateUser, now, now).Error
+	if err == nil && db.OnDataChange != nil {
+		db.OnDataChange("label", 0)
+	}
+	return err
 }
 
 // AddLabelFull 新增標籤（含描述和類型）
 func AddLabelFull(name, value, description, updateUser string, typ int) error {
 	now := nowStr()
-	return db.DB.Exec("INSERT INTO ay_label (name, value, type, description, create_user, update_user, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", name, value, typ, description, updateUser, updateUser, now, now).Error
+	err := db.DB.Exec("INSERT INTO ay_label (name, value, type, description, create_user, update_user, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", name, value, typ, description, updateUser, updateUser, now, now).Error
+	if err == nil && db.OnDataChange != nil {
+		db.OnDataChange("label", 0)
+	}
+	return err
 }
 
 func UpdateLabel(id int, name, value, updateUser string) error {
-	return db.DB.Exec("UPDATE ay_label SET name=?, value=?, update_user=?, update_time=? WHERE id=?", name, value, updateUser, nowStr(), id).Error
+	err := db.DB.Exec("UPDATE ay_label SET name=?, value=?, update_user=?, update_time=? WHERE id=?", name, value, updateUser, nowStr(), id).Error
+	if err == nil && db.OnDataChange != nil {
+		db.OnDataChange("label", 0)
+	}
+	return err
 }
 
 func DeleteLabel(id int) error {
-	return db.DB.Exec("DELETE FROM ay_label WHERE id=?", id).Error
+	err := db.DB.Exec("DELETE FROM ay_label WHERE id=?", id).Error
+	if err == nil && db.OnDataChange != nil {
+		db.OnDataChange("label", 0)
+	}
+	return err
 }
 
 // BatchUpdateLabelValues 批量更新標籤值（POST /admin/Label/index 的核心邏輯）
@@ -78,6 +94,9 @@ func BatchUpdateLabelValues(postForm map[string]string, updateUser string) int {
 		if result.RowsAffected > 0 {
 			updated++
 		}
+	}
+	if updated > 0 && db.OnDataChange != nil {
+		db.OnDataChange("label", 0)
 	}
 	return updated
 }

@@ -55,16 +55,29 @@ func UpdateContentExt(contentID uint, data map[string]interface{}) error {
 }
 
 // UpsertContentExt 插入或更新擴展數據（PHP 原版邏輯：有行則 UPDATE，無行則 INSERT）
+// 注意：ay_content_ext 使用 map 操作，GORM 回調無法提取主鍵 ID（Schema 為 nil），
+// 因此需顯式呼叫 OnDataChange 以觸發 content:{id} tag 精準失效
 func UpsertContentExt(contentID uint, data map[string]interface{}) error {
 	existing := GetContentExtByContentID(contentID)
+	var err error
 	if existing != nil {
-		return UpdateContentExt(contentID, data)
+		err = UpdateContentExt(contentID, data)
+	} else {
+		data["contentid"] = contentID
+		err = InsertContentExt(data)
 	}
-	data["contentid"] = contentID
-	return InsertContentExt(data)
+	if err == nil && db.OnDataChange != nil {
+		db.OnDataChange("content_ext", int(contentID))
+	}
+	return err
 }
 
 // DeleteContentExt 刪除內容的擴展數據
+// 注意：db.Exec() 為原始 SQL，不觸發 GORM 回調，需顯式呼叫 OnDataChange
 func DeleteContentExt(contentID uint) error {
-	return db.DB.Exec("DELETE FROM ay_content_ext WHERE contentid = ?", contentID).Error
+	err := db.DB.Exec("DELETE FROM ay_content_ext WHERE contentid = ?", contentID).Error
+	if err == nil && db.OnDataChange != nil {
+		db.OnDataChange("content_ext", int(contentID))
+	}
+	return err
 }
