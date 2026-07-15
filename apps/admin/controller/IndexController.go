@@ -5,17 +5,17 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"log/slog"
-	"net/http"
-	"os"
-	"path/filepath"
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/storage"
 	"gbootcms/apps/common/watermark"
 	"gbootcms/config"
-	basic "gbootcms/core/basic"
 	"gbootcms/core/acodeplugin"
+	basic "gbootcms/core/basic"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -27,7 +27,6 @@ import (
 )
 
 // 統一驗證碼已移至 apps/common/captcha.go，此處不再維護獨立存儲
-
 
 type IndexController struct {
 	common.BaseController
@@ -164,18 +163,18 @@ func (ic *IndexController) Login(c *gin.Context) {
 
 	newSessionID := ic.generateSessionID()
 	common.SetSessionData(c, newSessionID, map[string]interface{}{
-		"sid":              sid,
-		"admin_uid":         user.ID,
-		"admin_username":   user.Username,
-		"admin_realname":   user.Realname,
-		"admin_ucode":      user.Ucode,
-		"admin_rcodes":     user.Rcodes,
-		"pwsecurity":       pwsecurity,
-		"acodes":           acodes,
-		"user_acodes":      strings.Join(acodes, ","),
-		"acode":            acode,
-		"levels":           levels,
-		"area_map":         areaMap,
+		"sid":            sid,
+		"admin_uid":      user.ID,
+		"admin_username": user.Username,
+		"admin_realname": user.Realname,
+		"admin_ucode":    user.Ucode,
+		"admin_rcodes":   user.Rcodes,
+		"pwsecurity":     pwsecurity,
+		"acodes":         acodes,
+		"user_acodes":    strings.Join(acodes, ","),
+		"acode":          acode,
+		"levels":         levels,
+		"area_map":       areaMap,
 	})
 
 	http.SetCookie(c.Writer, &http.Cookie{
@@ -187,11 +186,13 @@ func (ic *IndexController) Login(c *gin.Context) {
 		Secure:   false,
 	})
 
-	model.DB.WithContext(loginCtx).Model(&user).Updates(map[string]interface{}{
-		"login_count":    gorm.Expr("login_count + 1"),
-		"last_login_ip":  c.ClientIP(),
-		"lastlogintime":  time.Now(),
-	})
+	if err := model.DB.WithContext(loginCtx).Model(&user).Updates(map[string]interface{}{
+		"login_count":   gorm.Expr("login_count + 1"),
+		"last_login_ip": c.ClientIP(),
+		"lastlogintime": time.Now(),
+	}).Error; err != nil {
+		slog.Error("[IndexController] 更新登入計數失敗", "err", err, "uid", user.ID)
+	}
 
 	ic.log(c, "登入成功！")
 	ic.JSONOK(c, "/admin/index/home")
@@ -722,44 +723,44 @@ func (ic *IndexController) Upload(c *gin.Context) {
 	// UEditor 初始化時發送 GET ?action=config 取編輯器配置
 	if c.Request.Method == "GET" && c.Query("action") == "config" {
 		c.JSON(http.StatusOK, gin.H{
-			"imageActionName":       "uploadimage",
-			"imageFieldName":        "upload",
-			"imageMaxSize":          10485760,
-			"imageAllowFiles":       []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico"},
-			"imageCompressEnable":   false,
-			"imageInsertAlign":      "none",
-			"imageUrlPrefix":        "",
-			"scrawlActionName":      "uploadscrawl",
-			"scrawlFieldName":       "upload",
-			"scrawlMaxSize":         10485760,
-			"scrawlUrlPrefix":       "",
-			"snapscreenActionName":  "uploadimage",
-			"snapscreenFieldName":   "upload",
-			"snapscreenUrlPrefix":   "",
-			"catcherActionName":     "catchimage",
-			"catcherFieldName":      "source",
-			"catcherMaxSize":        10485760,
-			"catcherAllowFiles":     []string{".png", ".jpg", ".jpeg", ".gif", ".bmp"},
-			"catcherUrlPrefix":      "",
-			"videoActionName":       "uploadvideo",
-			"videoFieldName":        "upload",
-			"videoMaxSize":          104857600,
-			"videoAllowFiles":       []string{".flv", ".swf", ".mkv", ".avi", ".rm", ".rmvb", ".mpeg", ".mpg", ".ogg", ".ogv", ".mov", ".wmv", ".mp4", ".webm", ".mp3", ".wav", ".mid"},
-			"videoUrlPrefix":        "",
-			"fileActionName":        "uploadfile",
-			"fileFieldName":         "upload",
-			"fileMaxSize":           104857600,
-			"fileAllowFiles":        []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".flv", ".swf", ".mkv", ".avi", ".rm", ".rmvb", ".mpeg", ".mpg", ".ogg", ".ogv", ".mov", ".wmv", ".mp4", ".webm", ".mp3", ".wav", ".mid", ".rar", ".zip", ".tar", ".gz", ".7z", ".bz2", ".cab", ".iso", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".md", ".xml", ".crx"},
-			"fileUrlPrefix":         "",
-			"imageManagerActionName":"listimage",
-			"imageManagerListSize":  20,
-			"imageManagerUrlPrefix": "",
-			"imageManagerInsertAlign":"none",
-			"imageManagerAllowFiles":[]string{".png", ".jpg", ".jpeg", ".gif", ".bmp"},
-			"fileManagerActionName": "listfile",
-			"fileManagerListSize":   20,
-			"fileManagerUrlPrefix":  "",
-			"fileManagerAllowFiles": []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".flv", ".swf", ".mkv", ".avi", ".rm", ".rmvb", ".mpeg", ".mpg", ".ogg", ".ogv", ".mov", ".wmv", ".mp4", ".webm", ".mp3", ".wav", ".mid", ".rar", ".zip", ".tar", ".gz", ".7z", ".bz2", ".cab", ".iso", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".md", ".xml"},
+			"imageActionName":         "uploadimage",
+			"imageFieldName":          "upload",
+			"imageMaxSize":            10485760,
+			"imageAllowFiles":         []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico"},
+			"imageCompressEnable":     false,
+			"imageInsertAlign":        "none",
+			"imageUrlPrefix":          "",
+			"scrawlActionName":        "uploadscrawl",
+			"scrawlFieldName":         "upload",
+			"scrawlMaxSize":           10485760,
+			"scrawlUrlPrefix":         "",
+			"snapscreenActionName":    "uploadimage",
+			"snapscreenFieldName":     "upload",
+			"snapscreenUrlPrefix":     "",
+			"catcherActionName":       "catchimage",
+			"catcherFieldName":        "source",
+			"catcherMaxSize":          10485760,
+			"catcherAllowFiles":       []string{".png", ".jpg", ".jpeg", ".gif", ".bmp"},
+			"catcherUrlPrefix":        "",
+			"videoActionName":         "uploadvideo",
+			"videoFieldName":          "upload",
+			"videoMaxSize":            104857600,
+			"videoAllowFiles":         []string{".flv", ".swf", ".mkv", ".avi", ".rm", ".rmvb", ".mpeg", ".mpg", ".ogg", ".ogv", ".mov", ".wmv", ".mp4", ".webm", ".mp3", ".wav", ".mid"},
+			"videoUrlPrefix":          "",
+			"fileActionName":          "uploadfile",
+			"fileFieldName":           "upload",
+			"fileMaxSize":             104857600,
+			"fileAllowFiles":          []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".flv", ".swf", ".mkv", ".avi", ".rm", ".rmvb", ".mpeg", ".mpg", ".ogg", ".ogv", ".mov", ".wmv", ".mp4", ".webm", ".mp3", ".wav", ".mid", ".rar", ".zip", ".tar", ".gz", ".7z", ".bz2", ".cab", ".iso", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".md", ".xml", ".crx"},
+			"fileUrlPrefix":           "",
+			"imageManagerActionName":  "listimage",
+			"imageManagerListSize":    20,
+			"imageManagerUrlPrefix":   "",
+			"imageManagerInsertAlign": "none",
+			"imageManagerAllowFiles":  []string{".png", ".jpg", ".jpeg", ".gif", ".bmp"},
+			"fileManagerActionName":   "listfile",
+			"fileManagerListSize":     20,
+			"fileManagerUrlPrefix":    "",
+			"fileManagerAllowFiles":   []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".flv", ".swf", ".mkv", ".avi", ".rm", ".rmvb", ".mpeg", ".mpg", ".ogg", ".ogv", ".mov", ".wmv", ".mp4", ".webm", ".mp3", ".wav", ".mid", ".rar", ".zip", ".tar", ".gz", ".7z", ".bz2", ".cab", ".iso", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".md", ".xml"},
 		})
 		return
 	}

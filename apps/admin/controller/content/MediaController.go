@@ -2,6 +2,9 @@ package content
 
 import (
 	"fmt"
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/apps/common"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -10,9 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"gbootcms/apps/admin/model"
-	"gbootcms/apps/admin/model/content"
-	"gbootcms/apps/common"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,11 +27,11 @@ import (
 // 設計原則：緩存盡可能短（5 分鐘），並在所有改變文件引用的寫操作後自動失效。
 
 type mediaCacheData struct {
-	Files      []MediaFile
-	UsedPaths  map[string]bool
+	Files       []MediaFile
+	UsedPaths   map[string]bool
 	MarkedPaths map[string]bool
-	ScanTime   time.Time
-	Scanning   bool // 是否正在掃描中
+	ScanTime    time.Time
+	Scanning    bool // 是否正在掃描中
 }
 
 var (
@@ -173,13 +173,13 @@ type refTable struct {
 // 注意：nameCol 必須與實際 DB 欄位名一致（ay_slide 用 title 非 name，ay_member 用 username 非 name）。
 // 新增含文件引用的表時，必須同步更新 core/mediaplugin/dirty.go 的 MediaReferencingTables 白名單。
 var fileRefs = []refTable{
-	{"ay_content",      "id", "title",    []refColumn{{"ico", "ico(封面)"}, {"pics", "pics(多圖)"}, {"enclosure", "enclosure(附件)"}}},
-	{"ay_content_sort", "id", "name",     []refColumn{{"ico", "ico(圖標)"}, {"pic", "pic(圖片)"}}},
-	{"ay_slide",        "id", "title",    []refColumn{{"pic", "pic(輪播圖)"}, {"pic_mobile", "pic_mobile(移動端)"}}},
-	{"ay_link",         "id", "name",     []refColumn{{"logo", "logo(Logo)"}}},
-	{"ay_company",      "id", "name",     []refColumn{{"weixin", "weixin(微信)"}, {"blicense", "blicense(證照)"}}},
-	{"ay_site",         "id", "name",     []refColumn{{"logo", "logo(Logo)"}}},
-	{"ay_member",       "id", "username", []refColumn{{"headpic", "headpic(頭像)"}}},
+	{"ay_content", "id", "title", []refColumn{{"ico", "ico(封面)"}, {"pics", "pics(多圖)"}, {"enclosure", "enclosure(附件)"}}},
+	{"ay_content_sort", "id", "name", []refColumn{{"ico", "ico(圖標)"}, {"pic", "pic(圖片)"}}},
+	{"ay_slide", "id", "title", []refColumn{{"pic", "pic(輪播圖)"}, {"pic_mobile", "pic_mobile(移動端)"}}},
+	{"ay_link", "id", "name", []refColumn{{"logo", "logo(Logo)"}}},
+	{"ay_company", "id", "name", []refColumn{{"weixin", "weixin(微信)"}, {"blicense", "blicense(證照)"}}},
+	{"ay_site", "id", "name", []refColumn{{"logo", "logo(Logo)"}}},
+	{"ay_member", "id", "username", []refColumn{{"headpic", "headpic(頭像)"}}},
 }
 
 // validateOnce 確保 PRAGMA 校驗只運行壹次
@@ -371,11 +371,17 @@ func (c *MediaController) Mark(ctx *gin.Context) {
 	}
 
 	var mark content.MediaMark
-	if err := model.DB.Where("path = ?", np).First(&mark).Error; err == nil {
-		model.DB.Delete(&mark)
+	if err := model.DB.WithContext(ctx.Request.Context()).Where("path = ?", np).First(&mark).Error; err == nil {
+		if err := model.DB.WithContext(ctx.Request.Context()).Delete(&mark).Error; err != nil {
+			c.JSONFail(ctx, "取消標記失敗："+err.Error())
+			return
+		}
 		c.JSONOKMsg(ctx, "已取消標記")
 	} else {
-		model.DB.Create(&content.MediaMark{Path: np})
+		if err := model.DB.WithContext(ctx.Request.Context()).Create(&content.MediaMark{Path: np}).Error; err != nil {
+			c.JSONFail(ctx, "標記失敗："+err.Error())
+			return
+		}
 		c.JSONOKMsg(ctx, "已標記為保護")
 	}
 }
@@ -478,8 +484,8 @@ func (c *MediaController) BackupList(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 1,
 		"data": gin.H{
-			"files":     files,
-			"total":     total,
+			"files":      files,
+			"total":      total,
 			"total_size": formatSize(totalSize),
 		},
 	})
@@ -568,9 +574,9 @@ func (c *MediaController) Refresh(ctx *gin.Context) {
 		"code": 1,
 		"msg":  fmt.Sprintf("掃描完成，共 %d 個文件", len(result.Files)),
 		"data": gin.H{
-			"total":       len(result.Files),
-			"total_size":  formatSize(totalSize),
-			"scan_time":   result.ScanTime.Format("2006-01-02 15:04:05"),
+			"total":      len(result.Files),
+			"total_size": formatSize(totalSize),
+			"scan_time":  result.ScanTime.Format("2006-01-02 15:04:05"),
 		},
 	})
 }

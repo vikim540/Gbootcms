@@ -133,9 +133,15 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			var config model.Config
 			result := model.DB.Where("name = ?", name).First(&config)
 			if result.Error != nil {
-				model.DB.Create(&model.Config{Name: name, Value: val})
+				if err := model.DB.WithContext(c.Request.Context()).Create(&model.Config{Name: name, Value: val}).Error; err != nil {
+					cf.JSONFail(c, "新增失敗："+err.Error())
+					return
+				}
 			} else {
-				model.DB.Model(&config).Update("value", val)
+				if err := model.DB.WithContext(c.Request.Context()).Model(&config).Update("value", val).Error; err != nil {
+					cf.JSONFail(c, "修改失敗："+err.Error())
+					return
+				}
 			}
 		}
 		cf.JSONOKMsg(c, common.NoticeSave)

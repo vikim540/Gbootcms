@@ -109,14 +109,14 @@ func (mb *MemberController) Add(c *gin.Context) {
 		}
 
 		// 使用 bcrypt 雜湊密碼（向後兼容舊版雙 MD5）
-	hashedPwd, err := common.HashPassword(password)
-	if err != nil {
-		mb.JSONFail(c, "密碼加密失敗，請重試")
-		return
-	}
+		hashedPwd, err := common.HashPassword(password)
+		if err != nil {
+			mb.JSONFail(c, "密碼加密失敗，請重試")
+			return
+		}
 
-	// 生成 ucode（時間戳 + 隨機數，併發安全）
-	ucode := fmt.Sprintf("%d%04d", time.Now().Unix()%1000000, common.SecureRandomInt(10000))
+		// 生成 ucode（時間戳 + 隨機數，併發安全）
+		ucode := fmt.Sprintf("%d%04d", time.Now().Unix()%1000000, common.SecureRandomInt(10000))
 
 		gid := c.PostForm("gid")
 		if gid == "" {
@@ -126,24 +126,24 @@ func (mb *MemberController) Add(c *gin.Context) {
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 
 		if err := model.DB.Create(&model.Member{
-		Ucode:        ucode,
-		Username:     username,
-		Nickname:     c.PostForm("nickname"),
-		Password:     hashedPwd,
-		Useremail:    c.PostForm("useremail"),
-		Usermobile:   c.PostForm("usermobile"),
-		Headpic:      c.PostForm("headpic"),
-		GID:          gid,
-		Score:        score,
-		Status:       status,
-		Activation:   1,
-		LoginCount:   0,
-		RegisterTime: time.Now(),
-	}).Error; err != nil {
-		mb.LogAction(c, "新增會員失敗")
-		mb.JSONFail(c, "新增失敗："+err.Error())
-		return
-	}
+			Ucode:        ucode,
+			Username:     username,
+			Nickname:     c.PostForm("nickname"),
+			Password:     hashedPwd,
+			Useremail:    c.PostForm("useremail"),
+			Usermobile:   c.PostForm("usermobile"),
+			Headpic:      c.PostForm("headpic"),
+			GID:          gid,
+			Score:        score,
+			Status:       status,
+			Activation:   1,
+			LoginCount:   0,
+			RegisterTime: time.Now(),
+		}).Error; err != nil {
+			mb.LogAction(c, "新增會員失敗")
+			mb.JSONFail(c, "新增失敗："+err.Error())
+			return
+		}
 		mb.LogAction(c, "新增會員成功")
 		mb.JSONOKMsg(c, common.NoticeAdd)
 		return
@@ -168,7 +168,10 @@ func (mb *MemberController) Mod(c *gin.Context) {
 			if submit == "verify0" {
 				status = 0
 			}
-			model.DB.Model(&model.Member{}).Where("id IN ?", list).Update("status", status)
+			if err := model.DB.WithContext(c.Request.Context()).Model(&model.Member{}).Where("id IN ?", list).Update("status", status).Error; err != nil {
+				mb.JSONFail(c, "操作失敗："+err.Error())
+				return
+			}
 			if status == 1 {
 				mb.LogAction(c, "會員批量啟用成功")
 				mb.JSONOKMsg(c, "啟用成功")
@@ -254,19 +257,19 @@ func (mb *MemberController) Mod(c *gin.Context) {
 			"status":     status,
 		}
 		password := c.PostForm("password")
-	if password != "" {
-		hashedPwd, err := common.HashPassword(password)
-		if err != nil {
-			mb.JSONFail(c, "密碼加密失敗，請重試")
+		if password != "" {
+			hashedPwd, err := common.HashPassword(password)
+			if err != nil {
+				mb.JSONFail(c, "密碼加密失敗，請重試")
+				return
+			}
+			updates["password"] = hashedPwd
+		}
+		if err := model.DB.Model(&model.Member{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			mb.LogAction(c, "修改會員失敗")
+			mb.JSONFail(c, "修改失敗："+err.Error())
 			return
 		}
-		updates["password"] = hashedPwd
-	}
-		if err := model.DB.Model(&model.Member{}).Where("id = ?", id).Updates(updates).Error; err != nil {
-		mb.LogAction(c, "修改會員失敗")
-		mb.JSONFail(c, "修改失敗："+err.Error())
-		return
-	}
 		mb.LogAction(c, "修改會員成功")
 		mb.JSONOKMsg(c, common.NoticeModify)
 		return
@@ -298,7 +301,10 @@ func (mb *MemberController) Del(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		list := c.PostFormArray("list[]")
 		if len(list) > 0 {
-			model.DB.Where("id IN ?", list).Delete(&model.Member{})
+			if err := model.DB.WithContext(c.Request.Context()).Where("id IN ?", list).Delete(&model.Member{}).Error; err != nil {
+				mb.JSONFail(c, "刪除失敗："+err.Error())
+				return
+			}
 			mb.LogAction(c, "刪除會員成功")
 			mb.JSONOKMsg(c, common.NoticeDelete)
 			return
@@ -319,7 +325,7 @@ func (mb *MemberController) Del(c *gin.Context) {
 		mb.JSONFail(c, "缺少刪除目標ID")
 		return
 	}
-	if err := model.DB.Delete(&model.Member{}, idStr).Error; err != nil {
+	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Member{}, idStr).Error; err != nil {
 		mb.LogAction(c, "刪除會員失敗")
 		mb.JSONFail(c, "刪除失敗："+err.Error())
 		return

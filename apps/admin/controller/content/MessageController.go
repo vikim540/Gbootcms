@@ -233,7 +233,10 @@ func (ms *MessageController) Mod(c *gin.Context) {
 		value = c.Query("value")
 	}
 	if field != "" && value != "" && id > 0 {
-		model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Where("id = ?", id).Update(field, value)
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+			c.Redirect(http.StatusFound, "/admin/content/message/index")
+			return
+		}
 		c.Redirect(http.StatusFound, "/admin/content/message/index")
 		return
 	}
@@ -242,12 +245,15 @@ func (ms *MessageController) Mod(c *gin.Context) {
 		// 回覆提交
 		recontent := c.PostForm("recontent")
 		status := c.PostForm("status")
-		model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"recontent":   recontent,
 			"status":      status,
 			"update_time": time.Now().Format("2006-01-02 15:04:05"),
 			"update_user": ms.GetAdminUsername(c),
-		})
+		}).Error; err != nil {
+			ms.JSONFail(c, "回覆失敗："+err.Error())
+			return
+		}
 		ms.JSONOKMsg(c, common.NoticeReply)
 		return
 	}
@@ -279,7 +285,10 @@ func (ms *MessageController) Del(c *gin.Context) {
 	if idStr != "" {
 		id, _ := strconv.Atoi(idStr)
 		if id > 0 {
-			model.DB.WithContext(c.Request.Context()).Delete(&model.Message{}, id)
+			if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Message{}, id).Error; err != nil {
+				ms.JSONFail(c, "刪除失敗："+err.Error())
+				return
+			}
 		}
 	}
 	ms.JSONOKMsg(c, common.NoticeDelete)
@@ -305,7 +314,10 @@ func (ms *MessageController) Clear(c *gin.Context) {
 	}
 	// 清空全部（僅 ucode==10001 有權限）
 	if common.GetSessionInt(c, "admin_ucode") == 10001 {
-		model.DB.WithContext(c.Request.Context()).Where("1 = 1").Delete(&model.Message{})
+		if err := model.DB.WithContext(c.Request.Context()).Where("1 = 1").Delete(&model.Message{}).Error; err != nil {
+			ms.JSONFail(c, "清空失敗："+err.Error())
+			return
+		}
 	}
 	c.Redirect(http.StatusFound, "/admin/content/message/index")
 }

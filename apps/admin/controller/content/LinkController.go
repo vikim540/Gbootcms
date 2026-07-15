@@ -66,7 +66,7 @@ func (lk *LinkController) Add(c *gin.Context) {
 		}
 		now := time.Now().Format("2006-01-02 15:04:05")
 		// acode 由 AcodePlugin 自動填充，無需手動設置
-		model.DB.WithContext(c.Request.Context()).Create(&model.Link{
+		if err := model.DB.WithContext(c.Request.Context()).Create(&model.Link{
 			GID:        gid,
 			Name:       c.PostForm("name"),
 			Link:       c.PostForm("link"),
@@ -76,7 +76,10 @@ func (lk *LinkController) Add(c *gin.Context) {
 			UpdateUser: lk.GetAdminUsername(c),
 			CreateTime: now,
 			UpdateTime: now,
-		})
+		}).Error; err != nil {
+			lk.JSONFail(c, "新增失敗："+err.Error())
+			return
+		}
 		lk.LogAction(c, "新增友情鏈接成功")
 		lk.JSONOKMsg(c, common.NoticeAdd)
 		return
@@ -108,7 +111,7 @@ func (lk *LinkController) Mod(c *gin.Context) {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		gid, _ := strconv.Atoi(c.DefaultPostForm("gid", "1"))
 		now := time.Now().Format("2006-01-02 15:04:05")
-		model.DB.WithContext(c.Request.Context()).Model(&model.Link{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Link{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"gid":         gid,
 			"name":        c.PostForm("name"),
 			"link":        c.PostForm("link"),
@@ -116,7 +119,10 @@ func (lk *LinkController) Mod(c *gin.Context) {
 			"sorting":     sorting,
 			"update_user": lk.GetAdminUsername(c),
 			"update_time": now,
-		})
+		}).Error; err != nil {
+			lk.JSONFail(c, "修改失敗："+err.Error())
+			return
+		}
 		lk.LogAction(c, "修改友情鏈接成功")
 		lk.JSONOKMsg(c, common.NoticeModify)
 		return

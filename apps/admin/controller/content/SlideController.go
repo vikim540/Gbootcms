@@ -69,7 +69,7 @@ func (sl *SlideController) Add(c *gin.Context) {
 		}
 		now := time.Now().Format("2006-01-02 15:04:05")
 	username := sl.GetAdminUsername(c)
-	model.DB.WithContext(c.Request.Context()).Create(&model.Slide{
+	if err := model.DB.WithContext(c.Request.Context()).Create(&model.Slide{
 		GID:        gid,
 		Pic:        c.PostForm("pic"),
 		PicMobile:  c.PostForm("pic_mobile"),
@@ -82,7 +82,10 @@ func (sl *SlideController) Add(c *gin.Context) {
 		UpdateUser: username,
 		CreateTime: now,
 		UpdateTime: now,
-	})
+	}).Error; err != nil {
+		sl.JSONFail(c, "新增失敗："+err.Error())
+		return
+	}
 		sl.LogAction(c, "新增輪播圖成功")
 		sl.JSONOKMsg(c, common.NoticeAdd)
 		return
@@ -125,7 +128,7 @@ func (sl *SlideController) Mod(c *gin.Context) {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		now := time.Now().Format("2006-01-02 15:04:05")
 		username := sl.GetAdminUsername(c)
-		model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"gid":         gid,
 			"pic":         c.PostForm("pic"),
 			"pic_mobile":  c.PostForm("pic_mobile"),
@@ -136,7 +139,10 @@ func (sl *SlideController) Mod(c *gin.Context) {
 			"sorting":     sorting,
 			"update_user": username,
 			"update_time": now,
-		})
+		}).Error; err != nil {
+			sl.JSONFail(c, "修改失敗："+err.Error())
+			return
+		}
 		sl.LogAction(c, "修改輪播圖成功")
 		sl.JSONOKMsg(c, common.NoticeModify)
 		return

@@ -187,6 +187,11 @@ gbootcms/
 49. **正則掃描前必須 strings.Contains 預判** — `processSingleTags`、`processPairTags`、`preResolveSingleInPairParams` 中每個標籤類型在執行正則匹配前，必須先檢查 `strings.Contains(content, "{標籤前綴")`，不含則跳過正則掃描；頁面通常只含 3-5 種標籤，預判可削減 30-50% 正則執行量
 50. **buildIfContext 必須快取在 Context.ifContext** — `{gboot:if}` 條件上下文（含 8 次 `GetConfigValue` 調用）必須在首次建構後快取到 `ctx.ifContext`，後續 `{gboot:if}` 標籤直接復用；詳情頁通常有 5-10 個 if 標籤，快取後從 50-100 次重複調用降為 8 次
 51. **singleflight 中 c.Writer 恢復必須用 defer** — `html_cache.go` 中 `c.Writer = cw` 後必須用 `defer func() { c.Writer = c.Writer.(*cacheBodyWriter).ResponseWriter }()` 恢復，確保 panic 時也能恢復原始 Writer；直接寫 `c.Writer = cw.ResponseWriter` 在 panic 時不會執行
+52. **所有 DB Create/Update/Delete 必須檢查 .Error** — 禁止 `model.DB.Create(...)` 後直接返回成功訊息；必須 `if err := model.DB.WithContext(c.Request.Context()).Create(...).Error; err != nil { ctrl.JSONFail(c, "新增失敗："+err.Error()); return }`；同理 Update/Updates/Delete 也必須檢查 .Error，否則 DB 操作失敗時仍返回成功，用戶無法察覺
+53. **所有 acode 表的 DB 操作必須使用 WithContext** — `ay_member_group`、`ay_content`、`ay_content_sort`、`ay_slide`、`ay_link`、`ay_tags`、`ay_message`、`ay_site`、`ay_company` 等含 acode 欄位的表，其查詢（Count/Find/First）和變更（Create/Update/Delete）操作都必須使用 `.WithContext(c.Request.Context())`，否則 AcodePlugin 無法自動注入區域過濾，導致跨區域數據泄露或誤操作
+54. **刪除路由必須使用 *action 通配符** — `btn-del` JavaScript 發送 GET 請求到 `/admin/xxx/del/id/123`（路徑參數而非 query 參數），路由必須同時註冊 `adminGroup.POST("/content/xxx/del", ctrl.Del)` 和 `adminGroup.Any("/content/xxx/del/*action", ctrl.Del)`，Del 方法必須用 `helper.ParseWildcardAction(c.Param("action"))` 解析 id
+55. **模板表單 action URL 必須與路由完全匹配** — 模板中 `{url./admin/content/tags/add}` 必須與路由 `/admin/content/tags/add` 完全匹配（小寫 + 完整路徑），禁止使用大寫（如 `{url./admin/Tags/add}`）或省略 `content/` 前綴（如 `{url./admin/tags/add}`），否則 POST 數據丟失或 404
+56. **GORM 模型必須包含 DB 表的所有 NOT NULL 欄位** — 新增 model struct 時必須用 `sqlite3 data/pbootcms.db ".schema ay_xxx"` 檢查表結構，所有 NOT NULL 欄位必須在 Go struct 中定義並在 Create 時賦值，否則 SQLite 拒絕 INSERT 且 GORM 靜默失敗（若未檢查 .Error 則用戶看到「成功」但數據未入庫）
 
 ---
 

@@ -5,6 +5,7 @@ import (
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -78,10 +79,20 @@ func (tg *TagsController) Add(c *gin.Context) {
 			return
 		}
 
-		model.DB.WithContext(c.Request.Context()).Create(&model.Tags{
-			Name: name,
-			Link: link,
-		})
+		now := time.Now().Format("2006-01-02 15:04:05")
+		username := tg.GetAdminUsername(c)
+		if err := model.DB.WithContext(c.Request.Context()).Create(&model.Tags{
+			Name:       name,
+			Link:       link,
+			CreateUser: username,
+			UpdateUser: username,
+			CreateTime: now,
+			UpdateTime: now,
+		}).Error; err != nil {
+			tg.LogAction(c, "新增文章內鏈失敗")
+			tg.JSONFail(c, "新增失敗："+err.Error())
+			return
+		}
 		tg.LogAction(c, "新增文章內鏈成功")
 		tg.JSONOKMsg(c, common.NoticeAdd)
 		return
@@ -91,7 +102,15 @@ func (tg *TagsController) Add(c *gin.Context) {
 
 // Del - 刪除內鏈
 func (tg *TagsController) Del(c *gin.Context) {
-	idStr := c.Query("id")
+	// 支援 *action 通配符路徑: /del/id/123
+	params := helper.ParseWildcardAction(c.Param("action"))
+	idStr := params["id"]
+	if idStr == "" {
+		idStr = c.Query("id")
+	}
+	if idStr == "" {
+		idStr = c.PostForm("id")
+	}
 	if idStr == "" {
 		tg.LogAction(c, "刪除文章內鏈失敗")
 		tg.JSONFail(c, "參數錯誤")
@@ -146,12 +165,18 @@ func (tg *TagsController) Mod(c *gin.Context) {
 			return
 		}
 
+		now := time.Now().Format("2006-01-02 15:04:05")
 		// 允許 link 為空（不是所有內鏈都需要連結）
 		updates := map[string]interface{}{
-			"name": name,
-			"link": link,
+			"name":       name,
+			"link":       link,
+			"update_user": tg.GetAdminUsername(c),
+			"update_time": now,
 		}
-		model.DB.WithContext(c.Request.Context()).Model(&model.Tags{}).Where("id = ?", id).Updates(updates)
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Tags{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			tg.JSONFail(c, "修改失敗："+err.Error())
+			return
+		}
 		tg.LogAction(c, "修改文章內鏈成功")
 		tg.JSONOKMsg(c, common.NoticeModify)
 		return

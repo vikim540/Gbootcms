@@ -211,12 +211,21 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 			var existing model.Content
 			result := model.DB.WithContext(c.Request.Context()).Where("scode = ?", contentScode).First(&existing)
 			if result.Error != nil && c.PostForm("outlink") == "" {
-				model.DB.WithContext(c.Request.Context()).Create(&model.Content{
-					Scode:  contentScode,
-					Title:  c.PostForm("name"),
-					Status: 1,
-					Date:   time.Now(),
-				})
+				now := time.Now()
+				username := csc.GetAdminUsername(c)
+				if err := model.DB.WithContext(c.Request.Context()).Create(&model.Content{
+					Scode:       contentScode,
+					Title:       c.PostForm("name"),
+					Status:      1,
+					Date:        now,
+					CreateUser:  username,
+					UpdateUser:  username,
+					CreateTime:  now,
+					UpdateTime:  now,
+				}).Error; err != nil {
+					csc.JSONFail(c, "初始化內容失敗："+err.Error())
+					return
+				}
 			}
 		}
 

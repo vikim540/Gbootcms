@@ -120,6 +120,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.GET("/content/tags/add", tg.Add)
 		adminGroup.POST("/content/tags/add", tg.Add)
 		adminGroup.POST("/content/tags/del", tg.Del)
+		adminGroup.Any("/content/tags/del/*action", tg.Del)
 		adminGroup.Any("/content/tags/mod/*action", tg.Mod)
 
 		lb := &content.LabelController{}

@@ -311,12 +311,21 @@ func (fm *FormController) Del(c *gin.Context) {
 		}
 		tableName := form.TableName
 		fcode := form.Fcode
-		model.DB.WithContext(c.Request.Context()).Where("fcode = ?", fcode).Delete(&contentModel.FormField{})
+		if err := model.DB.WithContext(c.Request.Context()).Where("fcode = ?", fcode).Delete(&contentModel.FormField{}).Error; err != nil {
+			fm.JSONFail(c, "刪除失敗："+err.Error())
+			return
+		}
 		// DDL 操作，無需 WithContext
 		model.DB.Exec("DROP TABLE IF EXISTS `" + tableName + "`")
-		model.DB.WithContext(c.Request.Context()).Delete(&contentModel.Form{}, id)
+		if err := model.DB.WithContext(c.Request.Context()).Delete(&contentModel.Form{}, id).Error; err != nil {
+			fm.JSONFail(c, "刪除失敗："+err.Error())
+			return
+		}
 		// ay_menu 無 acode 欄位，無需 WithContext
-		model.DB.Where("url LIKE ?", "%Form/index/fcode/"+fcode+"/action/showdata%").Delete(&system.Menu{})
+		if err := model.DB.Where("url LIKE ?", "%Form/index/fcode/"+fcode+"/action/showdata%").Delete(&system.Menu{}).Error; err != nil {
+			fm.JSONFail(c, "刪除失敗："+err.Error())
+			return
+		}
 		fm.LogAction(c, "刪除自定義表單成功")
 		fm.JSONOKMsg(c, "刪除成功")
 
@@ -349,7 +358,10 @@ func (fm *FormController) Del(c *gin.Context) {
 		if cfg.Database.Type == "mysql" && tableName != "" {
 			model.DB.Exec("ALTER TABLE `" + tableName + "` DROP COLUMN `" + formField.Name + "`")
 		}
-		model.DB.WithContext(c.Request.Context()).Delete(&formField)
+		if err := model.DB.WithContext(c.Request.Context()).Delete(&formField).Error; err != nil {
+			fm.JSONFail(c, "刪除失敗："+err.Error())
+			return
+		}
 		fm.LogAction(c, "刪除表單字段成功")
 		fm.JSONOKMsg(c, "刪除成功")
 	}
@@ -369,12 +381,15 @@ func (fm *FormController) Mod(c *gin.Context) {
 	fieldName := params["field"]
 	value := params["value"]
 	if fieldName != "" && value != "" {
-		model.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("id = ?", id).
+		if err := model.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("id = ?", id).
 			Updates(map[string]interface{}{
 				fieldName:     value,
 				"update_time": time.Now(),
 				"update_user": fm.GetAdminUsername(c),
-			})
+			}).Error; err != nil {
+			fm.JSONFail(c, "修改失敗："+err.Error())
+			return
+		}
 		fm.JSONOKMsg(c, "修改成功")
 		return
 	}
@@ -393,7 +408,10 @@ func (fm *FormController) Mod(c *gin.Context) {
 		var existingMenu system.Menu
 		model.DB.Where("url LIKE ?", "%"+menuURL+"%").First(&existingMenu)
 		if existingMenu.ID > 0 {
-			model.DB.Model(&system.Menu{}).Where("id = ?", existingMenu.ID).Update("name", form.FormName)
+			if err := model.DB.Model(&system.Menu{}).Where("id = ?", existingMenu.ID).Update("name", form.FormName).Error; err != nil {
+				fm.JSONFail(c, "修改失敗："+err.Error())
+				return
+			}
 			c.JSON(200, gin.H{"code": 1, "data": "菜單已更新", "msg": "菜單已更新", "tourl": "/admin/Form/index"})
 			return
 		}
@@ -405,7 +423,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 				newMcode = fmt.Sprintf("M%d", n+1)
 			}
 		}
-		model.DB.Create(&system.Menu{
+		if err := model.DB.Create(&system.Menu{
 			Mcode:      newMcode,
 			Pcode:      "M157",
 			Name:       form.FormName,
@@ -416,7 +434,10 @@ func (fm *FormController) Mod(c *gin.Context) {
 			Ico:        "fa-plus-square-o",
 			CreateUser: fm.GetAdminUsername(c),
 			UpdateUser: fm.GetAdminUsername(c),
-		})
+		}).Error; err != nil {
+			fm.JSONFail(c, "新增失敗："+err.Error())
+			return
+		}
 		fm.LogAction(c, "添加自定義表單到菜單成功")
 		c.JSON(200, gin.H{"code": 1, "data": "添加成功", "msg": "添加成功", "tourl": "/admin/Form/index"})
 		return
@@ -430,11 +451,14 @@ func (fm *FormController) Mod(c *gin.Context) {
 				fm.JSONFail(c, "表單名稱不能為空")
 				return
 			}
-			model.DB.WithContext(c.Request.Context()).Model(&contentModel.Form{}).Where("id = ?", id).Updates(map[string]interface{}{
+			if err := model.DB.WithContext(c.Request.Context()).Model(&contentModel.Form{}).Where("id = ?", id).Updates(map[string]interface{}{
 				"form_name":   formName,
 				"update_time": time.Now(),
 				"update_user": fm.GetAdminUsername(c),
-			})
+			}).Error; err != nil {
+				fm.JSONFail(c, "修改失敗："+err.Error())
+				return
+			}
 			fm.LogAction(c, "修改自定義表單成功")
 			fm.JSONOKMsg(c, "修改成功")
 			return
@@ -446,13 +470,16 @@ func (fm *FormController) Mod(c *gin.Context) {
 			fm.JSONFail(c, "字段描述不能為空")
 			return
 		}
-		model.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := model.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"description": description,
 			"required":    required,
 			"sorting":     sorting,
 			"update_time": time.Now(),
 			"update_user": fm.GetAdminUsername(c),
-		})
+		}).Error; err != nil {
+			fm.JSONFail(c, "修改失敗："+err.Error())
+			return
+		}
 		fm.LogAction(c, "修改表單字段成功")
 		fm.JSONOKMsg(c, "修改成功")
 		return

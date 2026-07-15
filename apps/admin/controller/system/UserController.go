@@ -188,7 +188,7 @@ func (uc *UserController) Mod(c *gin.Context) {
 	value := params["value"]
 	if field != "" && value != "" {
 		updates := map[string]interface{}{
-			field:        value,
+			field:         value,
 			"update_user": uc.GetAdminUsername(c),
 			"update_time": time.Now().Format("2006-01-02 15:04:05"),
 		}
@@ -307,7 +307,11 @@ func (uc *UserController) Del(c *gin.Context) {
 		return
 	}
 
-	result := model.DB.Where("ucode = ?", ucode).Delete(&model.AdminUser{})
+	result := model.DB.WithContext(c.Request.Context()).Where("ucode = ?", ucode).Delete(&model.AdminUser{})
+	if result.Error != nil {
+		uc.JSONFail(c, "刪除失敗："+result.Error.Error())
+		return
+	}
 	if result.RowsAffected == 0 {
 		uc.JSONFail(c, "刪除失敗，用戶不存在！")
 		return

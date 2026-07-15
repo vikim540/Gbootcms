@@ -27,10 +27,10 @@ func (mf *MemberFieldController) Index(c *gin.Context) {
 
 	// 統計總記錄數
 	var total int64
-	model.DB.Model(&model.MemberField{}).Count(&total)
+	model.DB.WithContext(c.Request.Context()).Model(&model.MemberField{}).Count(&total)
 
 	var fields []model.MemberField
-	model.DB.Order("sorting ASC, id ASC").Offset(offset).Limit(pageSize).Find(&fields)
+	model.DB.WithContext(c.Request.Context()).Order("sorting ASC, id ASC").Offset(offset).Limit(pageSize).Find(&fields)
 	common.Render(c, "member/field.html", gin.H{
 		"list":     true,
 		"fields":   fields,
@@ -82,7 +82,7 @@ func (mf *MemberFieldController) Add(c *gin.Context) {
 
 		now := time.Now()
 		username := mf.GetAdminUsername(c)
-		model.DB.Create(&model.MemberField{
+		if err := model.DB.WithContext(c.Request.Context()).Create(&model.MemberField{
 			Name:        name,
 			Length:      length,
 			Required:    required,
@@ -93,7 +93,10 @@ func (mf *MemberFieldController) Add(c *gin.Context) {
 			UpdateUser:  username,
 			CreateTime:  now,
 			UpdateTime:  now,
-		})
+		}).Error; err != nil {
+			mf.JSONFail(c, "新增失敗："+err.Error())
+			return
+		}
 		mf.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
@@ -123,7 +126,10 @@ func (mf *MemberFieldController) Mod(c *gin.Context) {
 	}
 
 	if field != "" && value != "" {
-		model.DB.Model(&model.MemberField{}).Where("id = ?", id).Update(field, value)
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberField{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+			mf.JSONFail(c, "修改失敗："+err.Error())
+			return
+		}
 		c.Redirect(302, "/admin/member/field/index")
 		return
 	}
@@ -133,19 +139,24 @@ func (mf *MemberFieldController) Mod(c *gin.Context) {
 		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 
-		model.DB.Model(&model.MemberField{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberField{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"description": c.PostForm("description"),
 			"required":    required,
 			"sorting":     sorting,
 			"status":      status,
-		})
+			"update_user": mf.GetAdminUsername(c),
+			"update_time": time.Now(),
+		}).Error; err != nil {
+			mf.JSONFail(c, "修改失敗："+err.Error())
+			return
+		}
 		mf.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
 
 	// GET 載入修改頁面
 	var field1 model.MemberField
-	model.DB.First(&field1, id)
+	model.DB.WithContext(c.Request.Context()).First(&field1, id)
 	common.Render(c, "member/field.html", gin.H{
 		"mod":   true,
 		"field": field1,
@@ -172,7 +183,10 @@ func (mf *MemberFieldController) Del(c *gin.Context) {
 	// 取得欄位名稱（刪除前查詢，用於 DROP COLUMN）
 	fieldName := memberModel.GetFieldNameByID(idStr)
 
-	model.DB.Delete(&model.MemberField{}, idStr)
+	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.MemberField{}, idStr).Error; err != nil {
+		mf.JSONFail(c, "刪除失敗："+err.Error())
+		return
+	}
 
 	// MySQL 執行欄位刪除，SQLite 暫不支援（對齊 PHP: get_db_type() == 'mysql'）
 	if fieldName != "" {

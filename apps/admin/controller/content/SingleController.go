@@ -112,11 +112,14 @@ func (sg *SingleController) Mod(c *gin.Context) {
 			sg.JSONFail(c, "field not allowed: "+field)
 			return
 		}
-		model.DB.WithContext(c.Request.Context()).Model(&model.Content{}).Where("id = ?", id).
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Content{}).Where("id = ?", id).
 			Updates(map[string]interface{}{
 				field:        value,
 				"update_time": time.Now(),
-			})
+			}).Error; err != nil {
+			sg.JSONFail(c, "修改失敗："+err.Error())
+			return
+		}
 		sg.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
@@ -156,7 +159,10 @@ func (sg *SingleController) Mod(c *gin.Context) {
 			func(key string) string { return c.PostForm(key) },
 			func(key string) []string { return c.PostFormArray(key) },
 		)
-		model.DB.WithContext(c.Request.Context()).Model(&model.Content{}).Where("id = ?", id).Updates(updates)
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Content{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			sg.JSONFail(c, "修改失敗："+err.Error())
+			return
+		}
 		if len(extData) > 0 {
 			contentModel.UpsertContentExt(uint(id), extData)
 		}
@@ -199,7 +205,10 @@ func (sg *SingleController) Del(c *gin.Context) {
 		sg.JSONFail(c, "ID required")
 		return
 	}
-	model.DB.WithContext(c.Request.Context()).Delete(&model.Content{}, idStr)
+	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Content{}, idStr).Error; err != nil {
+		sg.JSONFail(c, "刪除失敗："+err.Error())
+		return
+	}
 	sg.JSONOKMsg(c, common.NoticeDelete)
 }
 

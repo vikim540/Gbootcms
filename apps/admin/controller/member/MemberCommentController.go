@@ -19,10 +19,10 @@ type MemberCommentController struct {
 
 // allowedSearchFields 允許搜索的欄位白名單（防止SQL注入）
 var allowedSearchFields = map[string]bool{
-	"b.title":      true,
-	"a.comment":    true,
-	"c.username":   true,
-	"c.nickname":   true,
+	"b.title":    true,
+	"a.comment":  true,
+	"c.username": true,
+	"c.nickname": true,
 }
 
 // invalidateCommentsCache 查詢評論涉及的 contentid 並精準失效對應文章快取
@@ -120,14 +120,20 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 		switch submit {
 		case "verify1":
 			if len(list) > 0 {
-				model.DB.Model(&model.MemberComment{}).Where("id IN ?", list).Update("status", 1)
+				if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberComment{}).Where("id IN ?", list).Update("status", 1).Error; err != nil {
+					mc.JSONFail(c, "修改失敗："+err.Error())
+					return
+				}
 				invalidateCommentsCache(list)
 			}
 			mc.JSONOKMsg(c, common.NoticeModify)
 			return
 		case "verify0":
 			if len(list) > 0 {
-				model.DB.Model(&model.MemberComment{}).Where("id IN ?", list).Update("status", 0)
+				if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberComment{}).Where("id IN ?", list).Update("status", 0).Error; err != nil {
+					mc.JSONFail(c, "修改失敗："+err.Error())
+					return
+				}
 				invalidateCommentsCache(list)
 			}
 			mc.JSONOKMsg(c, common.NoticeModify)
@@ -153,7 +159,10 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 	// GET：單字段修改（狀態切換）
 	if field != "" && value != "" {
 		id, _ := strconv.Atoi(idStr)
-		model.DB.Model(&model.MemberComment{}).Where("id = ?", id).Update(field, value)
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberComment{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+			mc.JSONFail(c, "修改失敗："+err.Error())
+			return
+		}
 		invalidateCommentsCache([]string{idStr})
 		mc.JSONOKMsg(c, common.NoticeModify)
 		return
@@ -183,7 +192,10 @@ func (mc *MemberCommentController) Del(c *gin.Context) {
 		if len(list) > 0 {
 			// 刪除前先查詢涉及的 contentid（刪除後無法再查詢）
 			invalidateCommentsCache(list)
-			model.DB.Where("id IN ?", list).Delete(&model.MemberComment{})
+			if err := model.DB.WithContext(c.Request.Context()).Where("id IN ?", list).Delete(&model.MemberComment{}).Error; err != nil {
+				mc.JSONFail(c, "刪除失敗："+err.Error())
+				return
+			}
 		}
 		mc.JSONOKMsg(c, common.NoticeDelete)
 		return
@@ -201,6 +213,9 @@ func (mc *MemberCommentController) Del(c *gin.Context) {
 	}
 	// 刪除前先查詢涉及的 contentid（刪除後無法再查詢）
 	invalidateCommentsCache([]string{idStr})
-	model.DB.Delete(&model.MemberComment{}, idStr)
+	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.MemberComment{}, idStr).Error; err != nil {
+		mc.JSONFail(c, "刪除失敗："+err.Error())
+		return
+	}
 	mc.JSONOKMsg(c, common.NoticeDelete)
 }
