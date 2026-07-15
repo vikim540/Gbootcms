@@ -81,7 +81,7 @@ func (ef *ExtFieldController) Index(c *gin.Context) {
 		"models":    models,
 		"sorts":     sorts,
 		"list":      true,
-		"C":         "extField",
+		"C":         "content/extField",
 		"pagebar":   helper.BuildPagebarHTML(total, page, pageSize, baseURL),
 		"pagesize":  pageSize,
 	})
@@ -144,7 +144,7 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 		"models": content.GetAllModels(),
 		"sorts":  content.GetAllContentSorts(c.Request.Context()),
 		"list":   true,
-		"C":      "extField",
+		"C":      "content/extField",
 	})
 }
 
@@ -234,12 +234,24 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 		"models":        models,
 		"sorts":         sorts,
 		"mod":           true,
-		"C":             "extField",
+		"C":             "content/extField",
 	})
 }
 
 func (ef *ExtFieldController) Del(c *gin.Context) {
-	idStr := c.Query("id")
+	// 支援 *action 通配符路徑: /del/id/123
+	params := helper.ParseWildcardAction(c.Param("action"))
+	idStr := params["id"]
+	if idStr == "" {
+		idStr = c.Query("id")
+	}
+	if idStr == "" {
+		idStr = c.PostForm("id")
+	}
+	if idStr == "" {
+		ef.JSONFail(c, "參數錯誤")
+		return
+	}
 	id, _ := strconv.Atoi(idStr)
 	err := content.DeleteExtField(id)
 	if err != nil {

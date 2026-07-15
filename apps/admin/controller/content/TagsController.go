@@ -31,7 +31,7 @@ func (tg *TagsController) Index(c *gin.Context) {
 		id, _ := strconv.Atoi(idStr)
 		var tag model.Tags
 		if err := model.DB.WithContext(c.Request.Context()).First(&tag, id).Error; err == nil {
-			common.Render(c, "content/tags.html", gin.H{"more": true, "tags": tag, "C": "tags"})
+			common.Render(c, "content/tags.html", gin.H{"more": true, "tags": tag, "C": "content/tags"})
 			return
 		}
 	}
@@ -55,7 +55,7 @@ func (tg *TagsController) Index(c *gin.Context) {
 	common.Render(c, "content/tags.html", gin.H{
 		"list":     true,
 		"tags":     tags,
-		"C":        "tags",
+		"C":        "content/tags",
 		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
 		"pagesize": pageSize,
 	})
@@ -97,7 +97,7 @@ func (tg *TagsController) Add(c *gin.Context) {
 		tg.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
-	common.Render(c, "content/tags.html", gin.H{"action": "add", "C": "tags"})
+	common.Render(c, "content/tags.html", gin.H{"action": "add", "C": "content/tags"})
 }
 
 // Del - 刪除內鏈
@@ -149,7 +149,10 @@ func (tg *TagsController) Mod(c *gin.Context) {
 	if field != "" && value != "" {
 		// 白名單驗證：Tags 只有 sorting 欄位允許單欄位更新
 		if field == "sorting" {
-			model.DB.WithContext(c.Request.Context()).Model(&model.Tags{}).Where("id = ?", id).Update(field, value)
+			if err := model.DB.WithContext(c.Request.Context()).Model(&model.Tags{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+				tg.JSONFail(c, "修改失敗："+err.Error())
+				return
+			}
 			tg.LogAction(c, "修改文章內鏈成功")
 			tg.JSONOKMsg(c, common.NoticeModify)
 			return
@@ -187,5 +190,5 @@ func (tg *TagsController) Mod(c *gin.Context) {
 		tg.JSONFail(c, "內容不存在")
 		return
 	}
-	common.Render(c, "content/tags.html", gin.H{"mod": true, "tags": tag, "C": "tags"})
+	common.Render(c, "content/tags.html", gin.H{"mod": true, "tags": tag, "C": "content/tags"})
 }

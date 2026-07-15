@@ -162,6 +162,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 	adminGroup.POST("/content/extField/add", ef.Add)
 	adminGroup.Any("/content/extField/mod/*action", ef.Mod)
 	adminGroup.POST("/content/extField/del", ef.Del)
+	adminGroup.Any("/content/extField/del/*action", ef.Del)
 
 	rdc := &content.RedirectController{}
 	adminGroup.GET("/content/redirect/index", rdc.Index)
@@ -169,6 +170,7 @@ func SetupAdminRoutes(r *gin.Engine) {
 	adminGroup.POST("/content/redirect/add", rdc.Add)
 	adminGroup.Any("/content/redirect/mod/*action", rdc.Mod)
 	adminGroup.POST("/content/redirect/del", rdc.Del)
+	adminGroup.Any("/content/redirect/del/*action", rdc.Del)
 
 		mc := &system.MenuController{}
 		adminGroup.GET("/system/menu/index", mc.Index)

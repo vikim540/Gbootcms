@@ -42,11 +42,19 @@ var dataCache sync.Map // key: acode(string), value: dataCacheEntry
 func getCachedSite(c *gin.Context) *model.Site {
 	acode := acodeplugin.GetAcode(c.Request.Context())
 	if v, ok := dataCache.Load(acode); ok {
-		return v.(dataCacheEntry).site
+		if s := v.(dataCacheEntry).site; s != nil {
+			return s
+		}
 	}
 	var site model.Site
 	if model.DB.WithContext(c.Request.Context()).First(&site).Error == nil {
-		dataCache.Store(acode, dataCacheEntry{site: &site})
+		// 更新快取（保留可能已存在的 company）
+		entry, _ := dataCache.Load(acode)
+		comp := (*model.Company)(nil)
+		if entry != nil {
+			comp = entry.(dataCacheEntry).company
+		}
+		dataCache.Store(acode, dataCacheEntry{site: &site, company: comp})
 		return &site
 	}
 	return nil
@@ -56,7 +64,9 @@ func getCachedSite(c *gin.Context) *model.Site {
 func getCachedCompany(c *gin.Context) *model.Company {
 	acode := acodeplugin.GetAcode(c.Request.Context())
 	if v, ok := dataCache.Load(acode); ok {
-		return v.(dataCacheEntry).company
+		if comp := v.(dataCacheEntry).company; comp != nil {
+			return comp
+		}
 	}
 	var company model.Company
 	if model.DB.WithContext(c.Request.Context()).First(&company).Error == nil {

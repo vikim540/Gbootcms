@@ -86,7 +86,9 @@ func (ic *IndexController) Login(c *gin.Context) {
 	// 自動升級舊版雙 MD5 密碼為 bcrypt
 	if needUpgrade {
 		if hashedPwd, err := common.HashPassword(password); err == nil {
-			model.DB.WithContext(loginCtx).Model(&user).Update("password", hashedPwd)
+			if err := model.DB.WithContext(loginCtx).Model(&user).Update("password", hashedPwd).Error; err != nil {
+				slog.Error("密碼自動升級失敗", "uid", user.ID, "error", err)
+			}
 		}
 	}
 
@@ -353,7 +355,10 @@ func (ic *IndexController) UcenterMod(c *gin.Context) {
 		ic.JSONFail(c, "密碼加密失敗，請重試")
 		return
 	}
-	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Model(&user).Update("password", hashedPwd)
+	if err := model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Model(&user).Update("password", hashedPwd).Error; err != nil {
+		ic.JSONFail(c, "密碼修改失敗："+err.Error())
+		return
+	}
 	ic.JSONOKMsg(c, common.NoticePassword)
 }
 

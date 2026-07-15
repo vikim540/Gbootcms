@@ -305,7 +305,9 @@ func (ms *MessageController) Clear(c *gin.Context) {
 			if s != "" {
 				id, _ := strconv.Atoi(s)
 				if id > 0 {
-					model.DB.WithContext(c.Request.Context()).Delete(&model.Message{}, id)
+					if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Message{}, id).Error; err != nil {
+						continue // 批量刪除中單條失敗則跳過，繼續刪除其他記錄
+					}
 				}
 			}
 		}

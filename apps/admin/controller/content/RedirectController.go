@@ -189,7 +189,12 @@ func (rc *RedirectController) Mod(c *gin.Context) {
 
 // Del 刪除重定向規則
 func (rc *RedirectController) Del(c *gin.Context) {
-	idStr := c.Query("id")
+	// 支援 *action 通配符路徑: /del/id/123
+	params := helper.ParseWildcardAction(c.Param("action"))
+	idStr := params["id"]
+	if idStr == "" {
+		idStr = c.Query("id")
+	}
 	if idStr == "" {
 		ids := c.PostFormArray("list[]")
 		if len(ids) == 0 {
