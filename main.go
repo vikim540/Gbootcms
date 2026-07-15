@@ -75,18 +75,50 @@ func main() {
 	}
 	defer model.CloseDB()
 
-	// 註冊數據變更回調：後台任何 Create/Update/Delete 自動清除所有快取
-	// 1. HTML 頁面快取（middleware.ClearHTMLCache）
-	// 2. 配置快取（model.ClearConfigCache）— GetConfigValue 不再逐次查 SQL
-	// 3. 區域快取（model.ClearAreasCache）— 6+ 處共用一份記憶體
-	// 4. Site/Company 快取（home.ClearDataCache）— buildContext 不再逐次查 SQL
-	gdb.OnDataChange = func() {
-		middleware.ClearHTMLCache()
-		model.ClearConfigCache()
-		model.ClearAreasCache()
-		home.ClearDataCache()
-		parser.ClearTagsCache()
-		parser.ClearSiteDomainsCache()
+	// 註冊數據變更回調：基於 Cache Tag 精準失效
+	// 不同表的變更觸發不同層級的快取失效：
+	//   - content:{id}  → 僅失效該文章詳情頁
+	//   - content:list  → 失效所有列表頁 + 首頁
+	//   - global        → 失效全部頁面（配置/站點/導航等全局數據變更）
+	gdb.OnDataChange = func(tableName string, id int) {
+		// === HTML 頁面快取 tag 失效 ===
+		switch tableName {
+		case "content":
+			if id > 0 {
+				middleware.InvalidateTag(fmt.Sprintf("content:%d", id))
+			}
+			middleware.InvalidateTag("content:list")
+		case "content_ext":
+			// content_ext 主鍵即為 content_id（1:1 關聯）
+			if id > 0 {
+				middleware.InvalidateTag(fmt.Sprintf("content:%d", id))
+			}
+		case "content_sort":
+			if id > 0 {
+				middleware.InvalidateTag(fmt.Sprintf("content_sort:%d", id))
+			}
+			middleware.InvalidateTag("content:list")
+		default:
+			// site, company, config, menu, slide, link, tags, label, single 等
+			// 這些表的數據出現在多個頁面，安全起見失效全部
+			middleware.InvalidateTag("global")
+		}
+
+		// === 非 HTML 快取按表精準清除（避免不必要的快取失效） ===
+		switch tableName {
+		case "config":
+			model.ClearConfigCache()
+		case "area":
+			model.ClearAreasCache()
+			RefreshValidAcodes()
+		case "site":
+			home.ClearDataCache()
+			parser.ClearSiteDomainsCache()
+		case "company":
+			home.ClearDataCache()
+		case "tags":
+			parser.ClearTagsCache()
+		}
 	}
 
 	// AutoMigrate all models: system + content + member
@@ -105,6 +137,12 @@ func main() {
 		log.Fatalf("Template engine init failed: %v", err)
 	}
 	defer store.Close()
+
+	// 模板熱重載時觸發 HTML 快取失效（全域 tag + 檔案快取清除）
+	parser.OnTemplateChange = func() {
+		middleware.ClearHTMLCache()
+		slog.Info("模板變更，已清除全部 HTML 快取")
+	}
 
 	if !cfg.App.Debug {
 		gin.SetMode(gin.ReleaseMode)

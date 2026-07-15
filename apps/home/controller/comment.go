@@ -7,6 +7,7 @@ import (
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/mail"
+	"gbootcms/apps/common/middleware"
 	"gbootcms/apps/common/webhook"
 	"strconv"
 	"time"
@@ -109,6 +110,11 @@ func (cc *CommentController) Add(c *gin.Context) {
 		return
 	}
 
+	// 評論為 SSR 渲染，若評論已生效則精準失效該文章的快取（member_comment 在 skipTables 中，GORM 回調不觸發）
+	if status == 1 && mc.Contentid > 0 {
+		middleware.InvalidateTag(fmt.Sprintf("content:%d", mc.Contentid))
+	}
+
 	// 記錄提交時間（防刷）
 	common.SetSession(c, "lastsub", now)
 
@@ -189,12 +195,22 @@ func (cc *CommentController) Del(c *gin.Context) {
 		return
 	}
 
+	// 查詢評論的 contentid（刪除後用於精準快取失效）
+	var mc model.MemberComment
+	model.DB.WithContext(c.Request.Context()).Select("contentid").Where("id = ? AND uid = ?", idStr, uid).First(&mc)
+
 	// 安全刪除：只能刪除自己的評論
 	result := model.DB.WithContext(c.Request.Context()).Where("id = ? AND uid = ?", idStr, uid).Delete(&model.MemberComment{})
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "刪除失敗，評論不存在或無權限"})
 		return
 	}
+
+	// 評論為 SSR 渲染，精準失效該文章的快取
+	if mc.Contentid > 0 {
+		middleware.InvalidateTag(fmt.Sprintf("content:%d", mc.Contentid))
+	}
+
 	c.JSON(http.StatusOK, gin.H{"code": 1, "data": "刪除成功"})
 }
 

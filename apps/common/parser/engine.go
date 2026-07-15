@@ -20,6 +20,10 @@ type TemplateStore struct {
 	stopCh   chan struct{}
 }
 
+// OnTemplateChange 是模板變更回調，由 main.go 在啟動時設定
+// 用於模板熱重載時觸發 HTML 快取失效（避免快取頁面顯示舊模板）
+var OnTemplateChange func()
+
 func NewTemplateStore(dir string, parser *TagParser) (*TemplateStore, error) {
 	ts := &TemplateStore{
 		contents: make(map[string]string),
@@ -119,6 +123,10 @@ func (ts *TemplateStore) watchLoop() {
 						ts.contents[rel] = string(data)
 						ts.mtimes[rel] = time.Now()
 						ts.mu.Unlock()
+						// 模板變更時觸發 HTML 快取失效（全域 tag + 檔案快取清除）
+						if OnTemplateChange != nil {
+							OnTemplateChange()
+						}
 					}
 				}
 			}

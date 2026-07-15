@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gbootcms/apps/admin/model"
@@ -26,12 +27,56 @@ type memCacheEntry struct {
 	gzipContent []byte // 預壓縮 gzip 內容（level 6），快取命中時直接服務，跳過壓縮 CPU 開銷
 	expireAt    int64
 	staleUntil  int64
+	tags        []string // Cache Tags：此快取條目依賴的標籤（用於精準失效）
+	tagChecksum int64    // 建立時所有 tag 版本號之和（下次讀取時重新計算並比較）
 }
 
 var (
 	memCache sync.Map // key: cacheKey(string), value: memCacheEntry
 	sfGroup  singleflight.Group
 )
+
+// --- Cache Tag 系統（對齊 Drupal Cache Tags + Checksum 懶失效機制） ---
+//
+// 設計原理：
+//   - 每個快取條目關聯一組 tag（如 content:37, content:list, global）
+//   - tagVersions 存儲 tag → *atomic.Int64（版本計數器）
+//   - 失效操作：僅遞增對應 tag 的版本號，O(1)，無需遍歷快取
+//   - 讀取時：重新計算 checksum（所有 tag 版本之和），與存儲的比較
+//   - 不匹配 → 快取失效（lazy/soft invalidation）
+//
+// Tag 命名約定：
+//   - global              → 全局變更（config/site/company/menu/slide/link/tags/label）
+//   - content:{id}        → 特定文章變更（僅失效該文章詳情頁）
+//   - content:list        → 任何文章/欄目變更（失效列表頁 + 首頁）
+//   - content_sort:{id}   → 特定欄目變更（失效該欄目列表頁）
+
+var tagVersions sync.Map // tag(string) → *atomic.Int64
+
+// InvalidateTag 遞增 tag 版本號（O(1) 原子操作，不遍歷快取）
+// 所有帶有此 tag 的快取條目將在下次讀取時失效
+func InvalidateTag(tag string) {
+	val, _ := tagVersions.LoadOrStore(tag, new(atomic.Int64))
+	val.(*atomic.Int64).Add(1)
+}
+
+// InvalidateTags 批量遞增多個 tag 的版本號
+func InvalidateTags(tags ...string) {
+	for _, tag := range tags {
+		InvalidateTag(tag)
+	}
+}
+
+// computeTagChecksum 計算一組 tag 的版本號之和
+// 用於快取條目建立時記錄 checksum，讀取時重新計算並比較
+func computeTagChecksum(tags []string) int64 {
+	var sum int64
+	for _, tag := range tags {
+		val, _ := tagVersions.LoadOrStore(tag, new(atomic.Int64))
+		sum += val.(*atomic.Int64).Load()
+	}
+	return sum
+}
 
 // gzipBytes 將數據壓縮為 gzip（level 6，平衡速度與壓縮率）
 func gzipBytes(data []byte) []byte {
@@ -65,13 +110,19 @@ func serveCacheEntry(c *gin.Context, entry memCacheEntry, cacheHeader string) bo
 	return true
 }
 
-// ClearHTMLCache 清除所有 HTML 緩存（記憶體 + 檔案）
+// ClearHTMLCache 清除所有 HTML 緩存（記憶體 + 檔案 + global tag 版本號）
+// 僅用於模板熱重載、手動清除等場景；正常數據變更請用 InvalidateTag 精準失效
 func ClearHTMLCache() {
+	// 遞增 global tag 版本號：確保從檔案快取載入的條目也被標記為失效
+	InvalidateTag("global")
+
+	// 立即清除記憶體快取（模板變更需要即時生效）
 	memCache.Range(func(key, value interface{}) bool {
 		memCache.Delete(key)
 		return true
 	})
 
+	// 清除檔案快取
 	cacheDir := filepath.Join("runtime", "cache")
 	entries, err := os.ReadDir(cacheDir)
 	if err == nil {
@@ -147,14 +198,19 @@ func HTMLCache() gin.HandlerFunc {
 		// --- 第一層：記憶體緩存 ---
 		if entry, ok := memCache.Load(cacheKeyHash); ok {
 			e := entry.(memCacheEntry)
-			if now < e.expireAt {
+			tagValid := computeTagChecksum(e.tags) == e.tagChecksum
+
+			if tagValid && now < e.expireAt {
+				// Fresh hit：TTL 有效 + tag checksum 一致
 				serveCacheEntry(c, e, "HIT-MEM")
 				return
 			}
-			if now < e.staleUntil {
+			if tagValid && now < e.staleUntil {
+				// Stale：TTL 過期但內容未變更（tag 仍有效），安全服務舊快取
 				serveCacheEntry(c, e, "HIT-STALE")
 				return
 			}
+			// tag 失效（內容已變更）或超過 stale 窗口 → 刪除過期條目
 			memCache.Delete(cacheKeyHash)
 		}
 
@@ -167,11 +223,15 @@ func HTMLCache() gin.HandlerFunc {
 				if time.Since(info.ModTime()) < cacheTTL {
 					data, err := os.ReadFile(cacheFile)
 					if err == nil {
+						// 檔案快取條目分配 global tag（無法知道原始 tag）
+						defaultTags := []string{"global"}
 						e := memCacheEntry{
 							content:     data,
 							gzipContent: gzipBytes(data),
 							expireAt:    now + int64(cacheTTL.Seconds()),
 							staleUntil:  now + int64(cacheTTL.Seconds()) + staleGrace,
+							tags:        defaultTags,
+							tagChecksum: computeTagChecksum(defaultTags),
 						}
 						memCache.Store(cacheKeyHash, e)
 						serveCacheEntry(c, e, "HIT-FILE")
@@ -183,10 +243,10 @@ func HTMLCache() gin.HandlerFunc {
 
 		// --- 快取未命中：singleflight 防止快取擊穿 ---
 		result, _, shared := sfGroup.Do(cacheKeyHash, func() (interface{}, error) {
-			// 雙重檢查
+			// 雙重檢查：可能在等待 singleflight 期間已有其他請求填入快取
 			if entry, ok := memCache.Load(cacheKeyHash); ok {
 				e := entry.(memCacheEntry)
-				if time.Now().Unix() < e.expireAt {
+				if computeTagChecksum(e.tags) == e.tagChecksum && time.Now().Unix() < e.expireAt {
 					return &renderResult{
 						status:      http.StatusOK,
 						contentType: "text/html; charset=utf-8",
@@ -213,11 +273,21 @@ func HTMLCache() gin.HandlerFunc {
 			var gzipBody []byte
 			if strings.HasPrefix(contentType, "text/html") && cw.Status() == http.StatusOK {
 				gzipBody = gzipBytes(body)
+
+				// 從 gin context 讀取 cache_tags（由前台控制器設定）
+				// 未設定時預設為 ["global"]，任何全局變更都會使其失效
+				tags := c.GetStringSlice("cache_tags")
+				if len(tags) == 0 {
+					tags = []string{"global"}
+				}
+
 				memCache.Store(cacheKeyHash, memCacheEntry{
 					content:     body,
 					gzipContent: gzipBody,
 					expireAt:    nowInner + int64(cacheTTL.Seconds()),
 					staleUntil:  nowInner + int64(cacheTTL.Seconds()) + staleGrace,
+					tags:        tags,
+					tagChecksum: computeTagChecksum(tags),
 				})
 
 				if fileCacheEnabled {

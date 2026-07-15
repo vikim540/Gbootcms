@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -18,9 +19,10 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-// OnDataChange 是數據變更回調，由 main.go 在啟動時設定為 middleware.ClearHTMLCache
+// OnDataChange 是數據變更回調，由 main.go 在啟動時設定
+// 參數：tableName（去 ay_ 前綴的表名），id（變更記錄的主鍵 ID，0 表示無法確定）
 // 使用回調變數而非直接 import middleware，避免循環依賴
-var OnDataChange func()
+var OnDataChange func(tableName string, id int)
 
 // DB is the shared GORM database instance.
 var DB *gorm.DB
@@ -91,7 +93,7 @@ func InitDB(cfg *config.Config) error {
 	}
 
 	// 註冊 HTML 緩存自動清除回調：
-	// 僅對「會影響前台頁面內容」的表變更時清除快取
+	// 基於 Cache Tag 精準失效：僅失效受影響的頁面，而非清空全部快取
 	// visits/likes/oppose 等統計欄位更新不清除快取（否則每次瀏覽都清空快取）
 	clearHTMLCache := func(db *gorm.DB) {
 		if db.Error != nil || db.RowsAffected == 0 || OnDataChange == nil {
@@ -102,11 +104,26 @@ func InitDB(cfg *config.Config) error {
 		if db.Statement != nil && db.Statement.Table != "" {
 			tableName = strings.TrimPrefix(db.Statement.Table, "ay_")
 		}
-		// 這些表的變更不需要清除快取（純統計/日誌用途）
+
+		// 這些表的變更不影響前台 HTML 頁面（純統計/日誌/權限/系統用途）
 		skipTables := map[string]bool{
-			"syslog": true, // 系統日誌
-			"member": true, // 會員資料（不影響前台頁面）
-			"message": true, // 留言（不影響已渲染頁面）
+			"syslog":         true, // 系統日誌（蜘蛛訪問、管理員操作）
+			"member":         true, // 會員資料（不影響前台頁面）
+			"member_comment": true, // 評論（由 comment controller 精準失效 content:{id} tag）
+			"member_log":     true, // 會員活動日誌
+			"member_field":   true, // 會員字段定義
+			"member_group":   true, // 會員等級
+			"message":        true, // 留言（不影響已渲染頁面）
+			"user":           true, // 管理員用戶
+			"user_role":      true, // 管理員角色關聯
+			"role":           true, // 角色
+			"role_area":      true, // 角色區域
+			"role_level":     true, // 角色權限
+			"menu_action":    true, // 菜單動作
+			"database":       true, // 數據庫備份記錄
+			"media_mark":     true, // 媒體標記
+			"301_redirect":   true, // 301 重定向規則
+			"dict_type":      true, // 字典類型
 		}
 		if skipTables[tableName] {
 			return
@@ -114,18 +131,55 @@ func InitDB(cfg *config.Config) error {
 		// visits/likes/oppose 欄位更新不清除快取
 		if db.Statement != nil && len(db.Statement.Selects) > 0 {
 			for _, col := range db.Statement.Selects {
-				if col == "visits" || col == "likes" || col == "oppose" {
+				if col == "visits" || col == "likes" || col == "oppose" ||
+					col == "login_count" || col == "last_login_ip" || col == "last_login_time" || col == "score" {
 					return
 				}
 			}
 		}
-		OnDataChange()
+		// 提取主鍵 ID（用於精準 tag 失效，如 content:37）
+		id := getPrimaryKeyID(db.Statement)
+		OnDataChange(tableName, id)
 	}
 	DB.Callback().Create().After("gorm:create").Register("clear_html_cache", clearHTMLCache)
 	DB.Callback().Update().After("gorm:update").Register("clear_html_cache", clearHTMLCache)
 	DB.Callback().Delete().After("gorm:delete").Register("clear_html_cache", clearHTMLCache)
 
 	return nil
+}
+
+// getPrimaryKeyID 從 GORM Statement 中提取主鍵 ID
+// 用於 Cache Tag 精準失效（如 content:37）
+// 支援三種場景：
+//  1. Create/Save(&Model{ID: 37}) → 從 model 反射取 ID
+//  2. Delete(&Model{}, 37) → GORM 將 inline condition 設為主鍵
+//  3. Model(&Model{}).Where("id = ?", 37).Update(...) → 無法取得，返回 0
+func getPrimaryKeyID(stmt *gorm.Statement) int {
+	if stmt == nil || stmt.Model == nil || stmt.Schema == nil {
+		return 0
+	}
+	pkField := stmt.Schema.PrioritizedPrimaryField
+	if pkField == nil {
+		return 0
+	}
+	rv := reflect.ValueOf(stmt.Model)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return 0
+	}
+	fieldVal := rv.FieldByName(pkField.Name)
+	if !fieldVal.IsValid() {
+		return 0
+	}
+	switch fieldVal.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return int(fieldVal.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return int(fieldVal.Uint())
+	}
+	return 0
 }
 
 // CloseDB closes the database connection.

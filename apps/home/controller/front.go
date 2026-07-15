@@ -214,6 +214,8 @@ func (fc *FrontController) Index(c *gin.Context) {
 	}
 	content = p.Render(content)
 	content = postRender(content, c.Request.Context())
+	// 設定 Cache Tags：首頁依賴最新文章列表 + 全局數據
+	c.Set("cache_tags", []string{"content:list", "global"})
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
 }
@@ -264,6 +266,12 @@ func (fc *FrontController) ListPage(c *gin.Context) {
 	}
 	content = p.Render(content)
 	content = postRender(content, c.Request.Context())
+	// 設定 Cache Tags：列表頁依賴該欄目 + 全部文章列表
+	c.Set("cache_tags", []string{
+		fmt.Sprintf("content_sort:%d", sort.ID),
+		"content:list",
+		"global",
+	})
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
 }
@@ -421,6 +429,13 @@ func (fc *FrontController) renderContentDetail(c *gin.Context, ct *content.Conte
 	html := fc.getStore(c).Render(tpl)
 	html = p.Render(html)
 	html = postRender(html, c.Request.Context())
+
+	// 設定 Cache Tags：此文章變更時僅失效此頁 + 列表頁，不影響其他文章頁
+	c.Set("cache_tags", []string{
+		fmt.Sprintf("content:%d", ct.ID),
+		"content:list",
+		"global",
+	})
 
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, html)

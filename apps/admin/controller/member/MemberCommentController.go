@@ -1,9 +1,11 @@
 package member
 
 import (
+	"fmt"
 	"gbootcms/apps/admin/helper"
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
+	"gbootcms/apps/common/middleware"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +23,22 @@ var allowedSearchFields = map[string]bool{
 	"a.comment":    true,
 	"c.username":   true,
 	"c.nickname":   true,
+}
+
+// invalidateCommentsCache 查詢評論涉及的 contentid 並精準失效對應文章快取
+// member_comment 在 skipTables 中，GORM 回調不觸發，後台操作需手動失效
+func invalidateCommentsCache(ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	var contentIDs []uint
+	model.DB.Model(&model.MemberComment{}).Where("id IN ?", ids).
+		Distinct("contentid").Pluck("contentid", &contentIDs)
+	for _, cid := range contentIDs {
+		if cid > 0 {
+			middleware.InvalidateTag(fmt.Sprintf("content:%d", cid))
+		}
+	}
 }
 
 // Index - 評論列表/搜索/詳情
@@ -103,12 +121,14 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 		case "verify1":
 			if len(list) > 0 {
 				model.DB.Model(&model.MemberComment{}).Where("id IN ?", list).Update("status", 1)
+				invalidateCommentsCache(list)
 			}
 			mc.JSONOKMsg(c, common.NoticeModify)
 			return
 		case "verify0":
 			if len(list) > 0 {
 				model.DB.Model(&model.MemberComment{}).Where("id IN ?", list).Update("status", 0)
+				invalidateCommentsCache(list)
 			}
 			mc.JSONOKMsg(c, common.NoticeModify)
 			return
@@ -134,6 +154,7 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 	if field != "" && value != "" {
 		id, _ := strconv.Atoi(idStr)
 		model.DB.Model(&model.MemberComment{}).Where("id = ?", id).Update(field, value)
+		invalidateCommentsCache([]string{idStr})
 		mc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
@@ -160,6 +181,8 @@ func (mc *MemberCommentController) Del(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		list := c.PostFormArray("list[]")
 		if len(list) > 0 {
+			// 刪除前先查詢涉及的 contentid（刪除後無法再查詢）
+			invalidateCommentsCache(list)
 			model.DB.Where("id IN ?", list).Delete(&model.MemberComment{})
 		}
 		mc.JSONOKMsg(c, common.NoticeDelete)
@@ -176,6 +199,8 @@ func (mc *MemberCommentController) Del(c *gin.Context) {
 		mc.JSONFail(c, "缺少刪除目標ID")
 		return
 	}
+	// 刪除前先查詢涉及的 contentid（刪除後無法再查詢）
+	invalidateCommentsCache([]string{idStr})
 	model.DB.Delete(&model.MemberComment{}, idStr)
 	mc.JSONOKMsg(c, common.NoticeDelete)
 }
