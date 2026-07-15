@@ -37,6 +37,13 @@ type Context struct {
 // 防止 SQL 注入：字段名直接拼接進 SQL 查詢，必須嚴格驗證
 var safeFieldRe = regexp.MustCompile(`^ext_[a-zA-Z0-9_]+$`)
 
+// 預編譯熱路徑正則（避免每次渲染重複編譯）
+var (
+	safeTableRe    = regexp.MustCompile(`^[\w]+$`)
+	commentSubRe   = regexp.MustCompile(`(?s)\{gboot:commentsub(?:\s+([^}]+))?\}(.*?)\{/gboot:commentsub\}`)
+	innerIfRe      = regexp.MustCompile(`(?s)\{gboot:if\(([^)]+)\)\}(.*?)(?:\{else\}(.*?))?\{/gboot:if\}`)
+)
+
 // IsSafeFieldName 驗證字段名是否安全（僅允許 ext_ 前綴的合法欄位名）
 func IsSafeFieldName(name string) bool {
 	return safeFieldRe.MatchString(name)
@@ -1293,8 +1300,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 		// 查動態表數據
 		var rows []map[string]interface{}
 		// SQL 注入防護：驗證表名（表名從 DB 讀取，但額外驗證以防資料被篡改）
-		safeTableRegex := regexp.MustCompile(`^[\w]+$`)
-		if !safeTableRegex.MatchString(tableName) {
+		if !safeTableRe.MatchString(tableName) {
 			return ""
 		}
 		model.DB.WithContext(ctx.Ctx).Raw("SELECT * FROM `" + tableName + "` ORDER BY id DESC LIMIT " + strconv.Itoa(num)).Scan(&rows)
@@ -1464,14 +1470,13 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			Find(&comments)
 
 		// 提取 commentsub 塊的內容
-		reSub := regexp.MustCompile(`(?s)\{gboot:commentsub(?:\s+([^}]+))?\}(.*?)\{/gboot:commentsub\}`)
-		subMatch := reSub.FindStringSubmatch(inner)
+		subMatch := commentSubRe.FindStringSubmatch(inner)
 		subInner := ""
 		if len(subMatch) >= 3 {
 			subInner = subMatch[2]
 		}
 		// 移除 inner 中的 commentsub 塊（避免被外層重複渲染）
-		innerWithoutSub := reSub.ReplaceAllString(inner, "{__COMMENTSUB__}")
+		innerWithoutSub := commentSubRe.ReplaceAllString(inner, "{__COMMENTSUB__}")
 
 		var sb strings.Builder
 		for i, cm := range comments {
@@ -1619,10 +1624,9 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 // processInnerIfTags 處理循環體內的 {gboot:if(...)} 標籤
 // 使用正則匹配，避免 processIfTags 的字符串索引 bug
 func processInnerIfTags(content string) string {
-	re := regexp.MustCompile(`(?s)\{gboot:if\(([^)]+)\)\}(.*?)(?:\{else\}(.*?))?\{/gboot:if\}`)
-	for re.MatchString(content) {
-		content = re.ReplaceAllStringFunc(content, func(match string) string {
-			subs := re.FindStringSubmatch(match)
+	for innerIfRe.MatchString(content) {
+		content = innerIfRe.ReplaceAllStringFunc(content, func(match string) string {
+			subs := innerIfRe.FindStringSubmatch(match)
 			if len(subs) < 3 {
 				return ""
 			}

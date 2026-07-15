@@ -3,6 +3,7 @@ package parser
 import (
 	"regexp"
 	"strings"
+	"sync"
 
 	"gbootcms/apps/admin/model"
 )
@@ -12,6 +13,16 @@ var externalLinkRe = regexp.MustCompile(`(?i)<a\s+([^>]*?)href=["']https?://([^"
 
 // hasRelRe 檢查標籤中是否已有 rel 屬性
 var hasRelRe = regexp.MustCompile(`(?i)\brel\s*=`)
+
+// relRe 匹配 rel 屬性（預編譯，避免每次 enhanceExistingRel 調用都編譯）
+var relRe = regexp.MustCompile(`(?i)rel=["']([^"']*)["']`)
+
+// siteDomainsCache 快取站點域名列表（避免每次渲染都查 DB）
+var (
+	siteDomainsCache   []string
+	siteDomainsCacheMu sync.RWMutex
+	siteDomainsCached  bool
+)
 
 // addNofollowToExternalLinks 為外部連結自動添加 rel="nofollow noopener noreferrer"
 // 僅處理指向外部域名的 <a> 標籤，站內連結不受影響
@@ -62,7 +73,6 @@ func addNofollowToExternalLinks(htmlContent string) string {
 
 // enhanceExistingRel 在已有的 rel 屬性中補充缺失的值
 func enhanceExistingRel(tag string) string {
-	relRe := regexp.MustCompile(`(?i)rel=["']([^"']*)["']`)
 	match := relRe.FindStringSubmatch(tag)
 	if match == nil {
 		return tag
@@ -85,8 +95,21 @@ func enhanceExistingRel(tag string) string {
 	return relRe.ReplaceAllString(tag, newRel)
 }
 
-// getSiteDomainsForNofollow 取得所有站點域名
+// getSiteDomainsForNofollow 取得所有站點域名（帶快取，避免每次渲染都查 DB）
 func getSiteDomainsForNofollow() []string {
+	siteDomainsCacheMu.RLock()
+	if siteDomainsCached {
+		d := siteDomainsCache
+		siteDomainsCacheMu.RUnlock()
+		return d
+	}
+	siteDomainsCacheMu.RUnlock()
+
+	siteDomainsCacheMu.Lock()
+	defer siteDomainsCacheMu.Unlock()
+	if siteDomainsCached {
+		return siteDomainsCache
+	}
 	var sites []model.Site
 	model.DB.Find(&sites)
 	var domains []string
@@ -101,5 +124,15 @@ func getSiteDomainsForNofollow() []string {
 			domains = append(domains, d)
 		}
 	}
+	siteDomainsCache = domains
+	siteDomainsCached = true
 	return domains
+}
+
+// ClearSiteDomainsCache 清除站點域名快取（由 GORM 回調觸發）
+func ClearSiteDomainsCache() {
+	siteDomainsCacheMu.Lock()
+	siteDomainsCached = false
+	siteDomainsCache = nil
+	siteDomainsCacheMu.Unlock()
 }

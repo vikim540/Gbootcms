@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -96,10 +97,10 @@ func InitDB(cfg *config.Config) error {
 		if db.Error != nil || db.RowsAffected == 0 || OnDataChange == nil {
 			return
 		}
-		// 取得表名（去除 ay_ 前綴）
+		// 取得表名（去除 ay_ 前綴，與 skipTables 列表一致比對）
 		tableName := ""
 		if db.Statement != nil && db.Statement.Table != "" {
-			tableName = db.Statement.Table
+			tableName = strings.TrimPrefix(db.Statement.Table, "ay_")
 		}
 		// 這些表的變更不需要清除快取（純統計/日誌用途）
 		skipTables := map[string]bool{

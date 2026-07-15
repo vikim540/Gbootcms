@@ -13,6 +13,14 @@ var dangerousPatterns = []string{
 	"unlink", "rmdir", "mkdir", "chmod",
 }
 
+// 預編譯正則表達式（避免每次 resolveCondVars 調用都重新編譯）
+var (
+	reContentVar = regexp.MustCompile(`\[content:(\w+)\]`)
+	reSortVar    = regexp.MustCompile(`\[sort:(\w+)\]`)
+	reSortBrace  = regexp.MustCompile(`\{sort:(\w+)\}`)
+	reGbootVar   = regexp.MustCompile(`\{gboot:(\w+)\}`)
+)
+
 func EvalIfCondition(cond string, data map[string]interface{}) bool {
 	cond = strings.TrimSpace(cond)
 	for _, pat := range dangerousPatterns {
@@ -32,9 +40,8 @@ func EvalIfCondition(cond string, data map[string]interface{}) bool {
 
 func resolveCondVars(cond string, data map[string]interface{}) string {
 	// [content:xxx] 方括號格式
-	re := regexp.MustCompile(`\[content:(\w+)\]`)
-	cond = re.ReplaceAllStringFunc(cond, func(match string) string {
-		subs := re.FindStringSubmatch(match)
+	cond = reContentVar.ReplaceAllStringFunc(cond, func(match string) string {
+		subs := reContentVar.FindStringSubmatch(match)
 		if len(subs) > 1 {
 			if val, ok := data[subs[1]]; ok {
 				return ValToStr(val)
@@ -44,9 +51,8 @@ func resolveCondVars(cond string, data map[string]interface{}) string {
 	})
 
 	// [sort:xxx] 方括號格式
-	re = regexp.MustCompile(`\[sort:(\w+)\]`)
-	cond = re.ReplaceAllStringFunc(cond, func(match string) string {
-		subs := re.FindStringSubmatch(match)
+	cond = reSortVar.ReplaceAllStringFunc(cond, func(match string) string {
+		subs := reSortVar.FindStringSubmatch(match)
 		if len(subs) > 1 {
 			if val, ok := data[subs[1]]; ok {
 				return ValToStr(val)
@@ -56,9 +62,8 @@ func resolveCondVars(cond string, data map[string]interface{}) string {
 	})
 
 	// {sort:xxx} 花括號格式（已被 processSingleTags 解析，但保底處理）
-	re = regexp.MustCompile(`\{sort:(\w+)\}`)
-	cond = re.ReplaceAllStringFunc(cond, func(match string) string {
-		subs := re.FindStringSubmatch(match)
+	cond = reSortBrace.ReplaceAllStringFunc(cond, func(match string) string {
+		subs := reSortBrace.FindStringSubmatch(match)
 		if len(subs) > 1 {
 			if val, ok := data[subs[1]]; ok {
 				return ValToStr(val)
@@ -68,9 +73,8 @@ func resolveCondVars(cond string, data map[string]interface{}) string {
 	})
 
 	// {gboot:xxx} 花括號格式 - 通用處理
-	re = regexp.MustCompile(`\{gboot:(\w+)\}`)
-	cond = re.ReplaceAllStringFunc(cond, func(match string) string {
-		subs := re.FindStringSubmatch(match)
+	cond = reGbootVar.ReplaceAllStringFunc(cond, func(match string) string {
+		subs := reGbootVar.FindStringSubmatch(match)
 		if len(subs) > 1 {
 			key := subs[1]
 			// 直接從 data map 查找
@@ -87,11 +91,6 @@ func resolveCondVars(cond string, data map[string]interface{}) string {
 			}
 		}
 		return "0"
-	})
-
-	re = regexp.MustCompile(`'([^']*)'`)
-	cond = re.ReplaceAllStringFunc(cond, func(match string) string {
-		return match
 	})
 
 	return cond

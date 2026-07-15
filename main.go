@@ -85,6 +85,8 @@ func main() {
 		model.ClearConfigCache()
 		model.ClearAreasCache()
 		home.ClearDataCache()
+		parser.ClearTagsCache()
+		parser.ClearSiteDomainsCache()
 	}
 
 	// AutoMigrate all models: system + content + member

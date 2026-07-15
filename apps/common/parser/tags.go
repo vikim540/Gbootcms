@@ -55,6 +55,25 @@ func initGlobalRegexes() {
 		"loop":          `(?s)\{gboot:loop(?:\s+([^}]+))?\}(.*?)\{\/gboot:loop\}`,
 		"select":        `(?s)\{gboot:select(?:\s+([^}]+))?\}(.*?)\{\/gboot:select\}`,
 		"gboot_if":      `(?s)\{gboot:if\(([^}]+)\)\}(.*?)(?:\{else\}(.*?))?\{\/gboot:if\}`,
+		// 熱路徑正則預編譯（避免每次請求重複編譯，AGENTS.md #43）
+		"parse_params":  `(\w+)\s?=\s*["']([^"']*)["']|(\w+)\s?=\s*(\S+)`,
+		"drophtml":      `<[^>]*>`,
+		"dropblank":     `[\s]+`,
+		"resolve_sort":  `\{sort:(\w+)\}`,
+		"resolve_content": `\{content:(\w+)\}`,
+		"resolve_site":  `\{site:(\w+)\}`,
+		"resolve_label": `\{label:(\w+)\}`,
+		"resolve_gboot_simple": `\{gboot:(\w+)(?:\s+([^}]+))?\}`,
+		"resolve_gboot_param": `\{gboot:(\w+)\}`,
+	}
+	// preResolveSingleInPairParams 的 18 個 pair 標籤正則
+	pairNames := []string{
+		"list", "nav", "sort_loop", "search", "message", "tags",
+		"slide", "link", "pics", "checkbox", "formlist", "comment",
+		"commentsub", "mycomment", "loop", "select", "language",
+	}
+	for _, name := range pairNames {
+		defs["pair_"+name] = `\{gboot:` + name + `\s+((?:[^}{]|\{[^}]*\})*)\}`
 	}
 	for name, pattern := range defs {
 		if re, err := regexp.Compile(pattern); err == nil {
@@ -203,7 +222,7 @@ func ParseParams(s string) map[string]string {
 	if s == "" {
 		return m
 	}
-	re := regexp.MustCompile(`(\w+)\s?=\s*["']([^"']*)["']|(\w+)\s?=\s*(\S+)`)
+	re := globalRegexes["parse_params"]
 	for _, sub := range re.FindAllStringSubmatch(s, -1) {
 		if sub[1] != "" {
 			m[sub[1]] = sub[2]
@@ -580,8 +599,20 @@ func providerCall(pr DataProvider, name string, params map[string]string, inner 
 	return pr(name, params, inner)
 }
 
-func ReplaceInnerTags(content string, prefix string, data map[string]interface{}) string {
+// innerTagRegexCache 快取 ReplaceInnerTags 的動態正則（按 prefix 鍵）
+var innerTagRegexCache sync.Map
+
+func getInnerTagRegex(prefix string) *regexp.Regexp {
+	if re, ok := innerTagRegexCache.Load(prefix); ok {
+		return re.(*regexp.Regexp)
+	}
 	re := regexp.MustCompile(`\[` + regexp.QuoteMeta(prefix) + `:(\w+)(?:\s+([^\]]+))?\]`)
+	innerTagRegexCache.Store(prefix, re)
+	return re
+}
+
+func ReplaceInnerTags(content string, prefix string, data map[string]interface{}) string {
+	re := getInnerTagRegex(prefix)
 	return re.ReplaceAllStringFunc(content, func(match string) string {
 		subs := re.FindStringSubmatch(match)
 		if len(subs) < 2 {
@@ -609,12 +640,10 @@ func AdjustValue(val string, params map[string]string) string {
 	}
 	// drophtml/dropblank 必須在 len/lencn 截取之前執行，否則截取會截斷 HTML 標籤產生不完整標籤
 	if params["drophtml"] == "1" {
-		re := regexp.MustCompile(`<[^>]*>`)
-		val = re.ReplaceAllString(val, "")
+		val = globalRegexes["drophtml"].ReplaceAllString(val, "")
 	}
 	if params["dropblank"] == "1" {
-		re := regexp.MustCompile(`[\s]+`)
-		val = re.ReplaceAllString(val, " ")
+		val = globalRegexes["dropblank"].ReplaceAllString(val, " ")
 		val = strings.TrimSpace(val)
 	}
 	if l, err := strconv.Atoi(params["len"]); err == nil && l > 0 {
@@ -730,16 +759,17 @@ func phpToGoFormat(php string) string {
 // that appear inside pair tag parameter sections.
 // e.g. {gboot:list scode={sort:scode} num=15} → {gboot:list scode=5 num=15}
 func (p *TagParser) preResolveSingleInPairParams(content string) string {
-	// Match pair tag openings and capture the params section
+	// 預編譯的 18 個 pair 標籤正則（在 initGlobalRegexes 中以 "pair_" + name 為 key 註冊）
 	pairNames := []string{
 		"list", "nav", "sort_loop", "search", "message", "tags",
 		"slide", "link", "pics", "checkbox", "formlist", "comment",
 		"commentsub", "mycomment", "loop", "select", "language",
 	}
 	for _, name := range pairNames {
-		// 支援參數中包含 {sort:tcode} 等單標籤（即允許 {...} 嵌套）
-		// 同時消耗尾巴的 } 作爲開啓標籤的閉合
-		pattern := regexp.MustCompile(`\{gboot:` + name + `\s+((?:[^}{]|\{[^}]*\})*)\}`)
+		pattern := globalRegexes["pair_"+name]
+		if pattern == nil {
+			continue
+		}
 		content = pattern.ReplaceAllStringFunc(content, func(match string) string {
 			subs := pattern.FindStringSubmatch(match)
 			if len(subs) < 2 {
@@ -760,7 +790,7 @@ func (p *TagParser) preResolveSingleInPairParams(content string) string {
 // resolveSingleTagsInString resolves single tag patterns within a given string
 func (p *TagParser) resolveSingleTagsInString(s string) string {
 	// {sort:xxx} patterns
-	reSort := regexp.MustCompile(`\{sort:(\w+)\}`)
+	reSort := globalRegexes["resolve_sort"]
 	s = reSort.ReplaceAllStringFunc(s, func(match string) string {
 		subs := reSort.FindStringSubmatch(match)
 		if len(subs) < 2 {
@@ -774,7 +804,7 @@ func (p *TagParser) resolveSingleTagsInString(s string) string {
 	})
 
 	// {content:xxx} patterns
-	reContent := regexp.MustCompile(`\{content:(\w+)\}`)
+	reContent := globalRegexes["resolve_content"]
 	s = reContent.ReplaceAllStringFunc(s, func(match string) string {
 		subs := reContent.FindStringSubmatch(match)
 		if len(subs) < 2 {
@@ -788,7 +818,7 @@ func (p *TagParser) resolveSingleTagsInString(s string) string {
 	})
 
 	// {site:xxx} patterns
-	reSite := regexp.MustCompile(`\{site:(\w+)\}`)
+	reSite := globalRegexes["resolve_site"]
 	s = reSite.ReplaceAllStringFunc(s, func(match string) string {
 		subs := reSite.FindStringSubmatch(match)
 		if len(subs) < 2 {
@@ -802,7 +832,7 @@ func (p *TagParser) resolveSingleTagsInString(s string) string {
 	})
 
 	// {label:xxx} patterns
-	reLabel := regexp.MustCompile(`\{label:(\w+)\}`)
+	reLabel := globalRegexes["resolve_label"]
 	s = reLabel.ReplaceAllStringFunc(s, func(match string) string {
 		subs := reLabel.FindStringSubmatch(match)
 		if len(subs) < 2 {
@@ -816,7 +846,7 @@ func (p *TagParser) resolveSingleTagsInString(s string) string {
 	})
 
 	// {gboot:xxx} patterns (simple, no params) — for nested resolution
-	reGbootSimple := regexp.MustCompile(`\{gboot:(\w+)\}`)
+	reGbootSimple := globalRegexes["resolve_gboot_param"]
 	s = reGbootSimple.ReplaceAllStringFunc(s, func(match string) string {
 		subs := reGbootSimple.FindStringSubmatch(match)
 		if len(subs) < 2 {
@@ -835,7 +865,7 @@ func (p *TagParser) resolveSingleTagsInString(s string) string {
 	})
 
 	// {gboot:xxx params} patterns (with params) — for nested resolution
-	reGbootParams := regexp.MustCompile(`\{gboot:(\w+)\s+([^{}]+)\}`)
+	reGbootParams := globalRegexes["resolve_gboot_simple"]
 	s = reGbootParams.ReplaceAllStringFunc(s, func(match string) string {
 		subs := reGbootParams.FindStringSubmatch(match)
 		if len(subs) < 2 {
@@ -869,7 +899,7 @@ func (p *TagParser) preResolveGbootSingleDeep(content string) string {
 		"comment": true, "commentsub": true, "mycomment": true,
 		"loop": true, "select": true, "language": true,
 	}
-	reInnermost := regexp.MustCompile(`\{gboot:(\w+)(?:\s+([^{}]+))?\}`)
+	reInnermost := globalRegexes["resolve_gboot_simple"]
 	for iter := 0; iter < 10; iter++ {
 		prev := content
 		content = reInnermost.ReplaceAllStringFunc(content, func(match string) string {

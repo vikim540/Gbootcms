@@ -7,7 +7,49 @@ import (
 	"gbootcms/core/acodeplugin"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 )
+
+// 預編譯正則表達式
+var protectHTMLRe = regexp.MustCompile(`(?i)<[^>]+>`)
+
+// tagsCache 記憶體快取：避免每次渲染都查詢 ay_tags 表
+var (
+	tagsCache     []model.Tags
+	tagsCacheTime time.Time
+	tagsCacheMu   sync.RWMutex
+)
+
+// GetCachedTags 取得快取的標籤列表（60 秒 TTL，由 GORM 回調連帶清除）
+func GetCachedTags() []model.Tags {
+	tagsCacheMu.RLock()
+	if time.Since(tagsCacheTime) < 60*time.Second && tagsCache != nil {
+		t := tagsCache
+		tagsCacheMu.RUnlock()
+		return t
+	}
+	tagsCacheMu.RUnlock()
+
+	tagsCacheMu.Lock()
+	defer tagsCacheMu.Unlock()
+	if time.Since(tagsCacheTime) < 60*time.Second && tagsCache != nil {
+		return tagsCache
+	}
+	var tags []model.Tags
+	skipCtx := acodeplugin.SkipAcode(context.Background())
+	model.DB.WithContext(skipCtx).Order("sorting ASC, id ASC").Find(&tags)
+	tagsCache = tags
+	tagsCacheTime = time.Now()
+	return tagsCache
+}
+
+// ClearTagsCache 清除標籤快取（由 GORM 回調觸發）
+func ClearTagsCache() {
+	tagsCacheMu.Lock()
+	tagsCache = nil
+	tagsCacheMu.Unlock()
+}
 
 // replaceContentTags 對文章內容執行內鏈替換（對齊 PbootCMS parserCurrentContentLabel case 'content' 邏輯）
 // 1. 查詢當前語言的所有 tags
@@ -16,20 +58,15 @@ import (
 // 4. 執行替換（限制次數）
 // 5. 還原保護的內容
 func replaceContentTags(content string, ctx context.Context) string {
-	var tags []model.Tags
-	// 使用 SkipAcode 查詢所有語言的標籤，因為內鏈替換應跨語言生效
-	// （例如英文文章中的 "Go" 關鍵字也應被替換為連結）
-	skipCtx := acodeplugin.SkipAcode(ctx)
-	model.DB.WithContext(skipCtx).Order("sorting ASC, id ASC").Find(&tags)
+	tags := GetCachedTags()
 	if len(tags) == 0 {
 		return content
 	}
 
 	// 1. 保護所有 HTML 標籤（包括屬性值中的內容），只替換標籤之間的文字
-	protectRegex := regexp.MustCompile(`(?i)<[^>]+>`)
 	placeholders := make(map[string]string)
 	idx := 0
-	content = protectRegex.ReplaceAllStringFunc(content, func(match string) string {
+	content = protectHTMLRe.ReplaceAllStringFunc(content, func(match string) string {
 		key := fmt.Sprintf("#rega:%d#", idx)
 		placeholders[key] = match
 		idx++
@@ -66,16 +103,15 @@ func replaceContentTags(content string, ctx context.Context) string {
 			continue
 		}
 		replacement := fmt.Sprintf(`<a href="%s">%s</a>`, tag.Link, tag.Name)
+		// tag.Name 是純文字，用 strings.Replace 替代 regexp（避免循環內編譯正則）
 		// 每個 tag 限制替換 num 次
-		count := 0
-		tagRegex := regexp.MustCompile(regexp.QuoteMeta(tag.Name))
-		content = tagRegex.ReplaceAllStringFunc(content, func(s string) string {
-			if count >= num {
-				return s
+		for n := 0; n < num; n++ {
+			idx := strings.Index(content, tag.Name)
+			if idx < 0 {
+				break
 			}
-			count++
-			return replacement
-		})
+			content = content[:idx] + replacement + content[idx+len(tag.Name):]
+		}
 	}
 
 	// 4. 還原保護的內容
