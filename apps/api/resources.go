@@ -48,7 +48,9 @@ func formatTime(t time.Time) string {
 // GET /api/v1/site
 func GetSite(c *gin.Context) {
 	var site model.Site
-	dbCtx(c).First(&site)
+	if err := dbCtx(c).First(&site).Error; err != nil {
+		slog.Warn("API GetSite 查詢失敗", "error", err, "acode", acodeplugin.GetAcode(c.Request.Context()))
+	}
 
 	apiOK(c, gin.H{
 		"title":       site.Title,
@@ -59,6 +61,7 @@ func GetSite(c *gin.Context) {
 		"description": site.Description,
 		"icp":         site.ICP,
 		"theme":       site.Theme,
+		"acode":       acodeplugin.GetAcode(c.Request.Context()),
 	})
 }
 
@@ -66,7 +69,9 @@ func GetSite(c *gin.Context) {
 // GET /api/v1/company
 func GetCompany(c *gin.Context) {
 	var company model.Company
-	dbCtx(c).First(&company)
+	if err := dbCtx(c).First(&company).Error; err != nil {
+		slog.Warn("API GetCompany 查詢失敗", "error", err, "acode", acodeplugin.GetAcode(c.Request.Context()))
+	}
 
 	apiOK(c, gin.H{
 		"name":    company.Name,
@@ -99,7 +104,9 @@ func ListSorts(c *gin.Context) {
 	}
 
 	var sorts []model.ContentSort = []model.ContentSort{}
-	query.Order("sorting ASC, id ASC").Find(&sorts)
+	if err := query.Order("sorting ASC, id ASC").Find(&sorts).Error; err != nil {
+		slog.Warn("API ListSorts 查詢失敗", "error", err)
+	}
 
 	apiOK(c, sorts)
 }
@@ -108,6 +115,10 @@ func ListSorts(c *gin.Context) {
 // GET /api/v1/sorts/:scode
 func GetSort(c *gin.Context) {
 	scode := c.Param("scode")
+	if scode == "" {
+		apiFail(c, http.StatusBadRequest, "請提供欄目編號 scode")
+		return
+	}
 	var sort model.ContentSort
 	if err := dbCtx(c).Where("scode = ? OR filename = ? OR urlname = ?", scode, scode, scode).First(&sort).Error; err != nil {
 		apiFail(c, http.StatusNotFound, "欄目不存在")
@@ -126,9 +137,9 @@ func ListNav(c *gin.Context) {
 	}
 
 	var sorts []model.ContentSort = []model.ContentSort{}
-	query.Order("sorting ASC, id ASC").Find(&sorts)
-
-	// 構建樹狀結構
+	if err := query.Order("sorting ASC, id ASC").Find(&sorts).Error; err != nil {
+		slog.Warn("API ListNav 查詢失敗", "error", err)
+	}
 	type navItem struct {
 		ID       uint      `json:"id"`
 		Scode    string    `json:"scode"`
@@ -147,7 +158,7 @@ func ListNav(c *gin.Context) {
 
 	var buildNav func(items []model.ContentSort, parentCode string) []navItem
 	buildNav = func(items []model.ContentSort, parentCode string) []navItem {
-		var result []navItem
+		result := []navItem{}
 		for _, s := range items {
 			if s.Pcode == parentCode {
 				item := navItem{
@@ -216,10 +227,14 @@ func ListContents(c *gin.Context) {
 
 	// Count 時不需要 ORDER BY，提升效能
 	var total int64
-	query.Session(&gorm.Session{}).Order("").Count(&total)
+	if err := query.Session(&gorm.Session{}).Order("").Count(&total).Error; err != nil {
+		slog.Warn("API ListContents Count 失敗", "error", err)
+	}
 
 	var contents []model.Content
-	query.Offset((page - 1) * pagesize).Limit(pagesize).Find(&contents)
+	if err := query.Offset((page - 1) * pagesize).Limit(pagesize).Find(&contents).Error; err != nil {
+		slog.Warn("API ListContents Find 失敗", "error", err)
+	}
 
 	// 批量載入擴展字段
 	extMap := make(map[uint]map[string]interface{})
@@ -302,7 +317,9 @@ func GetContent(c *gin.Context) {
 
 	// 欄目資訊
 	var sort model.ContentSort
-	dbCtx(c).Where("scode = ?", ct.Scode).First(&sort)
+	if err := dbCtx(c).Where("scode = ?", ct.Scode).First(&sort).Error; err != nil {
+		slog.Warn("API GetContent 欄目查詢失敗", "scode", ct.Scode, "error", err)
+	}
 
 	// 構建 prev/next 回應（不存在時為 null）
 	var prevData, nextData interface{}
@@ -449,13 +466,17 @@ func SearchContent(c *gin.Context) {
 	query := dbCtx(c).Model(&model.Content{}).Where("status = 1 AND date <= ? AND "+whereClause, append([]interface{}{time.Now()}, args...)...)
 
 	var total int64
-	query.Session(&gorm.Session{}).Order("").Count(&total)
+	if err := query.Session(&gorm.Session{}).Order("").Count(&total).Error; err != nil {
+		slog.Warn("API SearchContent Count 失敗", "error", err)
+	}
 
 	var contents []model.Content
-	query.Order("date DESC, id DESC").
+	if err := query.Order("date DESC, id DESC").
 		Offset((page - 1) * pagesize).
 		Limit(pagesize).
-		Find(&contents)
+		Find(&contents).Error; err != nil {
+		slog.Warn("API SearchContent Find 失敗", "error", err)
+	}
 
 	items := []gin.H{}
 	for _, ct := range contents {
@@ -541,15 +562,37 @@ func ListMessages(c *gin.Context) {
 	}
 
 	var total int64
-	query.Count(&total)
+	if err := query.Count(&total).Error; err != nil {
+		apiFail(c, http.StatusInternalServerError, "查詢失敗")
+		return
+	}
 
 	var messages []model.Message = []model.Message{}
-	query.Order("id DESC").
+	if err := query.Order("id DESC").
 		Offset((page - 1) * pagesize).
 		Limit(pagesize).
-		Find(&messages)
+		Find(&messages).Error; err != nil {
+		apiFail(c, http.StatusInternalServerError, "查詢失敗")
+		return
+	}
 
-	apiOKWithMeta(c, messages, &apiMeta{Page: page, Pagesize: pagesize, Total: total})
+	// 過濾敏感字段，只返回前端需要的資訊
+	items := []gin.H{}
+	for _, m := range messages {
+		items = append(items, gin.H{
+			"id":          m.ID,
+			"contacts":    m.Contacts,
+			"mobile":      m.Mobile,
+			"content":     m.Content,
+			"status":      m.Status,
+			"recontent":   m.ReContent,
+			"uid":         m.UID,
+			"create_time": formatTime(m.CreateTime),
+			"update_time": formatTime(m.UpdateTime),
+		})
+	}
+
+	apiOKWithMeta(c, items, &apiMeta{Page: page, Pagesize: pagesize, Total: total})
 }
 
 // ListFormFields 表單字段定義（需認證）
@@ -561,8 +604,13 @@ func ListFormFields(c *gin.Context) {
 		return
 	}
 
-	fields := content.GetFormFieldByCode(fcode)
 	form := content.GetFormByCode(fcode)
+	if form == nil {
+		apiFail(c, http.StatusNotFound, "表單不存在")
+		return
+	}
+
+	fields := content.GetFormFieldByCode(fcode)
 
 	apiOK(c, gin.H{
 		"form":   form,
@@ -623,7 +671,9 @@ func ListSlides(c *gin.Context) {
 		query = query.Where("gid = ?", gid)
 	}
 	var slides []model.Slide = []model.Slide{}
-	query.Order("sorting ASC, id ASC").Find(&slides)
+	if err := query.Order("sorting ASC, id ASC").Find(&slides).Error; err != nil {
+		slog.Warn("API ListSlides 查詢失敗", "error", err)
+	}
 	apiOK(c, slides)
 }
 
@@ -635,7 +685,9 @@ func ListLinks(c *gin.Context) {
 		query = query.Where("gid = ?", gid)
 	}
 	var links []model.Link = []model.Link{}
-	query.Order("sorting ASC, id ASC").Find(&links)
+	if err := query.Order("sorting ASC, id ASC").Find(&links).Error; err != nil {
+		slog.Warn("API ListLinks 查詢失敗", "error", err)
+	}
 	apiOK(c, links)
 }
 
@@ -643,7 +695,9 @@ func ListLinks(c *gin.Context) {
 // GET /api/v1/tags
 func ListTags(c *gin.Context) {
 	var tags []model.Tags = []model.Tags{}
-	dbCtx(c).Order("id DESC").Find(&tags)
+	if err := dbCtx(c).Order("id DESC").Find(&tags).Error; err != nil {
+		slog.Warn("API ListTags 查詢失敗", "error", err)
+	}
 	apiOK(c, tags)
 }
 
@@ -662,7 +716,9 @@ func findAllChildScodesAPI(c *gin.Context, parentScode string) []string {
 	var rows []struct {
 		Scode string
 	}
-	dbCtx(c).Raw(query, parentScode).Scan(&rows)
+	if err := dbCtx(c).Raw(query, parentScode).Scan(&rows).Error; err != nil {
+		slog.Warn("API findAllChildScodesAPI 查詢失敗", "error", err, "parent_scode", parentScode)
+	}
 
 	result := make([]string, 0, len(rows))
 	for _, r := range rows {

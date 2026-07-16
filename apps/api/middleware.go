@@ -283,8 +283,8 @@ func CORS() gin.HandlerFunc {
 // isPublicAPIPath 判斷是否為公開 API 路徑（不需要認證）
 // method 參數用於區分同一路徑的不同操作（如 POST /messages 公開，GET /messages 需認證）
 func isPublicAPIPath(path, method string) bool {
-	// 認證接口永遠公開
-	if path == "/api/v1/auth/login" || path == "/api/v1/auth/refresh" {
+	// 只有 login 是公開的（refresh 需要攜帶有效 Token 才能刷新）
+	if path == "/api/v1/auth/login" {
 		return true
 	}
 

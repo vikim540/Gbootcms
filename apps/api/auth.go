@@ -1,14 +1,15 @@
 package api
 
 import (
-	"crypto/md5"
-	"crypto/subtle"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/admin/model/system"
+	"gbootcms/apps/common"
+	"gbootcms/core/acodeplugin"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,41 +26,46 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// 檢查 JWT 密鑰是否已配置（提前檢查，避免無謂的密碼校驗）
+	if !IsJWTConfigured() {
+		apiFail(c, http.StatusInternalServerError, "API 未正確配置，請聯繫管理員設定 api_jwt_secret")
+		return
+	}
+
 	// 登入鎖定檢查
 	if remain := checkLoginLock(c); remain > 0 {
 		apiFail(c, http.StatusTooManyRequests, fmt.Sprintf("登入嘗試過多，請 %d 秒後再試", remain))
 		return
 	}
 
-	// 查詢管理員
+	// 查詢管理員（跳過 acode 隔離，與後台登入邏輯一致）
+	loginCtx := acodeplugin.SkipAcode(c.Request.Context())
 	var user system.AdminUser
-	if err := model.DB.Where("username = ? AND status = 1", req.Username).First(&user).Error; err != nil {
+	if err := model.DB.WithContext(loginCtx).Where("username = ? AND status = 1", req.Username).First(&user).Error; err != nil {
 		recordLoginFailure(c)
 		apiFail(c, http.StatusUnauthorized, "用戶名或密碼錯誤")
 		return
 	}
 
-	// 驗證密碼（雙 MD5 向後相容 + 常量時間比較防時序攻擊）
-	firstMd5 := fmt.Sprintf("%x", md5.Sum([]byte(req.Password)))
-	encPwd := fmt.Sprintf("%x", md5.Sum([]byte(firstMd5)))
-
-	pwdMatch := subtle.ConstantTimeCompare([]byte(user.Password), []byte(encPwd)) == 1 ||
-		subtle.ConstantTimeCompare([]byte(user.Password), []byte(req.Password)) == 1
-
-	if !pwdMatch {
+	// 密碼校驗：支援 bcrypt 和舊版雙 MD5（自動升級），與後台登入完全一致
+	matched, needUpgrade := common.VerifyPassword(req.Password, user.Password)
+	if !matched {
 		recordLoginFailure(c)
 		apiFail(c, http.StatusUnauthorized, "用戶名或密碼錯誤")
 		return
+	}
+
+	// 自動升級舊版雙 MD5 密碼為 bcrypt
+	if needUpgrade {
+		if hashedPwd, err := common.HashPassword(req.Password); err == nil {
+			if err := model.DB.WithContext(loginCtx).Model(&user).Update("password", hashedPwd).Error; err != nil {
+				slog.Error("API 密碼自動升級失敗", "uid", user.ID, "error", err)
+			}
+		}
 	}
 
 	// 登入成功，清除失敗記錄
 	clearLoginFailure(c)
-
-	// 檢查 JWT 密鑰是否已配置
-	if !IsJWTConfigured() {
-		apiFail(c, http.StatusInternalServerError, "API 未正確配置，請聯繫管理員設定 api_jwt_secret")
-		return
-	}
 
 	// 生成 JWT Token
 	token, err := GenerateToken(int(user.ID), user.Username)
@@ -103,14 +109,15 @@ func RefreshToken(c *gin.Context) {
 type apiResponse struct {
 	Code int         `json:"code"`
 	Msg  string      `json:"msg"`
-	Data interface{} `json:"data,omitempty"`
+	Data interface{} `json:"data"`
 	Meta *apiMeta    `json:"meta,omitempty"`
 }
 
 type apiMeta struct {
-	Page     int   `json:"page"`
-	Pagesize int   `json:"pagesize"`
-	Total    int64 `json:"total"`
+	Page       int   `json:"page"`
+	Pagesize   int   `json:"pagesize"`
+	Total      int64 `json:"total"`
+	TotalPages int   `json:"total_pages"`
 }
 
 func apiOK(c *gin.Context, data interface{}) {
@@ -122,6 +129,10 @@ func apiOKWithMsg(c *gin.Context, msg string, data interface{}) {
 }
 
 func apiOKWithMeta(c *gin.Context, data interface{}, meta *apiMeta) {
+	// 計算總頁數
+	if meta.Pagesize > 0 {
+		meta.TotalPages = int((meta.Total + int64(meta.Pagesize) - 1) / int64(meta.Pagesize))
+	}
 	c.JSON(http.StatusOK, apiResponse{Code: 1, Msg: "success", Data: data, Meta: meta})
 }
 

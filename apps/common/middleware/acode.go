@@ -59,9 +59,19 @@ func RefreshDefaultAcode() {
 func InjectAcode(c *gin.Context) {
 	acode := ""
 
+	// 0. API 路徑支援 ?acode= 查詢參數（最高優先級）
+	// 前端可通過 /api/v1/contents?acode=sc 指定區域，未提供時使用默認區域
+	if strings.HasPrefix(c.Request.URL.Path, "/api/v1/") {
+		if qAcode := c.Query("acode"); qAcode != "" {
+			acode = qAcode
+		}
+	}
+
 	// 1. URL 前綴解析（由 main.go 的 URL 規範化中間件設置到 request context）
-	if urlAcode, ok := c.Request.Context().Value(urlAcodeKey{}).(string); ok && urlAcode != "" {
-		acode = urlAcode
+	if acode == "" {
+		if urlAcode, ok := c.Request.Context().Value(urlAcodeKey{}).(string); ok && urlAcode != "" {
+			acode = urlAcode
+		}
 	}
 
 	// 2. 後台 session
