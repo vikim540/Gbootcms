@@ -123,6 +123,7 @@ func (sl *SlideController) Index(c *gin.Context) {
 	data := gin.H{
 		"slides":    slides,
 		"list":      true,
+		"C":         "content/slide",
 		"groups":    groups,
 		"filterGID": filterGID,
 		"gids":      sl.getGids(c),
@@ -324,6 +325,7 @@ func (sl *SlideController) Mod(c *gin.Context) {
 	data := gin.H{
 		"slide":  slide,
 		"mod":    true,
+		"C":      "content/slide",
 		"groups": groups,
 		"gids":   sl.getGids(c),
 		"get_id": idStr,

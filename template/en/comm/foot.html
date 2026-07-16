@@ -17,7 +17,7 @@
                 <ul class="lh-2">
                     <li>Phone: {gboot:companyphone} </li>
                     <li>Email: {gboot:companyemail} </li>
-                    <li>Q&nbsp;&nbsp;Q: {gboot:companyqq} </li>
+                    <li>WhatsApp: {gboot:companyqq} </li>
                 </ul>
             </div>
             <div class="col-12 col-md-2 text-center d-none d-md-block">
@@ -55,7 +55,7 @@
             <a href="tel:{gboot:companymobile}" class="text-light d-block pt-3 pb-3"><i class="fa fa-phone" aria-hidden="true"></i> Phone Consultation</a>
         </div>
         <div class="col-4 p-0 text-center border-right">
-            <a target="_blank" href="http://wpa.qq.com/msgrd?v=3&uin={gboot:companyqq}&site=qq&menu=yes" class="text-light d-block pt-3 pb-3"><i class="fa fa-qq" aria-hidden="true"></i> Online Consultation</a>
+            <a target="_blank" href="https://wa.me/{gboot:companyqq}" class="text-light d-block pt-3 pb-3"><i class="fa fa-comment" aria-hidden="true"></i> WhatsApp</a>
         </div>
         <div class="col-4 p-0 text-center">
 			{gboot:sort scode=1}
@@ -69,16 +69,16 @@
 <div class="online d-none d-md-block">
 	<dl>
 		<dt style="width:150px;">
-        	<h3><i class="fa fa-commenting-o"></i>Online Consultation<span class="remove"><i class="fa fa-remove"></i></span></h3>
+        	<h3><i class="fa fa-commenting-o"></i>WhatsApp Consultation<span class="remove"><i class="fa fa-remove"></i></span></h3>
             <p>
-            	<a target="_blank" href="http://wpa.qq.com/msgrd?v=3&uin={gboot:companyqq}&site=qq&menu=yes">
-                	<img border="0" src="{gboot:sitetplpath}/images/qq.jpg" alt="Click here to send me a message" title="Click here to send me a message"/>
+            	<a target="_blank" href="https://wa.me/{gboot:companyqq}">
+                	<i class="fa fa-comment" style="font-size:16px;color:#075E54;"></i>
                		 Pre-sales Specialist
                 </a>
             </p>
              <p>
-                <a target="_blank" href="http://wpa.qq.com/msgrd?v=3&uin={gboot:companyqq}&site=qq&menu=yes">
-                	<img border="0" src="{gboot:sitetplpath}/images/qq.jpg" alt="Click here to send me a message" title="Click here to send me a message"/>
+                <a target="_blank" href="https://wa.me/{gboot:companyqq}">
+                	<i class="fa fa-comment" style="font-size:16px;color:#075E54;"></i>
                		 After-sales Service Specialist
                 </a>
             </p>
@@ -126,7 +126,7 @@ function subform(obj){
   var url='{gboot:form fcode=2}';
   var tel=$(obj).find("#tel").val();
   
-  var reg = /^(1|0)[\d\-]+$/;   
+  var reg = /^[\d\-\+\s\(\)]{6,30}$/;   
   if (!reg.test(tel)) {
 	  alert('Invalid phone number!');
 	  return false;

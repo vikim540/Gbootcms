@@ -526,7 +526,8 @@ func (fc *FrontController) Message(c *gin.Context) {
 		}
 
 		// 區分 fcode：fcode=1 或無 fcode → 留言(ay_message)，fcode≥2 → 自定義表單(ay_diy_*)
-		fcode := c.PostForm("fcode")
+		// 相容查詢參數和 POST body 兩種方式（{gboot:form fcode=N} 生成 /message?fcode=N URL）
+		fcode := c.DefaultPostForm("fcode", c.Query("fcode"))
 		if fcode != "" && fcode != "1" {
 			// 自定義表單提交
 			fc.handleFormSubmit(c, fcode, clientIP, filterGbootIf)

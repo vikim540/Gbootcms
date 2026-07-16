@@ -579,7 +579,7 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 			return
 		}
 
-		// 構建更新數據（XSS 過濾：暱稱、QQ、電話為自由文字欄位，必須過濾）
+		// 構建更新數據（XSS 過濾：暱稱、WhatsApp、電話為自由文字欄位，必須過濾）
 	updates := map[string]interface{}{
 		"nickname":   common.FilterUserInput(c.PostForm("nickname")),
 		"useremail":  common.FilterUserInput(c.PostForm("useremail")),

@@ -17,7 +17,7 @@
 	    <li class="group-tab-all"><a href="/admin/content/slide/index">全部</a></li>
 	    {foreach $groups(key,value)}
 	    <li class="group-tab" data-gid="[value->gid]">
-	    	<a href="/admin/content/slide/index?gid=[value->gid]">[value->name] <span class="layui-badge layui-bg-blue">[value->count]</span></a>
+	    	<a href="/admin/content/slide/index?gid=[value->gid]">[value->name] <span class="layui-badge layui-bg-blue" title="此分組有 [value->count] 張輪播圖">[value->count]張</span></a>
 	    </li>
 	    {/foreach}
 	    <li><a href="javascript:;" id="manageGroupsBtn"><i class="layui-icon">&#xe620;</i> 管理分組</a></li>
@@ -93,7 +93,7 @@
                      		<option value="0">＋ 自動新增分組</option>
                      	</select>
                      </div>
-                     <a href="javascript:;" class="layui-btn layui-btn-sm layui-btn-primary" onclick="document.getElementById('manageGroupsBtn').click()"><i class="layui-icon">&#xe620;</i> 管理分組</a>
+                     <a href="javascript:;" class="layui-btn layui-btn-sm layui-btn-primary" id="manageGroupsBtn2"><i class="layui-icon">&#xe620;</i> 管理分組</a>
                 </div>
 
                 <div class="layui-form-item">
@@ -164,40 +164,6 @@
 	  </div>
 	</div>
 
-	<!-- 分組管理彈窗 -->
-	<div id="groupDialog" style="display:none; padding:15px;">
-		<table class="layui-table" style="margin-bottom:10px;">
-			<thead>
-				<tr>
-					<th width="60">gid</th>
-					<th>分組名稱</th>
-					<th width="80">輪播圖數</th>
-					<th width="60">排序</th>
-					<th width="120">操作</th>
-				</tr>
-			</thead>
-			<tbody id="groupTableBody"></tbody>
-		</table>
-		<button class="layui-btn layui-btn-sm" id="addGroupBtn"><i class="layui-icon">&#xe654;</i> 新增分組</button>
-		<div id="groupForm" style="display:none; margin-top:15px; padding:15px; background:#f8f8f8; border-radius:5px;">
-			<input type="hidden" id="groupIdInput">
-			<div class="layui-form-item" style="margin-bottom:0;">
-				<div class="layui-inline">
-					<label class="layui-form-label" style="width:80px;">分組名稱</label>
-					<div class="layui-input-inline" style="width:200px;">
-						<input type="text" id="groupNameInput" class="layui-input" placeholder="如：簡體首頁">
-					</div>
-					<label class="layui-form-label" style="width:50px;">排序</label>
-					<div class="layui-input-inline" style="width:70px;">
-						<input type="text" id="groupSortingInput" class="layui-input" value="255">
-					</div>
-					<button class="layui-btn layui-btn-sm" id="saveGroupBtn">保存</button>
-					<button class="layui-btn layui-btn-sm layui-btn-primary" id="cancelGroupBtn">取消</button>
-				</div>
-			</div>
-		</div>
-	</div>
-
 	<script>
 	$(function(){
 		// 設定當前選中的分組 Tab
@@ -209,20 +175,56 @@
 			$('.group-tab-all').addClass('layui-this');
 		}
 
-		// 分組管理
-		$('#manageGroupsBtn').on('click', function(){
-			layer.open({
+		var formcheck = $('input[name="formcheck"]').val();
+		var layerIndex = null;
+
+		// 分組管理彈窗 HTML（內聯字串，避免 DOM 搬移導致遮罩卡住）
+		function getGroupDialogHTML(){
+			return [
+				'<div style="padding:15px;">',
+				'  <table class="layui-table" style="margin-bottom:10px;">',
+				'    <thead><tr><th width="60">gid</th><th>分組名稱</th><th width="80">輪播圖數</th><th width="60">排序</th><th width="120">操作</th></tr></thead>',
+				'    <tbody id="groupTableBody"></tbody>',
+				'  </table>',
+				'  <button class="layui-btn layui-btn-sm" id="addGroupBtn"><i class="layui-icon">&#xe654;</i> 新增分組</button>',
+				'  <div id="groupForm" style="display:none; margin-top:15px; padding:15px; background:#f8f8f8; border-radius:5px;">',
+				'    <input type="hidden" id="groupIdInput">',
+				'    <div class="layui-form-item" style="margin-bottom:0;">',
+				'      <div class="layui-inline">',
+				'        <label class="layui-form-label" style="width:80px;">分組名稱</label>',
+				'        <div class="layui-input-inline" style="width:200px;">',
+				'          <input type="text" id="groupNameInput" class="layui-input" placeholder="如：簡體首頁">',
+				'        </div>',
+				'        <label class="layui-form-label" style="width:50px;">排序</label>',
+				'        <div class="layui-input-inline" style="width:70px;">',
+				'          <input type="text" id="groupSortingInput" class="layui-input" value="255">',
+				'        </div>',
+				'        <button class="layui-btn layui-btn-sm" id="saveGroupBtn">保存</button>',
+				'        <button class="layui-btn layui-btn-sm layui-btn-primary" id="cancelGroupBtn">取消</button>',
+				'      </div>',
+				'    </div>',
+				'  </div>',
+				'</div>'
+			].join('');
+		}
+
+		function openGroupManager(){
+			layerIndex = layer.open({
 				type: 1,
 				title: '管理輪播圖分組',
-				area: ['700px', '550px'],
-				content: $('#groupDialog'),
-				success: function(){
-					loadGroupList();
+				area: ['700px', '500px'],
+				maxmin: false,
+				shadeClose: true,
+				closeBtn: 1,
+				content: getGroupDialogHTML(),
+				success: function(layero){
+					loadGroupList(layero);
+					bindGroupDialogEvents(layero);
 				}
 			});
-		});
+		}
 
-		function loadGroupList(){
+		function loadGroupList(layero){
 			$.get('/admin/slide/group', {action:'list'}, function(res){
 				if (res.code === 1) {
 					var html = '';
@@ -238,75 +240,87 @@
 						html += '</td>';
 						html += '</tr>';
 					});
-					$('#groupTableBody').html(html);
+					if (layero) {
+						layero.find('#groupTableBody').html(html);
+					} else {
+						$('#groupTableBody').html(html);
+					}
 				}
 			});
 		}
 
-		$('#addGroupBtn').on('click', function(){
-			$('#groupForm').show();
-			$('#groupIdInput').val('');
-			$('#groupNameInput').val('');
-			$('#groupSortingInput').val('255');
-			$('#groupNameInput').focus();
-		});
-
-		$('#cancelGroupBtn').on('click', function(){
-			$('#groupForm').hide();
-		});
-
-		$('#saveGroupBtn').on('click', function(){
-			var id = $('#groupIdInput').val();
-			var name = $('#groupNameInput').val();
-			var sorting = $('#groupSortingInput').val();
-			if (!name) { layer.msg('分組名稱不能為空', {icon:2}); return; }
-			var action = id ? 'edit' : 'add';
-			var formcheck = $('input[name="formcheck"]').val();
-			$.post('/admin/slide/group', {
-				action: action, id: id, name: name, sorting: sorting, formcheck: formcheck
-			}, function(res){
-				if (res.code === 1) {
-					layer.msg(res.data, {icon:1});
-					loadGroupList();
-					$('#groupForm').hide();
-					setTimeout(function(){ location.reload(); }, 800);
-				} else {
-					layer.msg(res.msg || res.data, {icon:2});
-				}
+		function bindGroupDialogEvents(layero){
+			// 新增分組
+			layero.find('#addGroupBtn').on('click', function(){
+				layero.find('#groupForm').show();
+				layero.find('#groupIdInput').val('');
+				layero.find('#groupNameInput').val('');
+				layero.find('#groupSortingInput').val('255');
+				layero.find('#groupNameInput').focus();
 			});
-		});
 
-		$(document).on('click', '.group-edit-btn', function(){
-			var row = $(this).closest('tr');
-			$('#groupForm').show();
-			$('#groupIdInput').val(row.data('id'));
-			$('#groupNameInput').val(row.find('td:eq(1)').text());
-			$('#groupSortingInput').val(row.find('td:eq(3)').text());
-			$('#groupNameInput').focus();
-		});
+			// 取消
+			layero.find('#cancelGroupBtn').on('click', function(){
+				layero.find('#groupForm').hide();
+			});
 
-		$(document).on('click', '.group-del-btn', function(){
-			var row = $(this).closest('tr');
-			var id = row.data('id');
-			var name = row.find('td:eq(1)').text();
-			layer.confirm('確定刪除分組「' + name + '」嗎？<br>注意：輪播圖本身不會被刪除，但分組名稱將消失。', {
-				icon: 3, title: '確認刪除'
-			}, function(index){
-				var formcheck = $('input[name="formcheck"]').val();
+			// 保存（新增/編輯）
+			layero.find('#saveGroupBtn').on('click', function(){
+				var id = layero.find('#groupIdInput').val();
+				var name = layero.find('#groupNameInput').val();
+				var sorting = layero.find('#groupSortingInput').val();
+				if (!name) { layer.msg('分組名稱不能為空', {icon:2}); return; }
+				var action = id ? 'edit' : 'add';
 				$.post('/admin/slide/group', {
-					action: 'del', id: id, formcheck: formcheck
+					action: action, id: id, name: name, sorting: sorting, formcheck: formcheck
 				}, function(res){
 					if (res.code === 1) {
 						layer.msg(res.data, {icon:1});
-						loadGroupList();
+						loadGroupList(layero);
+						layero.find('#groupForm').hide();
 						setTimeout(function(){ location.reload(); }, 800);
 					} else {
 						layer.msg(res.msg || res.data, {icon:2});
 					}
 				});
-				layer.close(index);
 			});
-		});
+
+			// 編輯（事件委派）
+			layero.on('click', '.group-edit-btn', function(){
+				var row = $(this).closest('tr');
+				layero.find('#groupForm').show();
+				layero.find('#groupIdInput').val(row.data('id'));
+				layero.find('#groupNameInput').val(row.find('td:eq(1)').text());
+				layero.find('#groupSortingInput').val(row.find('td:eq(3)').text());
+				layero.find('#groupNameInput').focus();
+			});
+
+			// 刪除（事件委派）
+			layero.on('click', '.group-del-btn', function(){
+				var row = $(this).closest('tr');
+				var id = row.data('id');
+				var name = row.find('td:eq(1)').text();
+				layer.confirm('確定刪除分組「' + name + '」嗎？<br>注意：輪播圖本身不會被刪除，但分組名稱將消失。', {
+					icon: 3, title: '確認刪除'
+				}, function(index){
+					$.post('/admin/slide/group', {
+						action: 'del', id: id, formcheck: formcheck
+					}, function(res){
+						if (res.code === 1) {
+							layer.msg(res.data, {icon:1});
+							loadGroupList(layero);
+							setTimeout(function(){ location.reload(); }, 800);
+						} else {
+							layer.msg(res.msg || res.data, {icon:2});
+						}
+					});
+					layer.close(index);
+				});
+			});
+		}
+
+		// 綁定管理分組按鈕（列表頁 + 新增頁兩處）
+		$('#manageGroupsBtn, #manageGroupsBtn2').on('click', openGroupManager);
 	});
 	</script>
 	{/if}
