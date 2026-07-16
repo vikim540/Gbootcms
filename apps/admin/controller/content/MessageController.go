@@ -321,7 +321,7 @@ func (ms *MessageController) Clear(c *gin.Context) {
 			return
 		}
 	}
-	c.Redirect(http.StatusFound, "/admin/content/message/index")
+	ms.JSONOKMsgTourl(c, common.NoticeDelete, "/admin/content/message/index")
 }
 
 // exportMessages 導出留言記錄為 Excel（HTML 表格格式）

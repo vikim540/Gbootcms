@@ -180,8 +180,8 @@ layui.use(['element','upload','laydate','form'], function(){
       var $btn = $(this);
       var url = $btn.data('url');
 
-      // 自動提取列表行中的名稱（第二個 td 的內容）
-      var targetName = $btn.closest('tr').find('td').eq(1).text().trim() || '此項';
+      // 優先使用 data-name 屬性，否則自動提取列表行中的名稱（第二個 td 的內容）
+      var targetName = $btn.data('name') || $btn.closest('tr').find('td').eq(1).text().trim() || '此項';
 
       layer.open({
           type: 1,
