@@ -2,8 +2,11 @@ package common
 
 import (
 	"html"
+	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // gbootIfRegex 匹配 {gboot:if(...)} 標籤（對齊 PbootCMS PHP 的 pboot:if 過濾）
@@ -14,6 +17,9 @@ var gbootSqlRegex = regexp.MustCompile(`(?i)\{gboot:sql`)
 
 // hexBracketRegex 匹配十六進制括號 x3c/x3e（對齊 PbootCMS PHP 的 hex 括號過濾）
 var hexBracketRegex = regexp.MustCompile(`(?i)(x3c)|(x3e)`)
+
+// unsafeRedirectRegex 預編譯的開放重定向檢測正則（全域複用，避免每次調用重新編譯）
+var unsafeRedirectRegex = regexp.MustCompile(`^(https?:)?//`)
 
 // identifierRegex 識別符白名單正則（對齊 PbootCMS PHP checkKey: /^[\w\.\-]+$/）
 var identifierRegex = regexp.MustCompile(`^[\w\.\-]+$`)
@@ -76,4 +82,56 @@ func CheckColumnName(s string) bool {
 		return false
 	}
 	return columnNameRegex.MatchString(s)
+}
+
+// === Cookie 安全工具 ===
+// 對標 Swoole 6 的安全回應標頭 + PHP 8.5 的 SameSite cookie 屬性
+
+// IsHTTPS 判斷請求是否通過 HTTPS 連線
+// 支援三種偵測方式：直接 TLS、反向代理 X-Forwarded-Proto、X-Forwarded-Ssl
+func IsHTTPS(c *gin.Context) bool {
+	if c.Request.TLS != nil {
+		return true
+	}
+	if c.GetHeader("X-Forwarded-Proto") == "https" {
+		return true
+	}
+	if c.GetHeader("X-Forwarded-Ssl") == "on" {
+		return true
+	}
+	return false
+}
+
+// SetSecureCookie 設定帶完整安全屬性的 Cookie
+// Secure: 根據請求是否 HTTPS 動態判斷（HTTP 開發環境仍可正常使用）
+// HttpOnly: true（防止 JavaScript 竊取，防 XSS）
+// SameSite: Lax（允許頂層導航攜帶，防 CSRF）
+func SetSecureCookie(c *gin.Context, name, value string, maxAge int, path string) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     path,
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   IsHTTPS(c),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// IsSafeRedirectURL 驗證跳轉 URL 為相對路徑（防止開放重定向攻擊）
+// 規則：
+// 1. 必須以 / 開頭
+// 2. 不能以 // 開頭（協議相對 URL，瀏覽器會解釋為外部域名）
+// 3. 不能是 http:// 或 https:// 絕對 URL
+func IsSafeRedirectURL(u string) bool {
+	if u == "" {
+		return false
+	}
+	if len(u) >= 2 && u[0] == '/' && u[1] == '/' {
+		return false
+	}
+	if unsafeRedirectRegex.MatchString(u) {
+		return false
+	}
+	return u[0] == '/'
 }

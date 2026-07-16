@@ -752,7 +752,7 @@ func (fc *FrontController) Visits(c *gin.Context) {
 		// 使用 .Exec() 原始 SQL 繞過 GORM 回調
 		model.DB.WithContext(c.Request.Context()).
 			Exec("UPDATE ay_content SET visits = visits + 1 WHERE id = ?", id)
-		c.SetCookie(cookieName, "1", 1800, "/", "", false, true)
+		common.SetSecureCookie(c, cookieName, "1", 1800, "/")
 	}
 	c.String(http.StatusOK, "ok")
 }
@@ -815,7 +815,7 @@ func (fc *FrontController) Likes(c *gin.Context) {
 	// 使用 .Exec() 原始 SQL 繞過 GORM 回調（同 Visits 方法，避免觸發快取失效）
 	model.DB.WithContext(c.Request.Context()).
 		Exec("UPDATE ay_content SET likes = likes + 1 WHERE id = ?", id)
-	c.SetCookie(cookieName, "1", 31536000, "/", "", false, true)
+	common.SetSecureCookie(c, cookieName, "1", 31536000, "/")
 	c.JSON(http.StatusOK, gin.H{"code": 1, "data": "點讚成功", "likes": ct.Likes + 1})
 }
 
@@ -847,7 +847,7 @@ func (fc *FrontController) Oppose(c *gin.Context) {
 	// 使用 .Exec() 原始 SQL 繞過 GORM 回調（同 Visits 方法，避免觸發快取失效）
 	model.DB.WithContext(c.Request.Context()).
 		Exec("UPDATE ay_content SET oppose = oppose + 1 WHERE id = ?", id)
-	c.SetCookie(cookieName, "1", 31536000, "/", "", false, true)
+	common.SetSecureCookie(c, cookieName, "1", 31536000, "/")
 	c.JSON(http.StatusOK, gin.H{"code": 1, "data": "反對成功", "oppose": ct.Oppose + 1})
 }
 

@@ -375,7 +375,7 @@ func (fc *FrontController) Login(c *gin.Context) {
 
 		// 返回跳轉地址（驗證為相對路徑，防止開放重定向）
 		tourl := c.DefaultPostForm("backurl", c.Query("backurl"))
-		if tourl == "" || !isSafeRedirectURL(tourl) {
+		if tourl == "" || !common.IsSafeRedirectURL(tourl) {
 			tourl = langPath(c, "/ucenter")
 		}
 		// 對齊 PbootCMS 響應格式: {code, data, tourl}
@@ -416,7 +416,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 		username := c.PostForm("username")
 		password := c.PostForm("password")
 		rpassword := c.PostForm("rpassword")
-		nickname := c.PostForm("nickname")
+		nickname := common.FilterUserInput(c.PostForm("nickname"))
 
 		registerType := model.GetConfigValue("register_type", "1")
 		var useremail, usermobile string
@@ -579,17 +579,17 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 			return
 		}
 
-		// 構建更新數據
-		updates := map[string]interface{}{
-			"nickname":   c.PostForm("nickname"),
-			"useremail":  c.PostForm("useremail"),
-			"usermobile": c.PostForm("usermobile"),
-			"headpic":    c.PostForm("headpic"),
-			"sex":        c.PostForm("sex"),
-			"birthday":   c.PostForm("birthday"),
-			"qq":         c.PostForm("qq"),
-			"telephone":  c.PostForm("telephone"),
-		}
+		// 構建更新數據（XSS 過濾：暱稱、QQ、電話為自由文字欄位，必須過濾）
+	updates := map[string]interface{}{
+		"nickname":   common.FilterUserInput(c.PostForm("nickname")),
+		"useremail":  common.FilterUserInput(c.PostForm("useremail")),
+		"usermobile": common.FilterUserInput(c.PostForm("usermobile")),
+		"headpic":    c.PostForm("headpic"),
+		"sex":        c.PostForm("sex"),
+		"birthday":   c.PostForm("birthday"),
+		"qq":         common.FilterUserInput(c.PostForm("qq")),
+		"telephone":  common.FilterUserInput(c.PostForm("telephone")),
+	}
 
 		// 修改密碼（可選）
 		password := c.PostForm("password")
@@ -612,9 +612,9 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 		return
 	}
 
-		// 同步 Session 中的暱稱和郵箱
-		common.SetSession(c, "pboot_useremail", c.PostForm("useremail"))
-		common.SetSession(c, "pboot_usermobile", c.PostForm("usermobile"))
+		// 同步 Session 中的暱稱和郵箱（使用過濾後的值，與 DB 一致）
+	common.SetSession(c, "pboot_useremail", updates["useremail"])
+	common.SetSession(c, "pboot_usermobile", updates["usermobile"])
 
 		c.JSON(http.StatusOK, gin.H{"code": 1, "data": "修改成功", "tourl": langPath(c, "/umodify")})
 		return
@@ -638,18 +638,4 @@ func memberExists(c *gin.Context, where string, args ...interface{}) bool {
 	return count > 0
 }
 
-// isSafeRedirectURL 驗證跳轉 URL 為相對路徑（防止開放重定向攻擊）
-func isSafeRedirectURL(u string) bool {
-	if u == "" {
-		return false
-	}
-	// 必須以 / 開頭，但不能以 // 開頭（協議相對 URL）
-	if len(u) >= 2 && u[0] == '/' && u[1] == '/' {
-		return false
-	}
-	// 不允許 http://, https://, // 等絕對 URL
-	if regexp.MustCompile(`^(https?:)?//`).MatchString(u) {
-		return false
-	}
-	return u[0] == '/'
-}
+// isSafeRedirectURL 已移至 common.IsSafeRedirectURL（預編譯正則，全域複用）

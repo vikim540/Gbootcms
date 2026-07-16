@@ -214,7 +214,7 @@ func SetSession(c *gin.Context, key string, value interface{}) {
 	sid := getSessionID(c)
 	if sid == "" {
 		sid = createSessionID()
-		c.SetCookie("PbootGo", sid, 86400, "/", "", false, true)
+		SetSecureCookie(c, "PbootGo", sid, 86400, "/")
 		c.Set("sessionID", sid)
 	}
 
@@ -326,7 +326,7 @@ func ClearSession(c *gin.Context) {
 
 	// 從 DB 刪除
 	deleteSessionFromDB(sid)
-	c.SetCookie("PbootGo", "", -1, "/", "", false, true)
+	SetSecureCookie(c, "PbootGo", "", -1, "/")
 }
 
 // ClearAllSessions 清除所有會話（排除當前用戶，避免管理員被踢出）
@@ -426,7 +426,7 @@ func RegenerateSessionID(c *gin.Context) {
 	}
 	persistSessionToDB(newSID, newEntry)
 
-	c.SetCookie("PbootGo", newSID, 86400, "/", "", false, true)
+	SetSecureCookie(c, "PbootGo", newSID, 86400, "/")
 	c.Set("sessionID", newSID)
 }
 

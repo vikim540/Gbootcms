@@ -179,14 +179,7 @@ func (ic *IndexController) Login(c *gin.Context) {
 		"area_map":       areaMap,
 	})
 
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "PbootGo",
-		Value:    newSessionID,
-		Path:     "/",
-		MaxAge:   86400,
-		HttpOnly: true,
-		Secure:   false,
-	})
+	common.SetSecureCookie(c, "PbootGo", newSessionID, 86400, "/")
 
 	if err := model.DB.WithContext(loginCtx).Model(&user).Updates(map[string]interface{}{
 		"login_count":   gorm.Expr("login_count + 1"),
@@ -466,14 +459,7 @@ func (ic *IndexController) getCookie(c *gin.Context, name string) string {
 }
 
 func (ic *IndexController) setCookie(c *gin.Context, name, value string, maxAge int) {
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     name,
-		Value:    value,
-		Path:     "/",
-		MaxAge:   maxAge,
-		HttpOnly: true,
-		Secure:   false,
-	})
+	common.SetSecureCookie(c, name, value, maxAge, "/")
 }
 
 func (ic *IndexController) generateSessionID() string {

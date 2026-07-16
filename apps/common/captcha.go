@@ -115,14 +115,7 @@ func getCaptchaSessionID(c *gin.Context) string {
 	cookie, err := c.Cookie("PbootGo")
 	if err != nil || cookie == "" {
 		cookie = generateCaptchaSessionID()
-		http.SetCookie(c.Writer, &http.Cookie{
-			Name:     "PbootGo",
-			Value:    cookie,
-			Path:     "/",
-			MaxAge:   86400,
-			HttpOnly: true,
-			Secure:   false,
-		})
+		SetSecureCookie(c, "PbootGo", cookie, 86400, "/")
 	}
 	return cookie
 }

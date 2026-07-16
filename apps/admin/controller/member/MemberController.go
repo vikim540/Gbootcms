@@ -128,10 +128,10 @@ func (mb *MemberController) Add(c *gin.Context) {
 		if err := model.DB.Create(&model.Member{
 			Ucode:        ucode,
 			Username:     username,
-			Nickname:     c.PostForm("nickname"),
+			Nickname:     common.FilterUserInput(c.PostForm("nickname")),
 			Password:     hashedPwd,
-			Useremail:    c.PostForm("useremail"),
-			Usermobile:   c.PostForm("usermobile"),
+			Useremail:    common.FilterUserInput(c.PostForm("useremail")),
+			Usermobile:   common.FilterUserInput(c.PostForm("usermobile")),
 			Headpic:      c.PostForm("headpic"),
 			GID:          gid,
 			Score:        score,
@@ -247,15 +247,15 @@ func (mb *MemberController) Mod(c *gin.Context) {
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 
 		updates := map[string]interface{}{
-			"username":   c.PostForm("username"),
-			"nickname":   c.PostForm("nickname"),
-			"useremail":  c.PostForm("useremail"),
-			"usermobile": c.PostForm("usermobile"),
-			"headpic":    c.PostForm("headpic"),
-			"gid":        c.PostForm("gid"),
-			"score":      score,
-			"status":     status,
-		}
+		"username":   c.PostForm("username"),
+		"nickname":   common.FilterUserInput(c.PostForm("nickname")),
+		"useremail":  common.FilterUserInput(c.PostForm("useremail")),
+		"usermobile": common.FilterUserInput(c.PostForm("usermobile")),
+		"headpic":    c.PostForm("headpic"),
+		"gid":        c.PostForm("gid"),
+		"score":      score,
+		"status":     status,
+	}
 		password := c.PostForm("password")
 		if password != "" {
 			hashedPwd, err := common.HashPassword(password)
