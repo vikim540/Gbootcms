@@ -133,6 +133,7 @@ func InitDB(cfg *config.Config) error {
 		// 這些表的變更不影響前台 HTML 頁面（純統計/日誌/權限/系統用途）
 		skipTables := map[string]bool{
 			"syslog":         true, // 系統日誌（蜘蛛訪問、管理員操作）
+			"session":        true, // 會話持久化（不影響前台頁面）
 			"member":         true, // 會員資料（不影響前台頁面）
 			"member_comment": true, // 評論（由 comment controller 精準失效 content:{id} tag）
 			"member_log":     true, // 會員活動日誌

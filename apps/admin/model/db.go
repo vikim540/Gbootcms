@@ -47,6 +47,7 @@ type Syslog = system.Syslog
 type Area = system.Area
 type Config = system.Config
 type Database = system.Database
+type Session = system.Session
 
 // ──────────────────────────────────────────────
 // Type aliases – content sub-package

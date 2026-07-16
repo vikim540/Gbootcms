@@ -6,9 +6,12 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	home "gbootcms/apps/home/controller"
@@ -73,7 +76,7 @@ func main() {
 	if err := model.InitDB(cfg); err != nil {
 		log.Fatalf("Database init failed: %v", err)
 	}
-	defer model.CloseDB()
+	// defer model.CloseDB() — 移至優雅關閉邏輯中呼叫，確保 WAL checkpoint 完成
 
 	// 註冊數據變更回調：基於 Cache Tag 精準失效
 	// 不同表的變更觸發不同層級的快取失效：
@@ -131,6 +134,9 @@ func main() {
 
 	// Seed initial data (admin user, menus, configs, etc.)
 	seed.Init()
+
+	// 從 DB 載入活躍 session 到記憶體（SQLite 持久化 session）
+	common.LoadSessionsFromDB()
 
 	basic.InitViewEngine(cfg.App.TemplateDir, cfg.App.AdminTemplateDir)
 
@@ -366,7 +372,38 @@ func main() {
 		slog.Warn("快取預熱未成功，第一個訪客將遇到冷緩存")
 	}()
 
-	if err := r.Run(addr); err != nil {
-		log.Fatalf("Server failed: %v", err)
+	// 啟動 SpiderLog worker pool（固定 3 worker + 批量寫入，取代每請求 goroutine）
+	middleware.StartSpiderLogWorkers()
+
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: r,
 	}
+
+	// 優雅關閉：伺服器在獨立 goroutine 中運行，主 goroutine 等待信號
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	// 捕獲 SIGINT (Ctrl+C) 和 SIGTERM (kill)，觸發優雅關閉
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	slog.Info("收到關閉信號，正在優雅關閉伺服器...")
+
+	// 30 秒超時：等待進行中的請求完成
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		slog.Error("伺服器強制關閉", "error", err)
+	}
+
+	// 停止 SpiderLog worker pool（等待剩餘日誌寫入完成）
+	middleware.StopSpiderLogWorkers()
+
+	// 關閉資料庫連接（SQLite WAL checkpoint 確保數據落盤）
+	model.CloseDB()
+	slog.Info("Gbootcms 已安全退出")
 }

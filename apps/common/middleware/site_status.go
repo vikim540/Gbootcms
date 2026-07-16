@@ -113,10 +113,8 @@ func SpiderLog() gin.HandlerFunc {
 			ua := strings.ToLower(c.Request.UserAgent())
 			spider := identifySpider(ua)
 			if spider != "" {
-				// 異步寫入日誌，不阻塞請求（對齊 PHP: log_text 寫入 log/YYYYMMDD.log）
-				go func(spiderName, reqURL, ip string) {
-					logSpiderVisit(spiderName, reqURL, ip)
-				}(spider, c.Request.URL.String(), c.ClientIP())
+				// 加入佇列由 worker pool 批量寫入，不阻塞請求
+				enqueueSpiderLog(spider, c.Request.URL.String(), c.ClientIP())
 			}
 		}
 
@@ -165,7 +163,4 @@ func identifySpider(ua string) string {
 	return ""
 }
 
-// logSpiderVisit 記錄蜘蛛訪問到日誌文件（對齊 PHP LogText::write）
-func logSpiderVisit(spider, url, ip string) {
-	logSpiderVisitToFile(spider, url, ip)
-}
+

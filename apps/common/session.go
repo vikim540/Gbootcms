@@ -4,7 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"gbootcms/apps/admin/model"
 	"gbootcms/config"
+	"gbootcms/core/db"
+	"log/slog"
 	"strconv"
 	"sync"
 	"time"
@@ -16,10 +19,9 @@ import (
 var sessionKey []byte
 
 // Session TTL 常量（對齊 PbootCMS PHP session_ticket 機制）
-// PbootCMS: 初始 1 小時，後台操作延長至 3 小時，每 30 分鐘清理
 const (
-	sessionMaxLifetime = 24 * time.Hour // 會話最大生命週期（對齊 cookie MaxAge=86400）
-	sessionIdleTimeout = 2 * time.Hour  // 閒置超時：無活動超過此時間則過期
+	sessionMaxLifetime     = 24 * time.Hour  // 會話最大生命週期（對齊 cookie MaxAge=86400）
+	sessionIdleTimeout     = 2 * time.Hour   // 閒置超時：無活動超過此時間則過期
 	sessionCleanupInterval = 10 * time.Minute // 過期清理週期
 )
 
@@ -50,31 +52,128 @@ var (
 	mu           sync.RWMutex
 )
 
+// === SQLite 持久化層 ===
+// 雙寫策略：記憶體（速度）+ SQLite（持久化）
+// 讀取：記憶體優先，miss 時回 DB
+// 寫入：同步寫記憶體 + 異步寫 DB（不阻塞請求）
+// 對標 Swoole 6 的常駐記憶體 + DB 備份模式
+
+// persistSessionToDB 將 session 持久化到 DB（upsert）
+func persistSessionToDB(sid string, entry *sessionEntry) {
+	if db.DB == nil || sid == "" || entry == nil {
+		return
+	}
+	dataBytes, err := json.Marshal(entry.data)
+	if err != nil {
+		slog.Warn("Session DB 持久化序列化失敗", "sid", sid, "error", err)
+		return
+	}
+	sess := model.Session{
+		SID:          sid,
+		Data:         string(dataBytes),
+		CreatedAt:    entry.createdAt,
+		LastActivity: entry.lastActivity,
+	}
+	if err := db.DB.Save(&sess).Error; err != nil {
+		slog.Warn("Session DB 持久化失敗", "sid", sid, "error", err)
+	}
+}
+
+// loadSessionFromDB 從 DB 載入 session（記憶體 miss 時使用）
+func loadSessionFromDB(sid string) *sessionEntry {
+	if db.DB == nil || sid == "" {
+		return nil
+	}
+	var sess model.Session
+	if err := db.DB.Where("sid = ? AND last_activity > ?", sid, time.Now().Add(-sessionIdleTimeout)).First(&sess).Error; err != nil {
+		return nil
+	}
+	var data SessionData
+	if err := json.Unmarshal([]byte(sess.Data), &data); err != nil {
+		slog.Warn("Session DB 反序列化失敗", "sid", sid, "error", err)
+		return nil
+	}
+	return &sessionEntry{
+		data:         data,
+		createdAt:    sess.CreatedAt,
+		lastActivity: sess.LastActivity,
+	}
+}
+
+// deleteSessionFromDB 從 DB 刪除 session
+func deleteSessionFromDB(sid string) {
+	if db.DB == nil || sid == "" {
+		return
+	}
+	if err := db.DB.Where("sid = ?", sid).Delete(&model.Session{}).Error; err != nil {
+		slog.Warn("Session DB 刪除失敗", "sid", sid, "error", err)
+	}
+}
+
+// LoadSessionsFromDB 啟動時從 DB 載入活躍 session 到記憶體
+// 應在 main() 中 DB 初始化後呼叫
+func LoadSessionsFromDB() {
+	if db.DB == nil {
+		return
+	}
+	var sessions []model.Session
+	cutoff := time.Now().Add(-sessionIdleTimeout)
+	if err := db.DB.Where("last_activity > ?", cutoff).Find(&sessions).Error; err != nil {
+		slog.Warn("啟動時載入 session 失敗", "error", err)
+		return
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	loaded := 0
+	for _, sess := range sessions {
+		var data SessionData
+		if err := json.Unmarshal([]byte(sess.Data), &data); err != nil {
+			continue
+		}
+		// 檢查最大生命週期
+		if time.Since(sess.CreatedAt) > sessionMaxLifetime {
+			continue
+		}
+		sessionStore[sess.SID] = &sessionEntry{
+			data:         data,
+			createdAt:    sess.CreatedAt,
+			lastActivity: sess.LastActivity,
+		}
+		loaded++
+	}
+
+	// 清理 DB 中的過期 session
+	db.DB.Where("last_activity < ? OR created_at < ?", cutoff, time.Now().Add(-sessionMaxLifetime)).Delete(&model.Session{})
+
+	slog.Info("Session 從 DB 載入完成", "loaded", loaded, "total_in_memory", len(sessionStore))
+}
+
 // isSessionExpired 檢查 session 是否已過期
 func isSessionExpired(entry *sessionEntry) bool {
 	if entry == nil {
 		return true
 	}
 	now := time.Now()
-	// 超過最大生命週期
 	if now.Sub(entry.createdAt) > sessionMaxLifetime {
 		return true
 	}
-	// 閒置超時
 	if now.Sub(entry.lastActivity) > sessionIdleTimeout {
 		return true
 	}
 	return false
 }
 
-// cleanupExpiredSessions 定期清理過期的 session（後台協程）
+// cleanupExpiredSessions 定期清理過期的 session（記憶體 + DB）
 func cleanupExpiredSessions() {
 	ticker := time.NewTicker(sessionCleanupInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		mu.Lock()
 		now := time.Now()
+		// 清理記憶體
+		mu.Lock()
 		for sid, entry := range sessionStore {
 			if now.Sub(entry.createdAt) > sessionMaxLifetime ||
 				now.Sub(entry.lastActivity) > sessionIdleTimeout {
@@ -82,17 +181,22 @@ func cleanupExpiredSessions() {
 			}
 		}
 		mu.Unlock()
+
+		// 清理 DB
+		if db.DB != nil {
+			cutoff := now.Add(-sessionIdleTimeout)
+			maxCutoff := now.Add(-sessionMaxLifetime)
+			db.DB.Where("last_activity < ? OR created_at < ?", cutoff, maxCutoff).Delete(&model.Session{})
+		}
 	}
 }
 
 func getSessionID(c *gin.Context) string {
-	// 優先從 gin context 取（同一請求內 SetSession 創建後的 session ID）
 	if sid, ok := c.Get("sessionID"); ok {
 		if s, ok := sid.(string); ok && s != "" {
 			return s
 		}
 	}
-	// 從 cookie 取
 	cookie, err := c.Cookie("PbootGo")
 	if err != nil || cookie == "" {
 		return ""
@@ -110,18 +214,15 @@ func SetSession(c *gin.Context, key string, value interface{}) {
 	sid := getSessionID(c)
 	if sid == "" {
 		sid = createSessionID()
-		c.SetCookie("PbootGo", sid, 86400, "/", "", false, true) // HttpOnly=true 防止 XSS 竊取
-		c.Set("sessionID", sid) // 存入 context，後續同請求內復用
+		c.SetCookie("PbootGo", sid, 86400, "/", "", false, true)
+		c.Set("sessionID", sid)
 	}
 
 	now := time.Now()
 
 	mu.Lock()
-	defer mu.Unlock()
-
 	entry, ok := sessionStore[sid]
 	if !ok || isSessionExpired(entry) {
-		// 新 session 或已過期，重新建立
 		entry = &sessionEntry{
 			data:         make(SessionData),
 			createdAt:    now,
@@ -129,8 +230,12 @@ func SetSession(c *gin.Context, key string, value interface{}) {
 		}
 		sessionStore[sid] = entry
 	}
-	entry.lastActivity = now // 更新活動時間
+	entry.lastActivity = now
 	entry.data[key] = value
+	mu.Unlock()
+
+	// 持久化到 DB（不阻塞請求，錯誤僅記錄）
+	persistSessionToDB(sid, entry)
 }
 
 func GetSession(c *gin.Context, key string) interface{} {
@@ -140,13 +245,24 @@ func GetSession(c *gin.Context, key string) interface{} {
 	}
 
 	mu.RLock()
-	defer mu.RUnlock()
-
 	entry, ok := sessionStore[sid]
-	if !ok || isSessionExpired(entry) {
-		return nil
+	mu.RUnlock()
+
+	if ok && !isSessionExpired(entry) {
+		return entry.data[key]
 	}
-	return entry.data[key]
+
+	// 記憶體 miss：嘗試從 DB 載入
+	if !ok {
+		dbEntry := loadSessionFromDB(sid)
+		if dbEntry != nil && !isSessionExpired(dbEntry) {
+			mu.Lock()
+			sessionStore[sid] = dbEntry
+			mu.Unlock()
+			return dbEntry.data[key]
+		}
+	}
+	return nil
 }
 
 func GetSessionString(c *gin.Context, key string) string {
@@ -188,11 +304,14 @@ func DeleteSession(c *gin.Context, key string) {
 	}
 
 	mu.Lock()
-	defer mu.Unlock()
-
 	if entry, ok := sessionStore[sid]; ok && !isSessionExpired(entry) {
 		delete(entry.data, key)
+		// 持久化變更到 DB
+		mu.Unlock()
+		persistSessionToDB(sid, entry)
+		return
 	}
+	mu.Unlock()
 }
 
 func ClearSession(c *gin.Context) {
@@ -202,20 +321,19 @@ func ClearSession(c *gin.Context) {
 	}
 
 	mu.Lock()
-	defer mu.Unlock()
-
 	delete(sessionStore, sid)
+	mu.Unlock()
+
+	// 從 DB 刪除
+	deleteSessionFromDB(sid)
 	c.SetCookie("PbootGo", "", -1, "/", "", false, true)
 }
 
 // ClearAllSessions 清除所有會話（排除當前用戶，避免管理員被踢出）
-// 用於後台「清理會話」功能，讓所有其他用戶強制重新登入
 func ClearAllSessions(c *gin.Context) int {
 	currentSID := getSessionID(c)
 
 	mu.Lock()
-	defer mu.Unlock()
-
 	count := 0
 	for sid := range sessionStore {
 		if sid != currentSID {
@@ -223,69 +341,90 @@ func ClearAllSessions(c *gin.Context) int {
 			count++
 		}
 	}
+	mu.Unlock()
+
+	// 從 DB 刪除所有非當前 session
+	if db.DB != nil {
+		db.DB.Where("sid != ?", currentSID).Delete(&model.Session{})
+	}
 	return count
 }
 
 func SetSessionData(c *gin.Context, sid string, data map[string]interface{}) {
 	now := time.Now()
 	mu.Lock()
-	defer mu.Unlock()
-	sessionStore[sid] = &sessionEntry{
+	entry := &sessionEntry{
 		data:         SessionData(data),
 		createdAt:    now,
 		lastActivity: now,
 	}
+	sessionStore[sid] = entry
+	mu.Unlock()
+
+	persistSessionToDB(sid, entry)
 }
 
 func GetSessionData(c *gin.Context, sid string) map[string]interface{} {
 	mu.RLock()
-	defer mu.RUnlock()
 	if entry, ok := sessionStore[sid]; ok && !isSessionExpired(entry) {
+		mu.RUnlock()
 		return entry.data
+	}
+	mu.RUnlock()
+
+	// 記憶體 miss：嘗試 DB
+	dbEntry := loadSessionFromDB(sid)
+	if dbEntry != nil && !isSessionExpired(dbEntry) {
+		mu.Lock()
+		sessionStore[sid] = dbEntry
+		mu.Unlock()
+		return dbEntry.data
 	}
 	return nil
 }
 
 func DeleteSessionData(sid string) {
 	mu.Lock()
-	defer mu.Unlock()
 	delete(sessionStore, sid)
+	mu.Unlock()
+
+	deleteSessionFromDB(sid)
 }
 
 // RegenerateSessionID 重新生成 session ID（防止 Session Fixation 攻擊）
-// 將舊 session 的數據遷移到新 session，刪除舊 session，設置新 cookie
-// 用於會員登入時（對齊後台管理員登入的 generateSessionID 邏輯）
 func RegenerateSessionID(c *gin.Context) {
 	oldSID := getSessionID(c)
-
 	newSID := createSessionID()
 	now := time.Now()
 
+	var newEntry *sessionEntry
+
 	mu.Lock()
-	// 遷移舊 session 數據到新 session
 	if oldSID != "" {
 		if oldEntry, ok := sessionStore[oldSID]; ok && !isSessionExpired(oldEntry) {
-			sessionStore[newSID] = &sessionEntry{
+			newEntry = &sessionEntry{
 				data:         oldEntry.data,
-				createdAt:    now,          // 重置創建時間（新 session）
-				lastActivity: now,
-			}
-			delete(sessionStore, oldSID)
-		} else {
-			sessionStore[newSID] = &sessionEntry{
-				data:         make(SessionData),
 				createdAt:    now,
 				lastActivity: now,
 			}
+			delete(sessionStore, oldSID)
 		}
-	} else {
-		sessionStore[newSID] = &sessionEntry{
+	}
+	if newEntry == nil {
+		newEntry = &sessionEntry{
 			data:         make(SessionData),
 			createdAt:    now,
 			lastActivity: now,
 		}
 	}
+	sessionStore[newSID] = newEntry
 	mu.Unlock()
+
+	// DB：刪舊建新
+	if oldSID != "" {
+		deleteSessionFromDB(oldSID)
+	}
+	persistSessionToDB(newSID, newEntry)
 
 	c.SetCookie("PbootGo", newSID, 86400, "/", "", false, true)
 	c.Set("sessionID", newSID)
@@ -298,21 +437,11 @@ func DeleteSessionKey(c *gin.Context, key string) {
 	}
 
 	mu.Lock()
-	defer mu.Unlock()
-
 	if entry, ok := sessionStore[sid]; ok && !isSessionExpired(entry) {
 		delete(entry.data, key)
+		mu.Unlock()
+		persistSessionToDB(sid, entry)
+		return
 	}
-}
-
-func encodeCookie(data SessionData) string {
-	b, _ := json.Marshal(data)
-	return base64.URLEncoding.EncodeToString(b)
-}
-
-func decodeCookie(encoded string) SessionData {
-	b, _ := base64.URLEncoding.DecodeString(encoded)
-	var data SessionData
-	json.Unmarshal(b, &data)
-	return data
+	mu.Unlock()
 }

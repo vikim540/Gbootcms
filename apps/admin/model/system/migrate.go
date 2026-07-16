@@ -15,5 +15,6 @@ func AutoMigrate() {
 		&Area{},
 		&Config{},
 		&Database{},
+		&Session{},
 	)
 }
