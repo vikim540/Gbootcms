@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"gbootcms/apps/admin/model"
+	"gbootcms/core/acodeplugin"
 
 	"github.com/meilisearch/meilisearch-go"
 )
@@ -122,7 +124,8 @@ func SyncAllToMeili() error {
 		return fmt.Errorf("MeiliSearch 未啟用")
 	}
 	var contents []model.Content
-	model.DB.Where("status >= 0").Find(&contents)
+	// 全量同步需跳過 acode 隔離，取得所有區域的已發佈內容
+	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Where("status >= 0").Find(&contents)
 
 	docs := make([]interface{}, 0, len(contents))
 	for i := range contents {
@@ -202,7 +205,8 @@ func meiliSyncLoop() {
 		// 同步最近 10 分鐘內更新的內容
 		since := time.Now().Add(-10 * time.Minute)
 		var contents []model.Content
-		model.DB.Where("update_time > ? AND status >= 0", since).Find(&contents)
+		// 增量同步需跳過 acode 隔離，取得所有區域最近更新的內容
+		model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Where("update_time > ? AND status >= 0", since).Find(&contents)
 		if len(contents) == 0 {
 			continue
 		}

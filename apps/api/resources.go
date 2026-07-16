@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -182,10 +183,8 @@ func ListContents(c *gin.Context) {
 	query := dbCtx(c).Model(&model.Content{}).Where("status = 1 AND date <= ?", time.Now())
 
 	if scode := c.Query("scode"); scode != "" {
-		// 查找欄目及其子欄目
-		var childScodes []string
-		dbCtx(c).Model(&model.ContentSort{}).Where("pcode = ?", scode).Pluck("scode", &childScodes)
-		allScodes := append([]string{scode}, childScodes...)
+		// 遞迴 CTE 查詢欄目及其所有子孫欄目（與前台 findAllChildScodes 行為一致）
+		allScodes := findAllChildScodesAPI(c, scode)
 		query = query.Where("scode IN ?", allScodes)
 	}
 	if mcode := c.Query("mcode"); mcode != "" {
@@ -283,7 +282,9 @@ func GetContent(c *gin.Context) {
 	// 可選訪問量追蹤（使用 .Exec() 繞過 GORM 回調，避免觸發快取失效）
 	if c.Query("track") == "1" {
 		// 使用 .Exec() 原始 SQL 繞過 GORM 回調（避免觸發快取失效）
-		dbCtx(c).Exec("UPDATE ay_content SET visits = visits + 1 WHERE id = ?", ct.ID)
+		if err := dbCtx(c).Exec("UPDATE ay_content SET visits = visits + 1 WHERE id = ?", ct.ID).Error; err != nil {
+			slog.Warn("API 訪問量更新失敗", "content_id", ct.ID, "error", err)
+		}
 	}
 
 	// 載入擴展字段
@@ -599,11 +600,17 @@ func ListFormData(c *gin.Context) {
 	}
 
 	var total int64
-	dbCtx(c).Raw(fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)).Scan(&total)
+	if err := dbCtx(c).Raw(fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)).Scan(&total).Error; err != nil {
+		apiFail(c, http.StatusInternalServerError, "查詢失敗")
+		return
+	}
 
 	offset := (page - 1) * pagesize
 	results := []map[string]interface{}{}
-	dbCtx(c).Raw(fmt.Sprintf("SELECT * FROM %s ORDER BY id DESC LIMIT ? OFFSET ?", tableName), pagesize, offset).Scan(&results)
+	if err := dbCtx(c).Raw(fmt.Sprintf("SELECT * FROM %s ORDER BY id DESC LIMIT ? OFFSET ?", tableName), pagesize, offset).Scan(&results).Error; err != nil {
+		apiFail(c, http.StatusInternalServerError, "查詢失敗")
+		return
+	}
 
 	apiOKWithMeta(c, results, &apiMeta{Page: page, Pagesize: pagesize, Total: total})
 }
@@ -638,4 +645,31 @@ func ListTags(c *gin.Context) {
 	var tags []model.Tags = []model.Tags{}
 	dbCtx(c).Order("id DESC").Find(&tags)
 	apiOK(c, tags)
+}
+
+// findAllChildScodesAPI 使用遞迴 CTE 查詢指定欄目及其所有子孫欄目的 scode
+// 與前台 parser.findAllChildScodes 邏輯一致，確保 API 和前台返回相同的內容範圍
+func findAllChildScodesAPI(c *gin.Context, parentScode string) []string {
+	query := `WITH RECURSIVE descendants AS (
+		SELECT scode FROM ay_content_sort WHERE scode = ? AND status = 1
+		UNION ALL
+		SELECT s.scode FROM ay_content_sort s
+		INNER JOIN descendants d ON s.pcode = d.scode
+		WHERE s.status = 1
+	)
+	SELECT scode FROM descendants`
+
+	var rows []struct {
+		Scode string
+	}
+	dbCtx(c).Raw(query, parentScode).Scan(&rows)
+
+	result := make([]string, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, r.Scode)
+	}
+	if len(result) == 0 {
+		return []string{parentScode}
+	}
+	return result
 }
