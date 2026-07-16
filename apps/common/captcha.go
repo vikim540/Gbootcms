@@ -95,7 +95,7 @@ func VerifyCaptcha(c *gin.Context, configName, defaultVal string) bool {
 	}
 	checkcode := strings.ToLower(c.PostForm("checkcode"))
 	if checkcode == "" {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": NoticeCaptchaEmpty})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": NoticeCaptchaEmpty, "tourl": ""})
 		return false
 	}
 	sessionID := getCaptchaSessionID(c)
@@ -104,7 +104,7 @@ func VerifyCaptcha(c *gin.Context, configName, defaultVal string) bool {
 	delete(codeStore, sessionID) // 一次性消費
 	codeMu.Unlock()
 	if !ok || strings.ToLower(saved) != checkcode {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": NoticeCaptchaError})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": NoticeCaptchaError, "tourl": ""})
 		return false
 	}
 	return true

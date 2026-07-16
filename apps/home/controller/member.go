@@ -10,6 +10,7 @@ import (
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/mail"
 	"gbootcms/apps/common/parser"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -178,7 +179,10 @@ func (fc *FrontController) Retrieve(c *gin.Context) {
 		"password":  hashedPwd,
 		"useremail": email,
 	}
-		model.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates)
+		if err := model.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "密碼重置失敗", "tourl": ""})
+		return
+	}
 
 		// 清除驗證碼
 		common.SetSession(c, "email_checkcode", "")
@@ -269,7 +273,7 @@ func (fc *FrontController) Login(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		// 檢查登錄功能是否開啟
 		if model.GetConfigValue("login_status", "1") == "0" {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "系統已關閉登錄功能"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "系統已關閉登錄功能", "tourl": ""})
 			return
 		}
 
@@ -280,7 +284,7 @@ func (fc *FrontController) Login(c *gin.Context) {
 
 		// 登錄鎖定檢查（讀取 login_error_count/login_error_wait 配置）
 		if remain := checkMemberLoginBlack(c); remain > 0 {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": fmt.Sprintf("您登錄失敗次數太多已被鎖定，請%d秒後再試！", remain)})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": fmt.Sprintf("您登錄失敗次數太多已被鎖定，請%d秒後再試", remain), "tourl": ""})
 			return
 		}
 
@@ -288,11 +292,11 @@ func (fc *FrontController) Login(c *gin.Context) {
 		password := c.PostForm("password")
 
 		if username == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "帳號不能為空"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "帳號不能為空", "tourl": ""})
 			return
 		}
 		if password == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "密碼不能為空"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "密碼不能為空", "tourl": ""})
 			return
 		}
 
@@ -302,7 +306,7 @@ func (fc *FrontController) Login(c *gin.Context) {
 			"username = ? OR useremail = ? OR usermobile = ?",
 			username, username, username,
 		).First(&member).Error; err != nil {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "帳號不存在"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "帳號不存在", "tourl": ""})
 			return
 		}
 
@@ -310,29 +314,31 @@ func (fc *FrontController) Login(c *gin.Context) {
 		matched, needUpgrade := common.VerifyPassword(password, member.Password)
 		if !matched {
 			setMemberLoginBlack(c) // 累計失敗次數
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "帳號密碼錯誤"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "帳號密碼錯誤", "tourl": ""})
 			return
 		}
 		// 自動升級舊版雙 MD5 密碼為 bcrypt
 		if needUpgrade {
 			if hashedPwd, err := common.HashPassword(password); err == nil {
-				model.DB.WithContext(c.Request.Context()).Model(&member).Update("password", hashedPwd)
+				if err := model.DB.WithContext(c.Request.Context()).Model(&member).Update("password", hashedPwd).Error; err != nil {
+					slog.Error("會員密碼自動升級失敗", "uid", member.ID, "error", err)
+				}
 			}
 		}
 
 		// 檢查帳號狀態
 		if member.Status == 0 {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您的帳號待審核，請聯繫管理員"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "您的帳號待審核，請聯繫管理員", "tourl": ""})
 			return
 		}
 
 		// 登錄成功，清除鎖定記錄
-	clearMemberLoginBlack(c)
+		clearMemberLoginBlack(c)
 
-	// 防止 Session Fixation：重新生成 session ID（對齊後台管理員登入邏輯）
-	common.RegenerateSessionID(c)
+		// 防止 Session Fixation：重新生成 session ID（對齊後台管理員登入邏輯）
+		common.RegenerateSessionID(c)
 
-	// 寫入 Session（保持與 PbootCMS 前台兼容的鍵名）
+		// 寫入 Session（保持與 PbootCMS 前台兼容的鍵名）
 		common.SetSession(c, "pboot_uid", int(member.ID))
 		common.SetSession(c, "pboot_ucode", member.Ucode)
 		common.SetSession(c, "pboot_username", member.Username)
@@ -343,7 +349,9 @@ func (fc *FrontController) Login(c *gin.Context) {
 		// 查詢會員等級名稱
 		var group model.MemberGroup
 		if gidInt, _ := strconv.Atoi(member.GID); gidInt > 0 {
-			model.DB.WithContext(c.Request.Context()).Where("id = ?", gidInt).First(&group)
+			if err := model.DB.WithContext(c.Request.Context()).Where("id = ?", gidInt).First(&group).Error; err != nil {
+				slog.Warn("查詢會員等級失敗", "gid", gidInt, "error", err)
+			}
 		}
 		// gcode 轉為 int 存入 session（checkPageLevel 用 GetSessionInt 讀取）
 		gcodeInt, _ := strconv.Atoi(group.Gcode)
@@ -361,15 +369,18 @@ func (fc *FrontController) Login(c *gin.Context) {
 		if loginScore > 0 {
 			updates["score"] = gorm.Expr("score + ?", loginScore)
 		}
-		model.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates)
+		if err := model.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates).Error; err != nil {
+			slog.Error("更新會員登錄統計失敗", "uid", member.ID, "error", err)
+		}
 
 		// 返回跳轉地址（驗證為相對路徑，防止開放重定向）
-	tourl := c.DefaultPostForm("backurl", c.Query("backurl"))
-	if tourl == "" || !isSafeRedirectURL(tourl) {
-		tourl = langPath(c, "/ucenter")
-	}
-	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "登錄成功", "tourl": tourl})
-	return
+		tourl := c.DefaultPostForm("backurl", c.Query("backurl"))
+		if tourl == "" || !isSafeRedirectURL(tourl) {
+			tourl = langPath(c, "/ucenter")
+		}
+		// 對齊 PbootCMS 響應格式: {code, data, tourl}
+		c.JSON(http.StatusOK, gin.H{"code": 1, "data": "登錄成功", "tourl": tourl})
+		return
 	}
 
 	fc.renderMemberPage(c, "member/login.html")
@@ -386,14 +397,14 @@ func (fc *FrontController) Register(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		// 檢查註冊功能是否開啟
 		if model.GetConfigValue("register_status", "1") == "0" {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "系統已關閉註冊功能"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "系統已關閉註冊功能", "tourl": ""})
 			return
 		}
 
 		// 10 秒防刷
 		lastReg := common.GetSessionInt(c, "lastreg")
 		if lastReg > 0 && time.Now().Unix()-int64(lastReg) < 10 {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您註冊太頻繁了，請稍後再試"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "您註冊太頻繁了，請稍後再試", "tourl": ""})
 			return
 		}
 
@@ -414,52 +425,52 @@ func (fc *FrontController) Register(c *gin.Context) {
 		case "2": // 郵箱註冊
 			useremail = username
 			if useremail == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "請輸入註冊的郵箱帳號"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "請輸入註冊的郵箱帳號", "tourl": ""})
 				return
 			}
 			if !regexpMatch(`^[\w]+@[\w\.]+\.[a-zA-Z]+$`, useremail) {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "郵箱格式不正確"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "郵箱格式不正確", "tourl": ""})
 				return
 			}
 			if memberExists(c, "useremail = ? OR username = ?", useremail, useremail) {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您輸入的郵箱已被註冊"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "您輸入的郵箱已被註冊", "tourl": ""})
 				return
 			}
 		case "3": // 手機註冊
 			usermobile = username
 			if usermobile == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "請輸入註冊的手機號碼"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "請輸入註冊的手機號碼", "tourl": ""})
 				return
 			}
 			if !regexpMatch(`^1[0-9]{10}$`, usermobile) {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "手機號碼格式不正確"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "手機號碼格式不正確", "tourl": ""})
 				return
 			}
 			if memberExists(c, "usermobile = ? OR username = ?", usermobile, usermobile) {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您輸入的手機號碼已被註冊"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "您輸入的手機號碼已被註冊", "tourl": ""})
 				return
 			}
 		default: // 帳號註冊
 			if username == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "用戶名不能為空"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "用戶名不能為空", "tourl": ""})
 				return
 			}
 			if !regexpMatch(`^[\w\@\.]+$`, username) {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "用戶帳號含有不允許的特殊字符"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "用戶帳號含有不允許的特殊字符", "tourl": ""})
 				return
 			}
 			if memberExists(c, "username = ? OR useremail = ? OR usermobile = ?", username, username, username) {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您輸入的帳號已被註冊"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "您輸入的帳號已被註冊", "tourl": ""})
 				return
 			}
 		}
 
 		if password != rpassword {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "確認密碼不正確"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "確認密碼不正確", "tourl": ""})
 			return
 		}
 		if password == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "密碼不能為空"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "密碼不能為空", "tourl": ""})
 			return
 		}
 
@@ -484,7 +495,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 		// 創建會員
 	hashedPwd, err := common.HashPassword(password)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "密碼加密失敗，請重試"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "密碼加密失敗，請重試", "tourl": ""})
 		return
 	}
 		newMember := model.Member{
@@ -503,7 +514,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 		}
 
 		if err := model.DB.WithContext(c.Request.Context()).Create(&newMember).Error; err != nil {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "註冊失敗"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "註冊失敗", "tourl": ""})
 			return
 		}
 
@@ -514,7 +525,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 		if status == 0 {
 			msg = "註冊成功，請等待管理員審核"
 		}
-		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": msg, "tourl": langPath(c, "/login")})
+		c.JSON(http.StatusOK, gin.H{"code": 1, "data": msg, "tourl": langPath(c, "/login")})
 		return
 	}
 
@@ -555,7 +566,7 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 		// 驗證當前密碼
 		opassword := c.PostForm("opassword")
 		if opassword == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "請輸入當前密碼"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "請輸入當前密碼", "tourl": ""})
 			return
 		}
 
@@ -564,7 +575,7 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 		// 驗證當前密碼（支援 bcrypt 和舊版雙 MD5）
 		matched, _ := common.VerifyPassword(opassword, member.Password)
 		if !matched {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "當前密碼不正確"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "當前密碼不正確", "tourl": ""})
 			return
 		}
 
@@ -585,24 +596,27 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 		rpassword := c.PostForm("rpassword")
 		if password != "" {
 			if password != rpassword {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "確認密碼不正確"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "確認密碼不正確", "tourl": ""})
 				return
 			}
 			hashedPwd, err := common.HashPassword(password)
 			if err != nil {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "密碼加密失敗，請重試"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "密碼加密失敗，請重試", "tourl": ""})
 				return
 			}
 			updates["password"] = hashedPwd
 		}
 
-		model.DB.WithContext(c.Request.Context()).Model(&model.Member{}).Where("id = ?", uid).Updates(updates)
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Member{}).Where("id = ?", uid).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "修改失敗", "tourl": ""})
+		return
+	}
 
 		// 同步 Session 中的暱稱和郵箱
 		common.SetSession(c, "pboot_useremail", c.PostForm("useremail"))
 		common.SetSession(c, "pboot_usermobile", c.PostForm("usermobile"))
 
-		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "修改成功", "tourl": langPath(c, "/umodify")})
+		c.JSON(http.StatusOK, gin.H{"code": 1, "data": "修改成功", "tourl": langPath(c, "/umodify")})
 		return
 	}
 

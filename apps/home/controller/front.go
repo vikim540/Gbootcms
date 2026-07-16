@@ -502,7 +502,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		// 留言開關檢查
 		if model.GetConfigValue("message_status", "1") == "0" {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "留言功能已關閉"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "留言功能已關閉", "tourl": ""})
 			return
 		}
 
@@ -510,7 +510,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 		clientIP := c.ClientIP()
 		if v, ok := messageRateLimit.Load(clientIP); ok {
 			if submitTime, ok := v.(time.Time); ok && time.Since(submitTime) < rateLimitInterval*time.Second {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交太頻繁，請稍後再試"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "提交太頻繁，請稍後再試", "tourl": ""})
 				return
 			}
 		}
@@ -537,7 +537,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 		if model.GetConfigValue("message_rqlogin", "0") == "1" {
 			uid := common.GetSessionInt(c, "pboot_uid")
 			if uid == 0 {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "請先註冊登錄後再留言！"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "請先註冊登錄後再留言！", "tourl": ""})
 				return
 			}
 		}
@@ -575,7 +575,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 		}
 
 		if err := model.DB.WithContext(c.Request.Context()).Create(&msg).Error; err != nil {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "提交失敗", "tourl": ""})
 			return
 		}
 
@@ -614,7 +614,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 
 		cleanupRateLimit()
 		messageRateLimit.Store(clientIP, time.Now())
-		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "提交成功"})
+		c.JSON(http.StatusOK, gin.H{"code": 1, "data": "提交成功"})
 		return
 	}
 	ctx := fc.buildContext(c)
@@ -640,7 +640,7 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 	// 查 ay_form 獲取 table_name
 	form := content.GetFormByCode(fcode)
 	if form == nil || form.TableName == "" {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "表單不存在"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "表單不存在", "tourl": ""})
 		return
 	}
 	tableName := form.TableName
@@ -658,7 +658,7 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 	// 查 ay_form_field 獲取字段定義
 	fields := content.GetFormFieldByCode(fcode)
 	if len(fields) == 0 {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "表單字段不存在"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "表單字段不存在", "tourl": ""})
 		return
 	}
 
@@ -679,7 +679,7 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 			val = strings.Join(arr, ",")
 		}
 		if f.Required == 1 && val == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": f.Description + "不能為空"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": f.Description + "不能為空", "tourl": ""})
 			return
 		}
 		cols = append(cols, fieldName)
@@ -692,19 +692,19 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 	// SQL 注入防護：驗證表名和欄位名（對齊 PbootCMS PHP checkKey）
 	safeTableRegex := regexp.MustCompile(`^[\w]+$`)
 	if !safeTableRegex.MatchString(tableName) {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "提交失敗", "tourl": ""})
 		return
 	}
 	for _, col := range cols {
 		if !safeTableRegex.MatchString(col) {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "提交失敗", "tourl": ""})
 			return
 		}
 	}
 	sql := fmt.Sprintf("INSERT INTO `%s` (%s) VALUES (%s)",
 		tableName, "`"+strings.Join(cols, "`,`")+"`", strings.Join(placeholders, ","))
 	if err := model.DB.Exec(sql, vals...).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "提交失敗", "tourl": ""})
 		return
 	}
 
@@ -731,7 +731,7 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 
 	cleanupRateLimit()
 	messageRateLimit.Store(clientIP, time.Now())
-	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "提交成功"})
+	c.JSON(http.StatusOK, gin.H{"code": 1, "data": "提交成功"})
 }
 
 func (fc *FrontController) Visits(c *gin.Context) {
@@ -790,65 +790,65 @@ func checkReferer(c *gin.Context) bool {
 // Likes 處理點讚請求（POST + IP限速 + Cookie去重 + Referer驗證）
 func (fc *FrontController) Likes(c *gin.Context) {
 	if model.GetConfigValue("likes_status", "0") == "0" {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "功能已禁用"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "功能已禁用", "tourl": ""})
 		return
 	}
 	if !checkReferer(c) {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "非法請求來源"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "非法請求來源", "tourl": ""})
 		return
 	}
 	id, _ := strconv.Atoi(c.PostForm("id"))
 	if id <= 0 {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "無效的內容ID"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "無效的內容ID", "tourl": ""})
 		return
 	}
 	cookieName := fmt.Sprintf("pboot_likes_%d", id)
 	if _, err := c.Cookie(cookieName); err == nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您已經點過讚了"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "您已經點過讚了", "tourl": ""})
 		return
 	}
 	var ct content.Content
 	if err := model.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&ct).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "內容不存在"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "內容不存在", "tourl": ""})
 		return
 	}
 	// 使用 .Exec() 原始 SQL 繞過 GORM 回調（同 Visits 方法，避免觸發快取失效）
 	model.DB.WithContext(c.Request.Context()).
 		Exec("UPDATE ay_content SET likes = likes + 1 WHERE id = ?", id)
 	c.SetCookie(cookieName, "1", 31536000, "/", "", false, true)
-	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "點讚成功", "likes": ct.Likes + 1})
+	c.JSON(http.StatusOK, gin.H{"code": 1, "data": "點讚成功", "likes": ct.Likes + 1})
 }
 
 // Oppose 處理反對請求（POST + IP限速 + Cookie去重 + Referer驗證）
 func (fc *FrontController) Oppose(c *gin.Context) {
 	if model.GetConfigValue("likes_status", "0") == "0" {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "功能已禁用"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "功能已禁用", "tourl": ""})
 		return
 	}
 	if !checkReferer(c) {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "非法請求來源"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "非法請求來源", "tourl": ""})
 		return
 	}
 	id, _ := strconv.Atoi(c.PostForm("id"))
 	if id <= 0 {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "無效的內容ID"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "無效的內容ID", "tourl": ""})
 		return
 	}
 	cookieName := fmt.Sprintf("pboot_oppose_%d", id)
 	if _, err := c.Cookie(cookieName); err == nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "您已經反對過了"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "您已經反對過了", "tourl": ""})
 		return
 	}
 	var ct content.Content
 	if err := model.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&ct).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "內容不存在"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "內容不存在", "tourl": ""})
 		return
 	}
 	// 使用 .Exec() 原始 SQL 繞過 GORM 回調（同 Visits 方法，避免觸發快取失效）
 	model.DB.WithContext(c.Request.Context()).
 		Exec("UPDATE ay_content SET oppose = oppose + 1 WHERE id = ?", id)
 	c.SetCookie(cookieName, "1", 31536000, "/", "", false, true)
-	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": "反對成功", "oppose": ct.Oppose + 1})
+	c.JSON(http.StatusOK, gin.H{"code": 1, "data": "反對成功", "oppose": ct.Oppose + 1})
 }
 
 // checkAntispam 蜜罐 + 時間陷阱通用反垃圾檢查
@@ -857,14 +857,14 @@ func (fc *FrontController) Oppose(c *gin.Context) {
 func (fc *FrontController) checkAntispam(c *gin.Context) bool {
 	// 蜜罐欄位：機器人會自動填充隱藏欄位，正常用戶不會
 	if honeypot := c.PostForm("website"); honeypot != "" {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "提交失敗", "tourl": ""})
 		return false
 	}
 	// 時間陷阱：提交間隔 <3 秒判定為機器人
 	if loadts := c.PostForm("_loadts"); loadts != "" {
 		if ts, err := strconv.ParseInt(loadts, 10, 64); err == nil {
 			if time.Now().Unix()-ts < 3 {
-				c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "提交失敗"})
+				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "提交失敗", "tourl": ""})
 				return false
 			}
 		}
@@ -1161,11 +1161,22 @@ func (fc *FrontController) buildContext(c *gin.Context) *parser.Context {
 		currentPath = "/"
 	}
 
+	// 動態請求 URL（對齊 PbootCMS get_http_url()）
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	httpURL := scheme + "://" + c.Request.Host
+
 	ctx := &parser.Context{
 		Page:        make(map[string]interface{}),
 		Filters:     make(map[string]string),
 		Ctx:         c.Request.Context(),
 		CurrentPath: currentPath,
+		HttpURL:     httpURL,
 	}
 
 	// 收集 ext_ 查詢參數供篩選使用（白名單驗證防止 SQL 注入）

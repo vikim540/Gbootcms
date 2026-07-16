@@ -32,6 +32,7 @@ type Context struct {
 	Filters      map[string]string // ext_ 篩選參數 (ext_type=基礎版 等)
 	Ctx          context.Context   // 請求級 context，用於區域數據隔離
 	CurrentPath  string            // 當前頁面路徑（已剝離 acode 前綴），用於語言切換保持當前頁
+	HttpURL      string            // 動態請求 URL（http(s)://Host），對齊 PbootCMS get_http_url()
 }
 
 // safeFieldRe 擴展字段名白名單正則：只允許 ext_ 前綴 + 字母數字下底線
@@ -183,8 +184,11 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		return model.GetConfigValue("likes_status", "0")
 	case "turnstile_sitekey":
 		return model.GetConfigValue("turnstile_sitekey", "")
-		case "httpurl":
-		// 對齊 PbootCMS: 返回完整站點 URL（從 ay_config 讀取 httpurl 配置）
+	case "httpurl":
+		// 對齊 PbootCMS get_http_url(): 動態返回請求 URL，非配置值
+		if ctx != nil && ctx.HttpURL != "" {
+			return ctx.HttpURL
+		}
 		return model.GetConfigValue("httpurl", "/")
 		// Company 字段路由: {gboot:companyname} → company.name
 		case "companyname":
@@ -569,6 +573,10 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 	})
 
 	p.Register("httpurl", func(tagName string, params map[string]string, inner string) string {
+		// 對齊 PbootCMS get_http_url(): 動態返回請求 URL
+		if ctx != nil && ctx.HttpURL != "" {
+			return ctx.HttpURL
+		}
 		return model.GetConfigValue("httpurl", "/")
 	})
 

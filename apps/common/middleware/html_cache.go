@@ -166,6 +166,12 @@ func HTMLCache() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		reqStart := time.Now()
 		path := c.Request.URL.Path
+		// 非GET請求不快取：POST/PUT/DELETE 等可能返回 JSON 響應，
+		// 若命中 GET 快取的 HTML 會導致前端 AJAX 收到「返回數據異常」
+		if c.Request.Method != http.MethodGet {
+			c.Next()
+			return
+		}
 		if strings.HasPrefix(path, "/admin") || strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/static") || strings.HasPrefix(path, "/template") {
 			c.Next()

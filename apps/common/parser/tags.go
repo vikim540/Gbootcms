@@ -63,7 +63,7 @@ func initGlobalRegexes() {
 		"resolve_content": `\{content:(\w+)\}`,
 		"resolve_site":  `\{site:(\w+)\}`,
 		"resolve_label": `\{label:(\w+)\}`,
-		"resolve_gboot_simple": `\{gboot:(\w+)(?:\s+([^}]+))?\}`,
+		"resolve_gboot_simple": `\{gboot:(\w+)(?:\s+([^{}]+))?\}`,
 		"resolve_gboot_param": `\{gboot:(\w+)\}`,
 	}
 	// preResolveSingleInPairParams 的 18 個 pair 標籤正則
