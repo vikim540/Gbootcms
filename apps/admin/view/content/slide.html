@@ -189,6 +189,7 @@
 				'  <button class="layui-btn layui-btn-sm" id="addGroupBtn"><i class="layui-icon">&#xe654;</i> 新增分組</button>',
 				'  <div id="groupForm" style="display:none; margin-top:15px; padding:15px; background:#f8f8f8; border-radius:5px;">',
 				'    <input type="hidden" id="groupIdInput">',
+			'    <input type="hidden" id="groupGidInput">',
 				'    <div class="layui-form-item" style="margin-bottom:0;">',
 				'      <div class="layui-inline">',
 				'        <label class="layui-form-label" style="width:80px;">分組名稱</label>',
@@ -254,6 +255,7 @@
 			layero.find('#addGroupBtn').on('click', function(){
 				layero.find('#groupForm').show();
 				layero.find('#groupIdInput').val('');
+				layero.find('#groupGidInput').val('');
 				layero.find('#groupNameInput').val('');
 				layero.find('#groupSortingInput').val('255');
 				layero.find('#groupNameInput').focus();
@@ -272,7 +274,7 @@
 				if (!name) { layer.msg('分組名稱不能為空', {icon:2}); return; }
 				var action = id ? 'edit' : 'add';
 				$.post('/admin/slide/group', {
-					action: action, id: id, name: name, sorting: sorting, formcheck: formcheck
+					action: action, id: id, gid: layero.find('#groupGidInput').val(), name: name, sorting: sorting, formcheck: formcheck
 				}, function(res){
 					if (res.code === 1) {
 						layer.msg(res.data, {icon:1});
@@ -290,6 +292,7 @@
 				var row = $(this).closest('tr');
 				layero.find('#groupForm').show();
 				layero.find('#groupIdInput').val(row.data('id'));
+				layero.find('#groupGidInput').val(row.data('gid'));
 				layero.find('#groupNameInput').val(row.find('td:eq(1)').text());
 				layero.find('#groupSortingInput').val(row.find('td:eq(3)').text());
 				layero.find('#groupNameInput').focus();

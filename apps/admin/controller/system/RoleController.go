@@ -83,7 +83,7 @@ func (rc *RoleController) Add(c *gin.Context) {
 		sysModel.AddRoleAreas(newRcode, acodes)
 
 		rc.LogAction(c, "新增角色"+newRcode+"成功")
-		c.JSON(200, gin.H{"code": 1, "data": common.NoticeAdd, "msg": common.NoticeAdd, "tourl": "/admin/Role/index"})
+		rc.JSONOKMsgTourl(c, common.NoticeAdd, "/admin/Role/index")
 		return
 	}
 
@@ -146,7 +146,7 @@ func (rc *RoleController) Mod(c *gin.Context) {
 		sysModel.AddRoleAreas(rcode, acodes)
 
 		rc.LogAction(c, "修改角色"+rcode+"成功")
-		c.JSON(200, gin.H{"code": 1, "data": common.NoticeModify, "msg": common.NoticeModify, "tourl": "/admin/Role/index"})
+		rc.JSONOKMsgTourl(c, common.NoticeModify, "/admin/Role/index")
 		return
 	}
 
@@ -199,7 +199,7 @@ func (rc *RoleController) Del(c *gin.Context) {
 	}
 
 	rc.LogAction(c, "刪除角色"+rcode+"成功")
-	c.JSON(200, gin.H{"code": 1, "data": common.NoticeDelete, "msg": common.NoticeDelete, "tourl": "/admin/Role/index"})
+	rc.JSONOKMsgTourl(c, common.NoticeDelete, "/admin/Role/index")
 }
 
 // autoRcode 自動生成角色編碼（R101, R102, ...）

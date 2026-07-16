@@ -141,7 +141,7 @@ func (uc *UserController) Add(c *gin.Context) {
 		}
 
 		uc.LogAction(c, "新增用戶"+username+"成功")
-		c.JSON(200, gin.H{"code": 1, "data": common.NoticeAdd, "msg": common.NoticeAdd, "tourl": "/admin/User/index"})
+		uc.JSONOKMsgTourl(c, common.NoticeAdd, "/admin/User/index")
 		return
 	}
 
@@ -236,7 +236,7 @@ func (uc *UserController) Mod(c *gin.Context) {
 		}
 
 		uc.LogAction(c, "修改用戶"+ucode+"成功")
-		c.JSON(200, gin.H{"code": 1, "data": common.NoticeModify, "msg": common.NoticeModify, "tourl": "/admin/User/index"})
+		uc.JSONOKMsgTourl(c, common.NoticeModify, "/admin/User/index")
 		return
 	}
 
@@ -318,7 +318,7 @@ func (uc *UserController) Del(c *gin.Context) {
 	}
 
 	uc.LogAction(c, "刪除用戶"+ucode+"成功")
-	c.JSON(200, gin.H{"code": 1, "data": common.NoticeDelete, "msg": common.NoticeDelete, "tourl": "/admin/User/index"})
+	uc.JSONOKMsgTourl(c, common.NoticeDelete, "/admin/User/index")
 }
 
 // autoUcode 自動生成用戶編碼（10001, 10002, ...）

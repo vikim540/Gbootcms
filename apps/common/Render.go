@@ -92,7 +92,9 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 		pathinfoBuilder.WriteString(fmt.Sprintf(`<input type="hidden" name="%s" value="%s">`, html.EscapeString(key), html.EscapeString(v)))
 	}
 	if len(backParts) > 0 {
-		data["backurl"] = "&" + strings.Join(backParts, "&")
+		// backurl 和 btnqs 都用 ? 前綴，確保 URL 查詢字串合法
+		// （之前 backurl 用 & 前綴導致 /admin/xxx/mod/id/4&gid=1 畸形 URL）
+		data["backurl"] = "?" + strings.Join(backParts, "&")
 		data["btnqs"] = "?" + strings.Join(btnParts, "&")
 	} else {
 		data["backurl"] = ""

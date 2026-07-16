@@ -59,13 +59,13 @@ func (sl *SlideController) getGroups(c *gin.Context) []model.SlideGroup {
 		}
 	}
 
-	// 4. 統計每個 gid 下的輪播圖數量
+	// 4. 統計每個 gid 下的輪播圖數量（用 Find 而非 Scan，確保 AcodePlugin 正確注入 acode 過濾）
 	type gidCount struct {
 		GID   int   `gorm:"column:gid"`
 		Count int64 `gorm:"column:count"`
 	}
 	var counts []gidCount
-	model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Select("gid, COUNT(*) as count").Group("gid").Scan(&counts)
+	model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Select("gid, COUNT(*) as count").Group("gid").Find(&counts)
 	countMap := make(map[int]int64)
 	for _, gc := range counts {
 		countMap[gc.GID] = gc.Count
@@ -183,12 +183,48 @@ func (sl *SlideController) GroupManage(c *gin.Context) {
 			sl.JSONFail(c, "分組名稱不能為空")
 			return
 		}
-		if id == 0 {
-			sl.JSONFail(c, "缺少分組ID")
-			return
-		}
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		now := time.Now().Format("2006-01-02 15:04:05")
+
+		if id == 0 {
+			// 自動生成的臨時分組（id=0），需用 gid 創建新記錄
+			gid, _ := strconv.Atoi(c.DefaultPostForm("gid", "0"))
+			if gid == 0 {
+				sl.JSONFail(c, "缺少分組GID")
+				return
+			}
+			// 檢查是否已存在同 gid 的分組記錄（防止併發重複創建）
+			var existing model.SlideGroup
+			result := model.DB.WithContext(c.Request.Context()).Where("gid = ?", gid).First(&existing)
+			if result.Error == nil {
+				// 已存在記錄，改為更新
+				if err := model.DB.WithContext(c.Request.Context()).Model(&model.SlideGroup{}).Where("id = ?", existing.ID).Updates(map[string]interface{}{
+					"name":        name,
+					"sorting":     sorting,
+					"update_time": now,
+				}).Error; err != nil {
+					sl.JSONFail(c, "修改分組失敗："+err.Error())
+					return
+				}
+			} else {
+				// 不存在，創建新記錄
+				if err := model.DB.WithContext(c.Request.Context()).Create(&model.SlideGroup{
+					GID:        gid,
+					Name:       name,
+					Sorting:    sorting,
+					CreateTime: now,
+					UpdateTime: now,
+				}).Error; err != nil {
+					sl.JSONFail(c, "新增分組失敗："+err.Error())
+					return
+				}
+			}
+			sl.LogAction(c, "修改輪播圖分組："+name)
+			sl.JSONOKMsg(c, "分組修改成功")
+			return
+		}
+
+		// 正常更新已有記錄
 		if err := model.DB.WithContext(c.Request.Context()).Model(&model.SlideGroup{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"name":        name,
 			"sorting":     sorting,

@@ -189,7 +189,7 @@ func (ar *AreaController) Add(c *gin.Context) {
 	}
 	refreshAreaCache()
 	ar.LogAction(c, "新增數據區域"+acode+"成功")
-		c.JSON(200, gin.H{"code": 1, "data": common.NoticeAdd, "msg": common.NoticeAdd, "tourl": "/admin/Area/index"})
+		ar.JSONOKMsgTourl(c, common.NoticeAdd, "/admin/Area/index")
 		return
 	}
 
@@ -271,7 +271,7 @@ func (ar *AreaController) Mod(c *gin.Context) {
 	}
 	refreshAreaCache()
 	ar.LogAction(c, "修改數據區域"+acode+"成功")
-		c.JSON(200, gin.H{"code": 1, "data": common.NoticeModify, "msg": common.NoticeModify, "tourl": "/admin/Area/index"})
+		ar.JSONOKMsgTourl(c, common.NoticeModify, "/admin/Area/index")
 		return
 	}
 
@@ -329,7 +329,7 @@ func (ar *AreaController) Del(c *gin.Context) {
 	}
 	refreshAreaCache()
 	ar.LogAction(c, "刪除數據區域"+acode+"成功")
-	c.JSON(200, gin.H{"code": 1, "data": common.NoticeDelete, "msg": common.NoticeDelete, "tourl": "/admin/Area/index"})
+	ar.JSONOKMsgTourl(c, common.NoticeDelete, "/admin/Area/index")
 }
 
 // injectGetFlat 注入 path 參數為 get_xxx 扁平變量

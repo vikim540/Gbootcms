@@ -400,14 +400,14 @@ func (ic *IndexController) Area(c *gin.Context) {
 			}
 		}
 		if !allowed {
-			c.JSON(403, gin.H{"code": 0, "data": "", "msg": "無權限切換到此區域", "tourl": ""})
+			ic.JSONFail(c, "無權限切換到此區域")
 			return
 		}
 	}
 
 	common.SetSession(c, "area_code", code)
 	common.SetSession(c, "acode", code)
-	c.JSON(200, gin.H{"code": 1, "data": common.NoticeSwitch, "msg": common.NoticeSwitch, "tourl": "/admin/Index/home"})
+	ic.JSONOKMsgTourl(c, common.NoticeSwitch, "/admin/Index/home")
 }
 
 func (ic *IndexController) CheckCode(c *gin.Context) {

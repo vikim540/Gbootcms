@@ -430,7 +430,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 				fm.JSONFail(c, "修改失敗："+err.Error())
 				return
 			}
-			c.JSON(200, gin.H{"code": 1, "data": "菜單已更新", "msg": "菜單已更新", "tourl": "/admin/Form/index"})
+			fm.JSONOKMsgTourl(c, "菜單已更新", "/admin/Form/index")
 			return
 		}
 		var lastMcode string
@@ -457,7 +457,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 			return
 		}
 		fm.LogAction(c, "添加自定義表單到菜單成功")
-		c.JSON(200, gin.H{"code": 1, "data": "添加成功", "msg": "添加成功", "tourl": "/admin/Form/index"})
+		fm.JSONOKMsgTourl(c, "添加成功", "/admin/Form/index")
 		return
 	}
 

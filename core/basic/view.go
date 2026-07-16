@@ -564,8 +564,9 @@ func processPongo2Fun(html string) string {
 			btnText = strings.Trim(strings.TrimSpace(parts[2]), "'\"")
 		}
 		// 生成 /admin/C/mod/{fieldName}/{valExpr}
+		// Btnqs 已含 ? 前綴（如 ?gid=1），不可再加 ?，否則產生 ??gid=1 導致查詢參數 key 變成 ?gid
 		inner := "/admin/{{ C }}/mod/" + fieldName + "/" + valExpr
-		return `<a href="{url.` + inner + `}?` + `{{ Btnqs }}" class="layui-btn layui-btn-xs">` + btnText + `</a>`
+		return `<a href="{url.` + inner + `}{{ Btnqs }}" class="layui-btn layui-btn-xs">` + btnText + `</a>`
 	})
 
 	// check_level('xxx') → CheckLevelXxx (boolean variable injected by Render)
