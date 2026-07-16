@@ -16,6 +16,7 @@ import (
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 )
@@ -197,34 +198,162 @@ func InitDB(cfg *config.Config) error {
 
 // getPrimaryKeyID 從 GORM Statement 中提取主鍵 ID
 // 用於 Cache Tag 精準失效（如 content:37）
-// 支援三種場景：
+// 支援四種場景：
 //  1. Create/Save(&Model{ID: 37}) → 從 model 反射取 ID
 //  2. Delete(&Model{}, 37) → GORM 將 inline condition 設為主鍵
-//  3. Model(&Model{}).Where("id = ?", 37).Update(...) → 無法取得，返回 0
+//  3. Model(&Model{}).Where("id = ?", 37).Update(...) → 從 WHERE 條件提取
+//  4. Model(&Model{}).Where("id IN ?", []int{37}).Update(...) → 從 IN 條件提取
 func getPrimaryKeyID(stmt *gorm.Statement) int {
 	if stmt == nil || stmt.Model == nil || stmt.Schema == nil {
 		return 0
 	}
 	pkField := stmt.Schema.PrioritizedPrimaryField
-	if pkField == nil {
+	if pkField != nil {
+		rv := reflect.ValueOf(stmt.Model)
+		if rv.Kind() == reflect.Ptr {
+			rv = rv.Elem()
+		}
+		if rv.Kind() == reflect.Struct {
+			fieldVal := rv.FieldByName(pkField.Name)
+			if fieldVal.IsValid() {
+				switch fieldVal.Kind() {
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					if id := int(fieldVal.Int()); id > 0 {
+						return id
+					}
+				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+					if id := int(fieldVal.Uint()); id > 0 {
+						return id
+					}
+				}
+			}
+		}
+	}
+	// 方法 2：從 WHERE 條件提取 ID（Update/Delete 場景）
+	return getIDFromWhereClauses(stmt)
+}
+
+// getIDFromWhereClauses 從 GORM Statement 的 WHERE 子句中提取 id 值
+// 用於 .Model(&Model{}).Where("id = ?", 37).Updates(...) 場景
+func getIDFromWhereClauses(stmt *gorm.Statement) int {
+	if stmt == nil {
 		return 0
 	}
-	rv := reflect.ValueOf(stmt.Model)
-	if rv.Kind() == reflect.Ptr {
-		rv = rv.Elem()
+	// 方法 A：從 clause.Where 表達式提取
+	if stmt.Clauses != nil {
+		if whereClause, ok := stmt.Clauses["WHERE"]; ok && whereClause.Expression != nil {
+			if where, ok := whereClause.Expression.(clause.Where); ok {
+				for _, expr := range where.Exprs {
+					if id := extractIDFromExpr(expr); id > 0 {
+						return id
+					}
+					if andConds, ok := expr.(clause.AndConditions); ok {
+						for _, e := range andConds.Exprs {
+							if id := extractIDFromExpr(e); id > 0 {
+								return id
+							}
+						}
+					}
+				}
+			}
+		}
 	}
-	if rv.Kind() != reflect.Struct {
+	// 方法 B：從已執行的 SQL + Vars 中提取（fallback）
+	return getIDFromSQL(stmt)
+}
+
+// getIDFromSQL 從已執行的 SQL 字串和綁定參數中提取 id 值
+// 適用於 UPDATE ... WHERE `id` = ? AND `acode` = ? 場景
+func getIDFromSQL(stmt *gorm.Statement) int {
+	if stmt == nil {
 		return 0
 	}
-	fieldVal := rv.FieldByName(pkField.Name)
-	if !fieldVal.IsValid() {
+	sqlStr := stmt.SQL.String()
+	if sqlStr == "" {
 		return 0
 	}
-	switch fieldVal.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return int(fieldVal.Int())
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return int(fieldVal.Uint())
+	lowerSQL := strings.ToLower(sqlStr)
+	// 尋找 "id = ?" 或 "`id` = ?" 或 "id=?" 的位置
+	// 支援 GORM 生成的 SQL 格式：`id` = ? 或 id = ?
+	patterns := []string{"`id` = ?", "`id`=?", "id = ?", "id=?"}
+	for _, pattern := range patterns {
+		idx := strings.Index(lowerSQL, pattern)
+		if idx < 0 {
+			continue
+		}
+		// 計算此 ? 是 SQL 中第幾個佔位符
+		questionMarkEnd := idx + len(pattern) - 1 // 指向 ?
+		paramIndex := strings.Count(lowerSQL[:questionMarkEnd], "?")
+		if paramIndex < len(stmt.Vars) {
+			if id := toIntID(stmt.Vars[paramIndex]); id > 0 {
+				return id
+			}
+		}
+	}
+	return 0
+}
+
+// extractIDFromExpr 從單個表達式中提取 id 值
+func extractIDFromExpr(expr clause.Expression) int {
+	// 處理 NamedExpr（原始 SQL 如 "id = ?"）
+	if named, ok := expr.(clause.NamedExpr); ok {
+		sqlLower := strings.ToLower(named.SQL)
+		if strings.Contains(sqlLower, "id") && (strings.Contains(sqlLower, "=") || strings.Contains(sqlLower, "in")) {
+			for _, v := range named.Vars {
+				if id := toIntID(v); id > 0 {
+					return id
+				}
+			}
+		}
+	}
+	// 處理 Eq{"id": 37}
+	if eq, ok := expr.(clause.Eq); ok {
+		if col, ok := eq.Column.(string); ok && col == "id" {
+			return toIntID(eq.Value)
+		}
+		if col, ok := eq.Column.(clause.Column); ok && col.Name == "id" {
+			return toIntID(eq.Value)
+		}
+	}
+	// 處理 IN{"id": [37, 38]}
+	if in, ok := expr.(clause.IN); ok {
+		if col, ok := in.Column.(string); ok && col == "id" {
+			if len(in.Values) > 0 {
+				return toIntID(in.Values[0])
+			}
+		}
+		if col, ok := in.Column.(clause.Column); ok && col.Name == "id" {
+			if len(in.Values) > 0 {
+				return toIntID(in.Values[0])
+			}
+		}
+	}
+	return 0
+}
+
+// toIntID 尷各種類型轉為正整數 ID
+func toIntID(v interface{}) int {
+	switch val := v.(type) {
+	case int:
+		return val
+	case int8:
+		return int(val)
+	case int16:
+		return int(val)
+	case int32:
+		return int(val)
+	case int64:
+		return int(val)
+	case uint:
+		return int(val)
+	case uint8:
+		return int(val)
+	case uint16:
+		return int(val)
+	case uint32:
+		return int(val)
+	case uint64:
+		return int(val)
 	}
 	return 0
 }

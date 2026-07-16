@@ -1055,6 +1055,25 @@ func (fc *FrontController) renderSortPage(c *gin.Context, sort *content.ContentS
 	}
 	content = p.Render(content)
 	content = postRender(content, c.Request.Context())
+
+	// 設定 Cache Tags：後台修改內容/欄目時精準失效此頁面快取
+	if contentModel.Type == 1 && ctx.Content != nil {
+		// 單頁模型：依賴此文章 + 此欄目 + 列表 + 全局
+		c.Set("cache_tags", []string{
+			fmt.Sprintf("content:%d", ctx.Content.ID),
+			fmt.Sprintf("content_sort:%d", sort.ID),
+			"content:list",
+			"global",
+		})
+	} else {
+		// 列表模型：依賴此欄目 + 列表 + 全局
+		c.Set("cache_tags", []string{
+			fmt.Sprintf("content_sort:%d", sort.ID),
+			"content:list",
+			"global",
+		})
+	}
+
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, content)
 }

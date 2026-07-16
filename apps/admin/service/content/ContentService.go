@@ -161,8 +161,12 @@ func (s *ContentService) CreateContent(ctx context.Context, doc *model.Content, 
 func (s *ContentService) UpdateContent(ctx context.Context, id int, updates map[string]interface{}, extData map[string]interface{}) error {
 	// autoTime: 更新修改時間（SQLite 無 ON UPDATE CURRENT_TIMESTAMP）
 	updates["update_time"] = time.Now()
-	if err := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).Updates(updates).Error; err != nil {
-		return err
+	result := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("內容不存在或當前區域無權修改")
 	}
 	if len(extData) > 0 {
 		if err := contentModel.UpsertContentExt(uint(id), extData); err != nil {
@@ -316,11 +320,18 @@ func (s *ContentService) UpdateSingleField(ctx context.Context, id int, field, v
 		return errors.New("不允許修改的欄位: " + field)
 	}
 	// 對齊 PHP: modContent($id, "$field='$value',update_user='...'") 同時更新 update_time
-	return model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).
+	result := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
 			field:        value,
 			"update_time": time.Now(),
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("內容不存在或當前區域無權修改")
+	}
+	return nil
 }
 
 // GetAllSorts returns all active sorts ordered by sorting

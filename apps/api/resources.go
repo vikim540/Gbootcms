@@ -395,7 +395,7 @@ func GetContentImages(c *gin.Context) {
 }
 
 // SearchContent 搜索內容
-// GET /api/v1/search?keyword=&field=title|keywords|description&fuzzy=1&page=&pagesize=
+// GET /api/v1/search?keyword=&field=title|keywords|description|content&fuzzy=1&page=&pagesize=
 func SearchContent(c *gin.Context) {
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	if keyword == "" {
@@ -419,9 +419,12 @@ func SearchContent(c *gin.Context) {
 		// MeiliSearch 失敗則降級到 SQL LIKE
 	}
 
-	// 解析搜索字段（預設 title+keywords+description）
-	field := c.DefaultQuery("field", "title|keywords|description")
+	// 解析搜索字段（預設 title+keywords+description+content）
+	field := c.DefaultQuery("field", "title|keywords|description|content")
 	fuzzy := c.DefaultQuery("fuzzy", "1")
+
+	// 搜索欄位白名單（含 content 正文，對齊 PbootCMS 原版搜索行為）
+	validFields := map[string]bool{"title": true, "keywords": true, "description": true, "content": true}
 
 	var whereClause string
 	var args []interface{}
@@ -432,7 +435,7 @@ func SearchContent(c *gin.Context) {
 		conditions := make([]string, 0, len(fields))
 		for _, f := range fields {
 			f = strings.TrimSpace(f)
-			if f == "title" || f == "keywords" || f == "description" {
+			if validFields[f] {
 				conditions = append(conditions, f+" = ?")
 				args = append(args, keyword)
 			}
@@ -450,7 +453,7 @@ func SearchContent(c *gin.Context) {
 		conditions := make([]string, 0, len(fields))
 		for _, f := range fields {
 			f = strings.TrimSpace(f)
-			if f == "title" || f == "keywords" || f == "description" {
+			if validFields[f] {
 				conditions = append(conditions, f+" LIKE ?")
 				args = append(args, like)
 			}
