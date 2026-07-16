@@ -198,9 +198,15 @@ func (fm *FormController) Add(c *gin.Context) {
 		// 創建物理表（DDL 操作，無需 WithContext）
 		cfg := config.Get()
 		if cfg.Database.Type == "mysql" {
-			model.DB.Exec("CREATE TABLE `" + tableName + "` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`create_time` datetime NOT NULL,PRIMARY KEY (`id`)) ENGINE=MyISam DEFAULT CHARSET=utf8")
+			if err := model.DB.Exec("CREATE TABLE `" + tableName + "` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`create_time` datetime NOT NULL,PRIMARY KEY (`id`)) ENGINE=MyISam DEFAULT CHARSET=utf8").Error; err != nil {
+				fm.JSONFail(c, "操作失敗: "+err.Error())
+				return
+			}
 		} else {
-			model.DB.Exec("CREATE TABLE `" + tableName + "` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,`create_time` TEXT NOT NULL)")
+			if err := model.DB.Exec("CREATE TABLE `" + tableName + "` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,`create_time` TEXT NOT NULL)").Error; err != nil {
+				fm.JSONFail(c, "操作失敗: "+err.Error())
+				return
+			}
 		}
 
 		username := fm.GetAdminUsername(c)
@@ -263,7 +269,10 @@ func (fm *FormController) Add(c *gin.Context) {
 	} else {
 		columnType = fmt.Sprintf("TEXT(%d)", length)
 	}
-	model.DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s NULL", tableName, name, columnType))
+	if err := model.DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s NULL", tableName, name, columnType)).Error; err != nil {
+		fm.JSONFail(c, "操作失敗: "+err.Error())
+		return
+	}
 
 	username := fm.GetAdminUsername(c)
 	now := time.Now()
@@ -316,7 +325,10 @@ func (fm *FormController) Del(c *gin.Context) {
 			return
 		}
 		// DDL 操作，無需 WithContext
-		model.DB.Exec("DROP TABLE IF EXISTS `" + tableName + "`")
+		if err := model.DB.Exec("DROP TABLE IF EXISTS `" + tableName + "`").Error; err != nil {
+			fm.JSONFail(c, "操作失敗: "+err.Error())
+			return
+		}
 		if err := model.DB.WithContext(c.Request.Context()).Delete(&contentModel.Form{}, id).Error; err != nil {
 			fm.JSONFail(c, "刪除失敗："+err.Error())
 			return
@@ -341,7 +353,10 @@ func (fm *FormController) Del(c *gin.Context) {
 			return
 		}
 		// 動態表（ay_diy_*）無 acode 欄位，無需 WithContext
-		model.DB.Exec("DELETE FROM `"+tableName+"` WHERE id = ?", id)
+		if err := model.DB.Exec("DELETE FROM `"+tableName+"` WHERE id = ?", id).Error; err != nil {
+			fm.JSONFail(c, "操作失敗: "+err.Error())
+			return
+		}
 		fm.LogAction(c, "刪除表單數據成功")
 		fm.JSONOKMsg(c, "刪除成功")
 
@@ -356,7 +371,10 @@ func (fm *FormController) Del(c *gin.Context) {
 		// MySQL 刪列，SQLite 不支持（DDL 操作，無需 WithContext）
 		cfg := config.Get()
 		if cfg.Database.Type == "mysql" && tableName != "" {
-			model.DB.Exec("ALTER TABLE `" + tableName + "` DROP COLUMN `" + formField.Name + "`")
+			if err := model.DB.Exec("ALTER TABLE `" + tableName + "` DROP COLUMN `" + formField.Name + "`").Error; err != nil {
+				fm.JSONFail(c, "操作失敗: "+err.Error())
+				return
+			}
 		}
 		if err := model.DB.WithContext(c.Request.Context()).Delete(&formField).Error; err != nil {
 			fm.JSONFail(c, "刪除失敗："+err.Error())
@@ -531,6 +549,9 @@ func (fm *FormController) Clear(c *gin.Context) {
 		return
 	}
 	// 動態表（ay_diy_*）無 acode 欄位，無需 WithContext
-	model.DB.Exec("DELETE FROM `" + tableName + "`")
+	if err := model.DB.Exec("DELETE FROM `" + tableName + "`").Error; err != nil {
+		fm.JSONFail(c, "操作失敗: "+err.Error())
+		return
+	}
 	fm.JSONOKMsg(c, "清空成功")
 }

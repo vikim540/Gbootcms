@@ -38,7 +38,8 @@ func (mb *MemberController) Index(c *gin.Context) {
 	var members []model.Member
 	model.DB.Order("register_time DESC, id DESC").Offset(offset).Limit(pageSize).Find(&members)
 	var groups []model.MemberGroup
-	model.DB.Where("status = 1").Find(&groups)
+	// 加 WithContext 使 AcodePlugin 自動注入區域過濾
+	model.DB.WithContext(c.Request.Context()).Where("status = 1").Find(&groups)
 	// 填充等級名稱
 	groupMap := make(map[string]string)
 	for _, g := range groups {
@@ -279,7 +280,8 @@ func (mb *MemberController) Mod(c *gin.Context) {
 	var member model.Member
 	model.DB.First(&member, id)
 	var groups []model.MemberGroup
-	model.DB.Where("status = 1").Find(&groups)
+	// 加 WithContext 使 AcodePlugin 自動注入區域過濾
+	model.DB.WithContext(c.Request.Context()).Where("status = 1").Find(&groups)
 	// 填充等級名稱
 	for _, g := range groups {
 		if fmt.Sprintf("%d", g.ID) == member.GID {

@@ -21,7 +21,10 @@ type SiteController struct {
 func (si *SiteController) Index(c *gin.Context) {
 	var site model.Site
 	// AcodePlugin 自動按當前區域過濾，取該區域的站點記錄
-	model.DB.WithContext(c.Request.Context()).FirstOrCreate(&site)
+	if err := model.DB.WithContext(c.Request.Context()).FirstOrCreate(&site).Error; err != nil {
+		si.JSONFail(c, "載入站點信息失敗")
+		return
+	}
 
 	// 掃描 template/ 目錄下的子目錄作為可用模板主題
 	var themes []string
@@ -55,7 +58,10 @@ func (si *SiteController) Index(c *gin.Context) {
 func (si *SiteController) Mod(c *gin.Context) {
 	var site model.Site
 	// AcodePlugin 自動按當前區域過濾，取該區域的站點記錄
-	model.DB.WithContext(c.Request.Context()).FirstOrCreate(&site)
+	if err := model.DB.WithContext(c.Request.Context()).FirstOrCreate(&site).Error; err != nil {
+		si.JSONFail(c, "載入站點信息失敗")
+		return
+	}
 
 	// 臟檢測：比對提交數據與現有數據
 	newTitle := c.PostForm("title")

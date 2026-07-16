@@ -1084,7 +1084,8 @@ func loadGcode(gid string) string {
 		return ""
 	}
 	var gcode string
-	model.DB.Table("ay_member_group").Where("id = ?", gid).Select("gcode").Row().Scan(&gcode)
+	// loadGcode 無 c 參數，等級編號查詢需跨區，用 SkipAcode 跳過區域隔離
+	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_member_group").Where("id = ?", gid).Select("gcode").Row().Scan(&gcode)
 	return gcode
 }
 

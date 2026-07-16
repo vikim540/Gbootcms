@@ -8,6 +8,7 @@ import (
 	"gbootcms/apps/admin/model"
 	contentModel "gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -149,7 +150,9 @@ func (s *ContentService) CreateContent(ctx context.Context, doc *model.Content, 
 		extData["contentid"] = doc.ID
 		if err := contentModel.InsertContentExt(extData); err != nil {
 			// 回滾：刪除已插入的內容
-			model.DB.WithContext(ctx).Delete(&model.Content{}, doc.ID)
+			if delErr := model.DB.WithContext(ctx).Delete(&model.Content{}, doc.ID).Error; delErr != nil {
+				slog.Error("回滾刪除內容失敗", "id", doc.ID, "error", delErr)
+			}
 			return errors.New("創建擴展數據失敗: " + err.Error())
 		}
 	}

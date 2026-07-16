@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gbootcms/apps/admin/model"
 	contentmodel "gbootcms/apps/admin/model/content"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -65,14 +66,16 @@ func (s *ContentSortService) BatchAddSorts(ctx context.Context, multiplename, pc
 		}
 		lastCodeNum++
 		newScode := fmt.Sprintf("%d", lastCodeNum)
-		model.DB.WithContext(ctx).Create(&model.ContentSort{
+		if err := model.DB.WithContext(ctx).Create(&model.ContentSort{
 			Scode:  newScode,
 			Pcode:  pcode,
 			Name:   name,
 			Type:   1,
 			Sort:   lastCodeNum,
 			Status: 1,
-		})
+		}).Error; err != nil {
+			return errors.New("批量新增欄目失敗: " + err.Error())
+		}
 	}
 	return nil
 }
@@ -111,12 +114,14 @@ func (s *ContentSortService) CreateSort(ctx context.Context, sort *model.Content
 	}
 	// If type=1 (list) and no outlink, create initial content
 	if sort.Type == 1 && sort.Outlink == "" {
-		model.DB.WithContext(ctx).Create(&model.Content{
+		if err := model.DB.WithContext(ctx).Create(&model.Content{
 			Scode:  sort.Scode,
 			Title:  sort.Name,
 			Status: 1,
 			Date:   time.Now(),
-		})
+		}).Error; err != nil {
+			slog.Error("創建欄目初始內容失敗", "scode", sort.Scode, "error", err)
+		}
 	}
 	return nil
 }

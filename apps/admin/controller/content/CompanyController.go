@@ -17,7 +17,10 @@ type CompanyController struct {
 func (co *CompanyController) Index(c *gin.Context) {
 	var company model.Company
 	// AcodePlugin 自動按當前區域過濾，取該區域的公司記錄
-	model.DB.WithContext(c.Request.Context()).FirstOrCreate(&company)
+	if err := model.DB.WithContext(c.Request.Context()).FirstOrCreate(&company).Error; err != nil {
+		co.JSONFail(c, "載入公司信息失敗")
+		return
+	}
 	common.Render(c, "content/company.html", gin.H{"companys": company})
 }
 
@@ -25,7 +28,10 @@ func (co *CompanyController) Index(c *gin.Context) {
 func (co *CompanyController) Mod(c *gin.Context) {
 	var company model.Company
 	// AcodePlugin 自動按當前區域過濾，取該區域的公司記錄
-	model.DB.WithContext(c.Request.Context()).FirstOrCreate(&company)
+	if err := model.DB.WithContext(c.Request.Context()).FirstOrCreate(&company).Error; err != nil {
+		co.JSONFail(c, "載入公司信息失敗")
+		return
+	}
 
 	// 臟檢測：比對提交數據與現有數據
 	newName := c.PostForm("name")

@@ -1,10 +1,12 @@
 package content
 
 import (
+	"context"
 	"fmt"
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
+	"gbootcms/core/acodeplugin"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -688,7 +690,8 @@ func findUsages(filePath string) []UsageInfo {
 		}
 		selectStr := strings.Join(colNames, ", ")
 
-		rows, err := model.DB.Table(rt.table).Select(selectStr).Rows()
+		// 媒體庫掃描需跨區查找所有文件引用，用 SkipAcode 跳過區域隔離
+		rows, err := model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table(rt.table).Select(selectStr).Rows()
 		if err != nil {
 			continue
 		}
@@ -723,7 +726,8 @@ func findUsages(filePath string) []UsageInfo {
 		Content string
 	}
 	var contents []ContentRow
-	model.DB.Table("ay_content").Select("id, title, content").Find(&contents)
+	// 媒體庫掃描需跨區查找所有文件引用，用 SkipAcode 跳過區域隔離
+	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content").Select("id, title, content").Find(&contents)
 	for _, row := range contents {
 		if containsImgSrc(row.Content, np, base) {
 			usages = append(usages, UsageInfo{"ay_content", row.ID, row.Title, "content(正文)"})
@@ -827,7 +831,8 @@ func getUsedPaths() map[string]bool {
 		}
 		selectStr := strings.Join(cols, ", ")
 
-		rows, err := model.DB.Table(rt.table).Select(selectStr).Rows()
+		// 媒體庫掃描需跨區查找所有文件引用，用 SkipAcode 跳過區域隔離
+		rows, err := model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table(rt.table).Select(selectStr).Rows()
 		if err != nil {
 			continue
 		}
@@ -850,7 +855,8 @@ func getUsedPaths() map[string]bool {
 	// ay_content.content HTML 中的 img src 引用（特殊處理）
 	type ContentHTML struct{ Content string }
 	var htmls []ContentHTML
-	model.DB.Table("ay_content").Select("content").Find(&htmls)
+	// 媒體庫掃描需跨區查找所有文件引用，用 SkipAcode 跳過區域隔離
+	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content").Select("content").Find(&htmls)
 	for _, row := range htmls {
 		extractSrcPaths(row.Content, used)
 	}

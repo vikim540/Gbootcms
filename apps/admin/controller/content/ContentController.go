@@ -9,6 +9,7 @@ import (
 	"gbootcms/apps/api"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/push"
+	"gbootcms/core/acodeplugin"
 	"strconv"
 	"strings"
 	"time"
@@ -391,7 +392,8 @@ func (cc *ContentController) Mod(c *gin.Context) {
 	cc.LogAction(c, "修改文章成功")
 	// 同步到 MeiliSearch
 	var updatedContent model.Content
-	model.DB.First(&updatedContent, id)
+	// 加 WithContext 使 AcodePlugin 自動注入區域過濾
+	model.DB.WithContext(c.Request.Context()).First(&updatedContent, id)
 	api.SyncContentToMeili(&updatedContent)
 	cc.JSONOKMsg(c, common.NoticeModify)
 		return
@@ -817,14 +819,16 @@ func checkSlugConflict(slug, excludeID string) string {
 		firstSeg = strings.SplitN(slug, "/", 2)[0]
 	}
 	// 檢查與欄目 filename/urlname 衝突
+	// checkSlugConflict 無 c 參數，slug 唯一性需跨區檢查，用 SkipAcode 跳過區域隔離
 	var count int64
-	model.DB.Model(&model.ContentSort{}).Where("filename = ? OR urlname = ?", firstSeg, firstSeg).Count(&count)
+	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Model(&model.ContentSort{}).Where("filename = ? OR urlname = ?", firstSeg, firstSeg).Count(&count)
 	if count > 0 {
 		return "slug 「" + firstSeg + "」與欄目路徑衝突，請使用其他名稱"
 	}
 	// 單段 slug：檢查與其他內容的 filename 衝突
 	if !strings.Contains(slug, "/") {
-		q := model.DB.Model(&model.Content{}).Where("filename = ?", slug)
+		// 同樣用 SkipAcode 跨區檢查 slug 唯一性
+		q := model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Model(&model.Content{}).Where("filename = ?", slug)
 		if excludeID != "" {
 			q = q.Where("id != ?", excludeID)
 		}

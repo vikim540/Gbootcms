@@ -201,6 +201,10 @@ func (cc *CommentController) Del(c *gin.Context) {
 
 	// 安全刪除：只能刪除自己的評論
 	result := model.DB.WithContext(c.Request.Context()).Where("id = ? AND uid = ?", idStr, uid).Delete(&model.MemberComment{})
+	if result.Error != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "刪除失敗，請稍後再試"})
+		return
+	}
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "刪除失敗，評論不存在或無權限"})
 		return

@@ -196,10 +196,16 @@ func (db *DatabaseController) optimizeTables(c *gin.Context) {
 	cfg := config.Get()
 
 	if cfg.Database.Type == "sqlite" {
-		model.DB.Exec("VACUUM")
+		if err := model.DB.Exec("VACUUM").Error; err != nil {
+			db.JSONFail(c, "操作失敗: "+err.Error())
+			return
+		}
 	} else {
 		for _, t := range tables {
-			model.DB.Exec("OPTIMIZE TABLE " + t)
+			if err := model.DB.Exec("OPTIMIZE TABLE " + t).Error; err != nil {
+				db.JSONFail(c, "操作失敗: "+err.Error())
+				return
+			}
 		}
 	}
 	db.JSONOKMsg(c, common.NoticeOptimize)
@@ -219,7 +225,10 @@ func (db *DatabaseController) repairTables(c *gin.Context) {
 	}
 
 	for _, t := range tables {
-		model.DB.Exec("REPAIR TABLE " + t)
+		if err := model.DB.Exec("REPAIR TABLE " + t).Error; err != nil {
+			db.JSONFail(c, "操作失敗: "+err.Error())
+			return
+		}
 	}
 	db.JSONOKMsg(c, common.NoticeRepair)
 }
