@@ -9,7 +9,7 @@ import (
 	"gbootcms/config"
 	"gbootcms/core/acodeplugin"
 	"gbootcms/core/db"
-	"sync"
+	"sync/atomic"
 
 	// Import sub-packages so their AutoMigrate / helpers are accessible.
 	"gbootcms/apps/admin/model/content"
@@ -83,11 +83,13 @@ type CommentView = member.CommentView
 // 後台修改配置後由 GORM 回調自動清除
 // ──────────────────────────────────────────────
 
-var (
-	configCache   map[string]string
-	configCacheMu sync.RWMutex
-	configCacheOK bool
-)
+// ──────────────────────────────────────────────
+// Config cache — 無鎖讀取（atomic.Pointer，對標 Swoole 6 原子操作）
+// 每個頁面渲染呼叫 GetConfigValue 8+ 次，RWMutex 在高並發下產生鎖競爭
+// atomic.Pointer.Load 是單條 CPU 指令，完全無鎖
+// ──────────────────────────────────────────────
+
+var configCachePtr atomic.Pointer[map[string]string]
 
 // preloadConfigCache 一次性載入所有配置到記憶體
 func preloadConfigCache() {
@@ -99,71 +101,52 @@ func preloadConfigCache() {
 			m[c.Name] = c.Value
 		}
 	}
-	configCacheMu.Lock()
-	configCache = m
-	configCacheOK = true
-	configCacheMu.Unlock()
+	configCachePtr.Store(&m)
 }
 
 // ClearConfigCache 清除配置快取（由 GORM 回調觸發）
 func ClearConfigCache() {
-	configCacheMu.Lock()
-	configCacheOK = false
-	configCache = nil
-	configCacheMu.Unlock()
+	configCachePtr.Store(nil)
 }
 
 // GetConfigValue reads a config value by name, returning defaultVal if not found or empty.
-// 使用記憶體快取，避免每次調用都查 SQL
+// 使用 atomic.Pointer 無鎖讀取，避免高並發下的 RWMutex 鎖競爭
 func GetConfigValue(name, defaultVal string) string {
-	configCacheMu.RLock()
-	if !configCacheOK {
-		configCacheMu.RUnlock()
+	p := configCachePtr.Load()
+	if p == nil {
 		preloadConfigCache()
-		configCacheMu.RLock()
+		p = configCachePtr.Load()
 	}
-	if v, ok := configCache[name]; ok {
-		configCacheMu.RUnlock()
-		return v
+	if p != nil {
+		if v, ok := (*p)[name]; ok {
+			return v
+		}
 	}
-	configCacheMu.RUnlock()
 	return defaultVal
 }
 
 // ──────────────────────────────────────────────
-// Areas cache — 區域列表極少變化，6+ 處查詢共用一份記憶體快取
+// Areas cache — 無鎖讀取（atomic.Pointer，區域列表極少變化）
 // ──────────────────────────────────────────────
 
-var (
-	areasCache     []Area
-	areasCacheMu   sync.RWMutex
-	areasCacheReady bool
-)
+var areasCachePtr atomic.Pointer[[]Area]
 
 // GetCachedAreas 返回快取的區域列表（未命中則查 DB 並快取）
 func GetCachedAreas() []Area {
-	areasCacheMu.RLock()
-	if areasCacheReady {
-		defer areasCacheMu.RUnlock()
-		return areasCache
+	p := areasCachePtr.Load()
+	if p != nil {
+		return *p
 	}
-	areasCacheMu.RUnlock()
 
 	var areas []Area
 	db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Order("pcode, acode").Find(&areas)
-	areasCacheMu.Lock()
-	areasCache = areas
-	areasCacheReady = true
-	areasCacheMu.Unlock()
+	areasCachePtr.Store(&areas)
 	return areas
 }
 
 // ClearAreasCache 清除區域快取（由 GORM 回調觸發）
 func ClearAreasCache() {
-	areasCacheMu.Lock()
-	areasCacheReady = false
-	areasCache = nil
-	areasCacheMu.Unlock()
+	areasCachePtr.Store(nil)
 }
 
 // GetDBName returns the current database file name from config.

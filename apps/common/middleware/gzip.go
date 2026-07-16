@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"gbootcms/apps/admin/model"
+	"log/slog"
 	"strings"
 
 	"github.com/andybalholm/brotli"
@@ -85,8 +86,18 @@ func Compress() gin.HandlerFunc {
 		if strings.Contains(acceptEncoding, "br") {
 			var compressed bytes.Buffer
 			writer := brotli.NewWriterLevel(&compressed, brotli.DefaultCompression)
-			writer.Write(originalBody)
-			writer.Close()
+			if _, err := writer.Write(originalBody); err != nil {
+				slog.Warn("Brotli 壓縮寫入失敗，降級為未壓縮輸出", "error", err)
+				cw.ResponseWriter.WriteHeader(statusCode)
+				cw.ResponseWriter.Write(originalBody)
+				return
+			}
+			if err := writer.Close(); err != nil {
+				slog.Warn("Brotli 壓縮關閉失敗，降級為未壓縮輸出", "error", err)
+				cw.ResponseWriter.WriteHeader(statusCode)
+				cw.ResponseWriter.Write(originalBody)
+				return
+			}
 
 			cw.Header().Set("Content-Encoding", "br")
 			cw.Header().Set("Vary", "Accept-Encoding")
@@ -100,8 +111,18 @@ func Compress() gin.HandlerFunc {
 		if strings.Contains(acceptEncoding, "gzip") {
 			var compressed bytes.Buffer
 			writer, _ := gzip.NewWriterLevel(&compressed, 4)
-			writer.Write(originalBody)
-			writer.Close()
+			if _, err := writer.Write(originalBody); err != nil {
+				slog.Warn("Gzip 壓縮寫入失敗，降級為未壓縮輸出", "error", err)
+				cw.ResponseWriter.WriteHeader(statusCode)
+				cw.ResponseWriter.Write(originalBody)
+				return
+			}
+			if err := writer.Close(); err != nil {
+				slog.Warn("Gzip 壓縮關閉失敗，降級為未壓縮輸出", "error", err)
+				cw.ResponseWriter.WriteHeader(statusCode)
+				cw.ResponseWriter.Write(originalBody)
+				return
+			}
 
 			cw.Header().Set("Content-Encoding", "gzip")
 			cw.Header().Set("Vary", "Accept-Encoding")

@@ -17,6 +17,7 @@ import (
 	home "gbootcms/apps/home/controller"
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/admin/model/content"
+	admincontent "gbootcms/apps/admin/controller/content"
 	"gbootcms/apps/admin/model/member"
 	"gbootcms/apps/admin/model/system"
 	"gbootcms/apps/admin/seed"
@@ -375,6 +376,9 @@ func main() {
 	// 啟動 SpiderLog worker pool（固定 3 worker + 批量寫入，取代每請求 goroutine）
 	middleware.StartSpiderLogWorkers()
 
+	// 初始化媒體掃描 context（用於優雅關閉時取消正在進行的掃描）
+	admincontent.InitMediaScanContext()
+
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: r,
@@ -402,6 +406,9 @@ func main() {
 
 	// 停止 SpiderLog worker pool（等待剩餘日誌寫入完成）
 	middleware.StopSpiderLogWorkers()
+
+	// 取消正在進行的媒體庫掃描
+	admincontent.StopMediaScanContext()
 
 	// 關閉資料庫連接（SQLite WAL checkpoint 確保數據落盤）
 	model.CloseDB()

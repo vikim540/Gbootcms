@@ -28,6 +28,24 @@ import (
 // 媒體庫掃描結果緩存。
 // 設計原則：緩存盡可能短（5 分鐘），並在所有改變文件引用的寫操作後自動失效。
 
+// mediaScanCtx 用於優雅關閉時取消正在進行的媒體庫掃描
+var (
+	mediaScanCtx    context.Context
+	mediaScanCancel context.CancelFunc
+)
+
+// InitMediaScanContext 初始化媒體掃描 context（應在 main() 中伺服器啟動前呼叫）
+func InitMediaScanContext() {
+	mediaScanCtx, mediaScanCancel = context.WithCancel(context.Background())
+}
+
+// StopMediaScanContext 取消正在進行的媒體庫掃描（應在優雅關閉時呼叫）
+func StopMediaScanContext() {
+	if mediaScanCancel != nil {
+		mediaScanCancel()
+	}
+}
+
 type mediaCacheData struct {
 	Files       []MediaFile
 	UsedPaths   map[string]bool
@@ -116,7 +134,22 @@ func doScan() *mediaCacheData {
 	go func() {
 		start := time.Now()
 		files := scanFiles()
+		// 優雅關閉檢查：伺服器關閉時及時退出掃描
+		if mediaScanCtx != nil {
+			select {
+			case <-mediaScanCtx.Done():
+				return
+			default:
+			}
+		}
 		used := getUsedPaths()
+		if mediaScanCtx != nil {
+			select {
+			case <-mediaScanCtx.Done():
+				return
+			default:
+			}
+		}
 		marked := getMarkedPaths()
 		ch <- scanResult{files, used, marked, time.Since(start)}
 	}()
