@@ -1,6 +1,7 @@
 package content
 
 import (
+	"fmt"
 	"gbootcms/apps/admin/helper"
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
@@ -18,10 +19,8 @@ type SlideController struct {
 
 // getGids returns available slide group IDs for the template dropdown.
 func (sl *SlideController) getGids(c *gin.Context) []int {
-	// Query distinct gids from existing slides
 	var gids []int
 	model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Distinct("gid").Pluck("gid", &gids)
-	// Always include gid=1 as default
 	found := false
 	for _, g := range gids {
 		if g == 1 {
@@ -35,25 +34,187 @@ func (sl *SlideController) getGids(c *gin.Context) []int {
 	return gids
 }
 
+// getGroups 返回所有輪播圖分組，包含名稱和輪播圖數量
+// 對於有 slide 記錄但無分組名稱的 gid，自動生成 "分組N" 臨時名稱
+func (sl *SlideController) getGroups(c *gin.Context) []model.SlideGroup {
+	// 1. 從 DB 載入已命名的分組
+	var groups []model.SlideGroup
+	model.DB.WithContext(c.Request.Context()).Order("sorting ASC, gid ASC").Find(&groups)
+
+	// 2. 取得所有 slide 中的 distinct gid
+	var slideGIDs []int
+	model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Distinct("gid").Pluck("gid", &slideGIDs)
+
+	// 3. 為沒有分組名稱的 gid 生成臨時名稱
+	groupGIDSet := make(map[int]bool)
+	for _, g := range groups {
+		groupGIDSet[g.GID] = true
+	}
+	for _, gid := range slideGIDs {
+		if !groupGIDSet[gid] {
+			groups = append(groups, model.SlideGroup{
+				GID:  gid,
+				Name: fmt.Sprintf("分組%d", gid),
+			})
+		}
+	}
+
+	// 4. 統計每個 gid 下的輪播圖數量
+	type gidCount struct {
+		GID   int   `gorm:"column:gid"`
+		Count int64 `gorm:"column:count"`
+	}
+	var counts []gidCount
+	model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Select("gid, COUNT(*) as count").Group("gid").Scan(&counts)
+	countMap := make(map[int]int64)
+	for _, gc := range counts {
+		countMap[gc.GID] = gc.Count
+	}
+
+	// 5. 填充 Count 到每個分組
+	for i := range groups {
+		groups[i].Count = countMap[groups[i].GID]
+	}
+
+	return groups
+}
+
 // Index - Slide list (shows list + add form via tabs)
 func (sl *SlideController) Index(c *gin.Context) {
 	page, pageSize, offset := sl.Paginate(c)
 
+	// 支援 ?gid=X 篩選
+	filterGID := c.Query("gid")
+
 	var slides []model.Slide
 	query := model.DB.WithContext(c.Request.Context()).Model(&model.Slide{})
+	if filterGID != "" {
+		if gid, err := strconv.Atoi(filterGID); err == nil && gid > 0 {
+			query = query.Where("gid = ?", gid)
+		}
+	}
 	var total int64
 	query.Count(&total)
+
+	// 分頁 baseURL 帶篩選參數
+	baseURL := "/admin/content/slide/index"
+	if filterGID != "" {
+		baseURL += "?gid=" + filterGID
+	}
+
 	query.Order("gid ASC, sorting ASC, id ASC").Offset(offset).Limit(pageSize).Find(&slides)
 
-	baseURL := "/admin/content/slide/index"
+	// 載入分組列表（含名稱和數量）
+	groups := sl.getGroups(c)
+
+	// 建立 gid → name 映射，填充到每個 slide
+	groupMap := make(map[int]string)
+	for _, g := range groups {
+		groupMap[g.GID] = g.Name
+	}
+	for i := range slides {
+		if name, ok := groupMap[slides[i].GID]; ok {
+			slides[i].GroupName = name
+		} else {
+			slides[i].GroupName = fmt.Sprintf("分組%d", slides[i].GID)
+		}
+	}
+
 	data := gin.H{
-		"slides":   slides,
-		"list":     true,
-		"gids":     sl.getGids(c),
-		"pagebar":  helper.BuildPagebarHTML(total, page, pageSize, baseURL),
-		"pagesize": pageSize,
+		"slides":    slides,
+		"list":      true,
+		"groups":    groups,
+		"filterGID": filterGID,
+		"gids":      sl.getGids(c),
+		"pagebar":   helper.BuildPagebarHTML(total, page, pageSize, baseURL),
+		"pagesize":  pageSize,
 	}
 	common.Render(c, "content/slide.html", data)
+}
+
+// GroupManage 輪播圖分組管理 AJAX 端點
+// action: list(GET/POST) | add(POST) | edit(POST) | del(POST)
+func (sl *SlideController) GroupManage(c *gin.Context) {
+	action := c.DefaultPostForm("action", "list")
+	if action == "list" {
+		// GET 也視為 list
+		if c.Request.Method == "GET" {
+			action = "list"
+		}
+	}
+
+	switch action {
+	case "list":
+		groups := sl.getGroups(c)
+		sl.JSONOK(c, groups)
+
+	case "add":
+		name := c.PostForm("name")
+		if name == "" {
+			sl.JSONFail(c, "分組名稱不能為空")
+			return
+		}
+		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
+
+		// 自動遞增 gid：取當前最大 gid + 1
+		var maxGID int
+		model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Select("COALESCE(MAX(gid),0)").Scan(&maxGID)
+		gid := maxGID + 1
+
+		now := time.Now().Format("2006-01-02 15:04:05")
+		if err := model.DB.WithContext(c.Request.Context()).Create(&model.SlideGroup{
+			GID:        gid,
+			Name:       name,
+			Sorting:    sorting,
+			CreateTime: now,
+			UpdateTime: now,
+		}).Error; err != nil {
+			sl.JSONFail(c, "新增分組失敗："+err.Error())
+			return
+		}
+		sl.LogAction(c, "新增輪播圖分組："+name)
+		sl.JSONOKMsg(c, "分組新增成功")
+
+	case "edit":
+		id, _ := strconv.Atoi(c.PostForm("id"))
+		name := c.PostForm("name")
+		if name == "" {
+			sl.JSONFail(c, "分組名稱不能為空")
+			return
+		}
+		if id == 0 {
+			sl.JSONFail(c, "缺少分組ID")
+			return
+		}
+		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
+		now := time.Now().Format("2006-01-02 15:04:05")
+		if err := model.DB.WithContext(c.Request.Context()).Model(&model.SlideGroup{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"name":        name,
+			"sorting":     sorting,
+			"update_time": now,
+		}).Error; err != nil {
+			sl.JSONFail(c, "修改分組失敗："+err.Error())
+			return
+		}
+		sl.LogAction(c, "修改輪播圖分組："+name)
+		sl.JSONOKMsg(c, "分組修改成功")
+
+	case "del":
+		id, _ := strconv.Atoi(c.PostForm("id"))
+		if id == 0 {
+			sl.JSONFail(c, "缺少分組ID")
+			return
+		}
+		if err := model.DB.WithContext(c.Request.Context()).Delete(&model.SlideGroup{}, id).Error; err != nil {
+			sl.JSONFail(c, "刪除分組失敗："+err.Error())
+			return
+		}
+		sl.LogAction(c, "刪除輪播圖分組")
+		sl.JSONOKMsg(c, "分組刪除成功")
+
+	default:
+		sl.JSONFail(c, "未知操作")
+	}
 }
 
 // Add - Add new slide (POST only; GET is handled by Index tabs)
@@ -68,24 +229,24 @@ func (sl *SlideController) Add(c *gin.Context) {
 			gid = maxGID + 1
 		}
 		now := time.Now().Format("2006-01-02 15:04:05")
-	username := sl.GetAdminUsername(c)
-	if err := model.DB.WithContext(c.Request.Context()).Create(&model.Slide{
-		GID:        gid,
-		Pic:        c.PostForm("pic"),
-		PicMobile:  c.PostForm("pic_mobile"),
-		Link:       c.PostForm("link"),
-		Title:      c.PostForm("title"),
-		Subtitle:   c.PostForm("subtitle"),
-		ButtonText: c.PostForm("button_text"),
-		Sorting:    sorting,
-		CreateUser: username,
-		UpdateUser: username,
-		CreateTime: now,
-		UpdateTime: now,
-	}).Error; err != nil {
-		sl.JSONFail(c, "新增失敗："+err.Error())
-		return
-	}
+		username := sl.GetAdminUsername(c)
+		if err := model.DB.WithContext(c.Request.Context()).Create(&model.Slide{
+			GID:        gid,
+			Pic:        c.PostForm("pic"),
+			PicMobile:  c.PostForm("pic_mobile"),
+			Link:       c.PostForm("link"),
+			Title:      c.PostForm("title"),
+			Subtitle:   c.PostForm("subtitle"),
+			ButtonText: c.PostForm("button_text"),
+			Sorting:    sorting,
+			CreateUser: username,
+			UpdateUser: username,
+			CreateTime: now,
+			UpdateTime: now,
+		}).Error; err != nil {
+			sl.JSONFail(c, "新增失敗："+err.Error())
+			return
+		}
 		sl.LogAction(c, "新增輪播圖成功")
 		sl.JSONOKMsg(c, common.NoticeAdd)
 		return
@@ -99,7 +260,6 @@ func (sl *SlideController) Mod(c *gin.Context) {
 	action := c.Param("action")
 	params := helper.ParseWildcardAction(action)
 
-	// Also support :id style (legacy route)
 	idStr := params["id"]
 	if idStr == "" {
 		idStr = c.Param("id")
@@ -111,7 +271,6 @@ func (sl *SlideController) Mod(c *gin.Context) {
 
 	// Handle status toggle: /mod/id/123/field/status/value/0
 	if field, ok := params["field"]; ok && field == "status" {
-		// Slides don't have a status field in current model; ignore gracefully
 		sl.LogAction(c, "修改輪播圖成功")
 		sl.JSONOKMsg(c, common.NoticeModify)
 		return
@@ -152,9 +311,20 @@ func (sl *SlideController) Mod(c *gin.Context) {
 	var slide model.Slide
 	model.DB.WithContext(c.Request.Context()).First(&slide, id)
 
+	// 填充分組名稱
+	groups := sl.getGroups(c)
+	groupMap := make(map[int]string)
+	for _, g := range groups {
+		groupMap[g.GID] = g.Name
+	}
+	if name, ok := groupMap[slide.GID]; ok {
+		slide.GroupName = name
+	}
+
 	data := gin.H{
 		"slide":  slide,
 		"mod":    true,
+		"groups": groups,
 		"gids":   sl.getGids(c),
 		"get_id": idStr,
 	}

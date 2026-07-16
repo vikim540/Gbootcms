@@ -90,12 +90,18 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.Any("/content/slide/mod/*action", sl.Mod)
 		adminGroup.POST("/content/slide/del", sl.Del)
 		adminGroup.Any("/content/slide/del/*action", sl.Del)
+		// 分組管理 AJAX 端點
+		adminGroup.GET("/content/slide/group", sl.GroupManage)
+		adminGroup.POST("/content/slide/group", sl.GroupManage)
 		// 短路由別名（模板 {url./admin/Slide/mod} 生成 /admin/slide/mod）
 		adminGroup.POST("/slide/mod", sl.Mod)
 		adminGroup.GET("/slide/mod/*action", sl.Mod)
 		adminGroup.POST("/slide/mod/*action", sl.Mod)
 		adminGroup.POST("/slide/del", sl.Del)
 		adminGroup.Any("/slide/del/*action", sl.Del)
+		// 分組管理短路由
+		adminGroup.GET("/slide/group", sl.GroupManage)
+		adminGroup.POST("/slide/group", sl.GroupManage)
 
 		lk := &content.LinkController{}
 		adminGroup.GET("/content/link/index", lk.Index)

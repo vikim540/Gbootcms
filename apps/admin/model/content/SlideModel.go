@@ -17,4 +17,7 @@ type Slide struct {
 	UpdateUser string `gorm:"column:update_user" json:"update_user"`
 	CreateTime string `gorm:"column:create_time" json:"create_time"`
 	UpdateTime string `gorm:"column:update_time" json:"update_time"`
+
+	// 非資料庫欄位（控制器填充）
+	GroupName string `gorm:"-" json:"group_name"` // 分組名稱，如 "簡體首頁"
 }

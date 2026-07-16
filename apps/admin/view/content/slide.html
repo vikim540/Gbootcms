@@ -2,7 +2,30 @@
 
 <div class="layui-body">
 	{if([$list])}
-	<div class="layui-tab layui-tab-brief" lay-filter="tab">
+	<style>
+	.slide-group-filter .layui-tab-title li a { font-size:14px; }
+	.slide-group-filter .layui-tab-title li { margin-right:5px; }
+	.slide-gid-label { color:#999; font-size:12px; margin-left:4px; }
+	.group-manage-btn { float:right; }
+	#groupDialog .layui-table { margin-bottom:10px; }
+	#groupForm { border:1px solid #e6e6e6; }
+	</style>
+
+	<!-- 輪播圖分組篩選 -->
+	<div class="layui-tab layui-tab-brief slide-group-filter" lay-filter="groupFilter">
+	  <ul class="layui-tab-title">
+	    <li class="group-tab-all"><a href="/admin/content/slide/index">全部</a></li>
+	    {foreach $groups(key,value)}
+	    <li class="group-tab" data-gid="[value->gid]">
+	    	<a href="/admin/content/slide/index?gid=[value->gid]">[value->name] <span class="layui-badge layui-bg-blue">[value->count]</span></a>
+	    </li>
+	    {/foreach}
+	    <li><a href="javascript:;" id="manageGroupsBtn"><i class="layui-icon">&#xe620;</i> 管理分組</a></li>
+	  </ul>
+	</div>
+
+	<!-- 列表 + 新增 Tab -->
+	<div class="layui-tab layui-tab-brief" lay-filter="slideTab">
 	  <ul class="layui-tab-title">
 	    <li class="layui-this" lay-id="t1">幻燈片列表</li>
 	    <li lay-id="t2">幻燈片新增</li>
@@ -10,11 +33,11 @@
 	  <div class="layui-tab-content">
 	  	<div class="layui-tab-item layui-show">
 	  		<form action="{url./admin/Slide/mod}" method="post" class="layui-form" onkeydown="if(event.keyCode==13) return false;">
-		    <input type="hidden" name="formcheck" value="{$formcheck}" > 
+		    <input type="hidden" name="formcheck" value="{$formcheck}" >
 	  		<table class="layui-table">
             	<thead>
                     <tr>
-                    	<th>分組(gid)</th>
+                    	<th>分組</th>
                         <th>圖片</th>
                         <th>移動端圖片</th>
                         <th>鏈接</th>
@@ -29,7 +52,10 @@
                 <tbody>
                     {foreach $slides(key,value)}
                     <tr>
-                    	<td>[value->gid]</td>
+                    	<td>
+                    		<span class="layui-badge layui-bg-blue">[value->group_name]</span>
+                    		<span class="slide-gid-label">gid:[value->gid]</span>
+                    	</td>
                         <td><img src="{SITE_DIR}[value->pic]" style="height:30px;"></td>
                         <td>{if([value->pic_mobile])}<img src="{SITE_DIR}[value->pic_mobile]" style="height:30px;">{else}-{/if}</td>
                         <td>[value->link]</td>
@@ -50,25 +76,26 @@
                 </tbody>
             </table>
             <button type="submit" lay-submit name="submit" value="sorting" class="layui-btn layui-btn-sm">保存排序</button>
-            </form> 
+            </form>
             <div class="page">{$pagebar}</div>
 	  	</div>
-	  	
+
 	  	<div class="layui-tab-item">
 	  		<form action="{url./admin/Slide/add}" method="post" class="layui-form">
-	  			<input type="hidden" name="formcheck" value="{$formcheck}" > 
+	  			<input type="hidden" name="formcheck" value="{$formcheck}" >
 	  			<div class="layui-form-item">
                      <label class="layui-form-label">分組</label>
-                     <div class="layui-input-block">
-                     	<select name="gid" >	
-                     		{foreach $gids(key,value)}
-	                			<option value="[value]" >分組[value]</option>
-	                		{/foreach}
-	                		<option value="" >自動新增分組</option>
-	                	</select>
+                     <div class="layui-input-inline" style="width:300px;">
+                     	<select name="gid">
+                     		{foreach $groups(key,value)}
+                     			<option value="[value->gid]">[value->name] (gid:[value->gid])</option>
+                     		{/foreach}
+                     		<option value="0">＋ 自動新增分組</option>
+                     	</select>
                      </div>
+                     <a href="javascript:;" class="layui-btn layui-btn-sm layui-btn-primary" onclick="document.getElementById('manageGroupsBtn').click()"><i class="layui-icon">&#xe620;</i> 管理分組</a>
                 </div>
-                
+
                 <div class="layui-form-item">
                      <label class="layui-form-label">圖片</label>
                      <div class="layui-input-inline">
@@ -90,42 +117,42 @@
 					 </button>
 					 <div id="pic_mobile_box" class="pic"></div>
                 </div>
-                
+
                 <div class="layui-form-item">
                      <label class="layui-form-label">鏈接</label>
                      <div class="layui-input-block">
                      	<input type="text" name="link" placeholder="請輸入跳轉鏈接"  class="layui-input">
                      </div>
                 </div>
-                
+
                  <div class="layui-form-item">
                      <label class="layui-form-label">標題</label>
                      <div class="layui-input-block">
                      	<input type="text" name="title" placeholder="請輸入標題"  class="layui-input">
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
                      <label class="layui-form-label">副標題</label>
                      <div class="layui-input-block">
                      	<input type="text" name="subtitle" placeholder="請輸入副標題"  class="layui-input">
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
                      <label class="layui-form-label">按鈕文字</label>
                      <div class="layui-input-block">
                      	<input type="text" name="button_text" placeholder="輪播按鈕文字(可選)，如：了解更多"  class="layui-input">
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
                      <label class="layui-form-label">排序</label>
                      <div class="layui-input-block">
                      	<input type="text" name="sorting" required lay-verify="required" value="255" placeholder="請輸入排序"  class="layui-input">
                      </div>
                 </div>
-                
+
                  <div class="layui-form-item">
 					 <div class="layui-input-block">
 					    <button class="layui-btn" lay-submit>立即提交</button>
@@ -136,25 +163,176 @@
 	  	</div>
 	  </div>
 	</div>
-	{/if} 
-	
+
+	<!-- 分組管理彈窗 -->
+	<div id="groupDialog" style="display:none; padding:15px;">
+		<table class="layui-table" style="margin-bottom:10px;">
+			<thead>
+				<tr>
+					<th width="60">gid</th>
+					<th>分組名稱</th>
+					<th width="80">輪播圖數</th>
+					<th width="60">排序</th>
+					<th width="120">操作</th>
+				</tr>
+			</thead>
+			<tbody id="groupTableBody"></tbody>
+		</table>
+		<button class="layui-btn layui-btn-sm" id="addGroupBtn"><i class="layui-icon">&#xe654;</i> 新增分組</button>
+		<div id="groupForm" style="display:none; margin-top:15px; padding:15px; background:#f8f8f8; border-radius:5px;">
+			<input type="hidden" id="groupIdInput">
+			<div class="layui-form-item" style="margin-bottom:0;">
+				<div class="layui-inline">
+					<label class="layui-form-label" style="width:80px;">分組名稱</label>
+					<div class="layui-input-inline" style="width:200px;">
+						<input type="text" id="groupNameInput" class="layui-input" placeholder="如：簡體首頁">
+					</div>
+					<label class="layui-form-label" style="width:50px;">排序</label>
+					<div class="layui-input-inline" style="width:70px;">
+						<input type="text" id="groupSortingInput" class="layui-input" value="255">
+					</div>
+					<button class="layui-btn layui-btn-sm" id="saveGroupBtn">保存</button>
+					<button class="layui-btn layui-btn-sm layui-btn-primary" id="cancelGroupBtn">取消</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+	$(function(){
+		// 設定當前選中的分組 Tab
+		var filterGID = '{$filterGID}';
+		if (filterGID) {
+			$('.group-tab-all').removeClass('layui-this');
+			$('.group-tab[data-gid="' + filterGID + '"]').addClass('layui-this');
+		} else {
+			$('.group-tab-all').addClass('layui-this');
+		}
+
+		// 分組管理
+		$('#manageGroupsBtn').on('click', function(){
+			layer.open({
+				type: 1,
+				title: '管理輪播圖分組',
+				area: ['700px', '550px'],
+				content: $('#groupDialog'),
+				success: function(){
+					loadGroupList();
+				}
+			});
+		});
+
+		function loadGroupList(){
+			$.get('/admin/slide/group', {action:'list'}, function(res){
+				if (res.code === 1) {
+					var html = '';
+					res.data.forEach(function(g){
+						html += '<tr data-id="' + g.id + '" data-gid="' + g.gid + '">';
+						html += '<td>' + g.gid + '</td>';
+						html += '<td>' + g.name + '</td>';
+						html += '<td><span class="layui-badge layui-bg-gray">' + g.count + '</span></td>';
+						html += '<td>' + g.sorting + '</td>';
+						html += '<td>';
+						html += '<button class="layui-btn layui-btn-xs group-edit-btn">編輯</button> ';
+						html += '<button class="layui-btn layui-btn-xs layui-btn-danger group-del-btn">刪除</button>';
+						html += '</td>';
+						html += '</tr>';
+					});
+					$('#groupTableBody').html(html);
+				}
+			});
+		}
+
+		$('#addGroupBtn').on('click', function(){
+			$('#groupForm').show();
+			$('#groupIdInput').val('');
+			$('#groupNameInput').val('');
+			$('#groupSortingInput').val('255');
+			$('#groupNameInput').focus();
+		});
+
+		$('#cancelGroupBtn').on('click', function(){
+			$('#groupForm').hide();
+		});
+
+		$('#saveGroupBtn').on('click', function(){
+			var id = $('#groupIdInput').val();
+			var name = $('#groupNameInput').val();
+			var sorting = $('#groupSortingInput').val();
+			if (!name) { layer.msg('分組名稱不能為空', {icon:2}); return; }
+			var action = id ? 'edit' : 'add';
+			var formcheck = $('input[name="formcheck"]').val();
+			$.post('/admin/slide/group', {
+				action: action, id: id, name: name, sorting: sorting, formcheck: formcheck
+			}, function(res){
+				if (res.code === 1) {
+					layer.msg(res.data, {icon:1});
+					loadGroupList();
+					$('#groupForm').hide();
+					setTimeout(function(){ location.reload(); }, 800);
+				} else {
+					layer.msg(res.msg || res.data, {icon:2});
+				}
+			});
+		});
+
+		$(document).on('click', '.group-edit-btn', function(){
+			var row = $(this).closest('tr');
+			$('#groupForm').show();
+			$('#groupIdInput').val(row.data('id'));
+			$('#groupNameInput').val(row.find('td:eq(1)').text());
+			$('#groupSortingInput').val(row.find('td:eq(3)').text());
+			$('#groupNameInput').focus();
+		});
+
+		$(document).on('click', '.group-del-btn', function(){
+			var row = $(this).closest('tr');
+			var id = row.data('id');
+			var name = row.find('td:eq(1)').text();
+			layer.confirm('確定刪除分組「' + name + '」嗎？<br>注意：輪播圖本身不會被刪除，但分組名稱將消失。', {
+				icon: 3, title: '確認刪除'
+			}, function(index){
+				var formcheck = $('input[name="formcheck"]').val();
+				$.post('/admin/slide/group', {
+					action: 'del', id: id, formcheck: formcheck
+				}, function(res){
+					if (res.code === 1) {
+						layer.msg(res.data, {icon:1});
+						loadGroupList();
+						setTimeout(function(){ location.reload(); }, 800);
+					} else {
+						layer.msg(res.msg || res.data, {icon:2});
+					}
+				});
+				layer.close(index);
+			});
+		});
+	});
+	</script>
+	{/if}
+
 	{if([$mod])}
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this">幻燈片修改</li>
+	    <li class="layui-this">幻燈片修改 <span class="layui-badge layui-bg-blue">{$slide->group_name}</span></li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	<div class="layui-tab-item layui-show">
-	  		<form action="{url./admin/Slide/mod/id/'.[$get.id].'}{$backurl}" method="post" class="layui-form">
-	  			<input type="hidden" name="formcheck" value="{$formcheck}" > 
-	  			
+	  		<form action="{url./admin/Slide/mod/id/'.[$get_id].'}{$backurl}" method="post" class="layui-form">
+	  			<input type="hidden" name="formcheck" value="{$formcheck}" >
+
                 <div class="layui-form-item">
                      <label class="layui-form-label">分組</label>
-                     <div class="layui-input-block">
-                     	<input type="text" name="gid" required  lay-verify="required" value="{$slide->gid}" placeholder="請輸入分組"  class="layui-input">
+                     <div class="layui-input-inline" style="width:300px;">
+                     	<select name="gid">
+                     		{foreach $groups(key,value)}
+                     			<option value="[value->gid]">[value->name] (gid:[value->gid])</option>
+                     		{/foreach}
+                     		<option value="0">＋ 自動新增分組</option>
+                     	</select>
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
                      <label class="layui-form-label">圖片</label>
                      <div class="layui-input-inline">
@@ -176,42 +354,42 @@
 					 </button>
 					 <div id="pic_mobile_box" class="pic">{if([$slide->pic_mobile])}<dl><dt><img src="{SITE_DIR}{$slide->pic_mobile}" data-url="{$slide->pic_mobile}"></dt><dd>刪除</dd></dl>{/if}</div>
                 </div>
-                
+
                 <div class="layui-form-item">
                      <label class="layui-form-label">跳轉鏈接</label>
                      <div class="layui-input-block">
                      	<input type="text" name="link" value="{$slide->link}"  placeholder="請輸入跳轉鏈接"  class="layui-input">
                      </div>
                 </div>
-                
+
                 <div class="layui-form-item">
                      <label class="layui-form-label">標題</label>
                      <div class="layui-input-block">
                      	<input type="text" name="title" value="{$slide->title}" placeholder="請輸入標題"  class="layui-input">
                      </div>
                 </div>
-                
+
                  <div class="layui-form-item">
                      <label class="layui-form-label">副標題</label>
                      <div class="layui-input-block">
                      	<input type="text" name="subtitle" value="{$slide->subtitle}" placeholder="請輸入副標題"  class="layui-input">
                      </div>
                 </div>
-                
+
                  <div class="layui-form-item">
                      <label class="layui-form-label">按鈕文字</label>
                      <div class="layui-input-block">
                      	<input type="text" name="button_text" value="{$slide->button_text}" placeholder="輪播按鈕文字(可選)，如：了解更多"  class="layui-input">
                      </div>
                 </div>
-                
+
                  <div class="layui-form-item">
                      <label class="layui-form-label">排序</label>
                      <div class="layui-input-block">
                      	<input type="text" name="sorting" required lay-verify="required" value="{$slide->sorting}" placeholder="請輸入排序"  class="layui-input">
                      </div>
                 </div>
-                
+
                  <div class="layui-form-item">
 					 <div class="layui-input-block">
 					    <button class="layui-btn" lay-submit>立即提交</button>
@@ -223,7 +401,18 @@
 	  	</div>
 	  </div>
 	</div>
-	{/if} 
+	<script>
+	$(function(){
+		var currentGID = '{$slide->gid}';
+		if (currentGID) {
+			setTimeout(function(){
+				$('select[name="gid"]').val(currentGID);
+				layui.form.render('select');
+			}, 200);
+		}
+	});
+	</script>
+	{/if}
 
 </div>
 {include file='common/foot.html'}

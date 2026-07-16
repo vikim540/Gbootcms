@@ -57,6 +57,7 @@ type ContentSort = content.ContentSort
 type Site = content.Site
 type Company = content.Company
 type Slide = content.Slide
+type SlideGroup = content.SlideGroup
 type Link = content.Link
 type Message = content.Message
 type Tags = content.Tags
