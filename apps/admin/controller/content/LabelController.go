@@ -3,7 +3,7 @@ package content
 import (
 	"gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
-	"log"
+	"log/slog"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -38,7 +38,7 @@ func (lb *LabelController) Index(c *gin.Context) {
 			}
 		}
 
-		log.Printf("[LabelController.Index] POST fields count: %d", len(postForm))
+		slog.Info("標籤批量更新", "count", len(postForm), "admin", lb.GetAdminUsername(c))
 
 		updated := content.BatchUpdateLabelValues(postForm, lb.GetAdminUsername(c))
 		lb.JSONOKMsg(c, common.NoticeLabelSaved(updated))
@@ -65,7 +65,7 @@ func (lb *LabelController) Add(c *gin.Context) {
 		typ,
 	)
 		if err != nil {
-			lb.JSONFail(c, "Add failed: "+err.Error())
+			lb.JSONFail(c, "新增失敗")
 			return
 		}
 		lb.JSONOKMsg(c, common.NoticeAdd)
@@ -89,7 +89,7 @@ func (lb *LabelController) Mod(c *gin.Context) {
 			lb.GetAdminUsername(c),
 		)
 		if err != nil {
-			lb.JSONFail(c, "Modify failed: "+err.Error())
+			lb.JSONFail(c, "修改失敗")
 			return
 		}
 		lb.JSONOKMsg(c, common.NoticeModify)
@@ -105,7 +105,7 @@ func (lb *LabelController) Del(c *gin.Context) {
 	id, _ := strconv.Atoi(idStr)
 	err := content.DeleteLabel(id)
 	if err != nil {
-		lb.JSONFail(c, "Delete failed: "+err.Error())
+		lb.JSONFail(c, "刪除失敗")
 		return
 	}
 	lb.JSONOKMsg(c, common.NoticeDelete)

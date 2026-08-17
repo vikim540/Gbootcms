@@ -471,7 +471,6 @@ GET /api/v1/sorts/news       # 按 urlname
       "description": "文章摘要",
       "keywords": "關鍵詞",
       "visits": 128,
-      "likes": 5,
       "scode": "2",
       "istop": 0,
       "isrecommend": 1,

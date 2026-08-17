@@ -240,7 +240,8 @@ func (fc *FrontController) SendMemberEmail(c *gin.Context) {
 	body := "您的驗證碼為：" + code + "<br>來自網站 " + c.Request.Host + " （" + time.Now().Format("2006-01-02 15:04:05") + "）"
 
 	if err := mail.SendMail(email, subject, body); err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "發送失敗，" + err.Error(), "tourl": ""})
+		slog.Error("驗證碼郵件發送失敗", "email", email, "error", err)
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "郵件發送失敗，請稍後重試或聯繫管理員", "tourl": ""})
 		return
 	}
 

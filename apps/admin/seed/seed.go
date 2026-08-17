@@ -3,6 +3,7 @@ package seed
 import (
 	"crypto/md5"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"gbootcms/apps/admin/model"
@@ -71,7 +72,10 @@ func ensureMenuVersion() {
 		return
 	}
 	// 舊版選單結構 → 清空重建
-	model.DB.Exec("DELETE FROM ay_menu")
+	if err := model.DB.Exec("DELETE FROM ay_menu").Error; err != nil {
+		slog.Error("清空舊選單失敗", "error", err)
+		return
+	}
 	seedMenus(time.Now())
 	// 寫入版本標記（隱藏選單，不作導航用）
 	model.DB.Create(&system.Menu{

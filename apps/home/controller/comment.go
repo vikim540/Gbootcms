@@ -95,8 +95,6 @@ func (cc *CommentController) Add(c *gin.Context) {
 		Comment:    comment,
 		Uid:        uint(uid),
 		Puid:       uint(puid),
-		Likes:      0,
-		Oppose:     0,
 		Status:     status,
 		UserIP:     c.ClientIP(),
 		UserOS:     commentOS,

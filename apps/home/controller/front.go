@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -751,8 +752,10 @@ func (fc *FrontController) Visits(c *gin.Context) {
 			return
 		}
 		// 使用 .Exec() 原始 SQL 繞過 GORM 回調
-		model.DB.WithContext(c.Request.Context()).
-			Exec("UPDATE ay_content SET visits = visits + 1 WHERE id = ?", id)
+		if err := model.DB.WithContext(c.Request.Context()).
+			Exec("UPDATE ay_content SET visits = visits + 1 WHERE id = ?", id).Error; err != nil {
+			slog.Warn("訪問量更新失敗", "content_id", id, "error", err)
+		}
 		common.SetSecureCookie(c, cookieName, "1", 1800, "/")
 	}
 	c.String(http.StatusOK, "ok")
@@ -786,70 +789,6 @@ func checkReferer(c *gin.Context) bool {
 	}
 	host := c.Request.Host
 	return strings.Contains(referer, host)
-}
-
-// Likes 處理點讚請求（POST + IP限速 + Cookie去重 + Referer驗證）
-func (fc *FrontController) Likes(c *gin.Context) {
-	if model.GetConfigValue("likes_status", "0") == "0" {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "功能已禁用", "tourl": ""})
-		return
-	}
-	if !checkReferer(c) {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "非法請求來源", "tourl": ""})
-		return
-	}
-	id, _ := strconv.Atoi(c.PostForm("id"))
-	if id <= 0 {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "無效的內容ID", "tourl": ""})
-		return
-	}
-	cookieName := fmt.Sprintf("pboot_likes_%d", id)
-	if _, err := c.Cookie(cookieName); err == nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "您已經點過讚了", "tourl": ""})
-		return
-	}
-	var ct content.Content
-	if err := model.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&ct).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "內容不存在", "tourl": ""})
-		return
-	}
-	// 使用 .Exec() 原始 SQL 繞過 GORM 回調（同 Visits 方法，避免觸發快取失效）
-	model.DB.WithContext(c.Request.Context()).
-		Exec("UPDATE ay_content SET likes = likes + 1 WHERE id = ?", id)
-	common.SetSecureCookie(c, cookieName, "1", 31536000, "/")
-	c.JSON(http.StatusOK, gin.H{"code": 1, "data": "點讚成功", "likes": ct.Likes + 1})
-}
-
-// Oppose 處理反對請求（POST + IP限速 + Cookie去重 + Referer驗證）
-func (fc *FrontController) Oppose(c *gin.Context) {
-	if model.GetConfigValue("likes_status", "0") == "0" {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "功能已禁用", "tourl": ""})
-		return
-	}
-	if !checkReferer(c) {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "非法請求來源", "tourl": ""})
-		return
-	}
-	id, _ := strconv.Atoi(c.PostForm("id"))
-	if id <= 0 {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "無效的內容ID", "tourl": ""})
-		return
-	}
-	cookieName := fmt.Sprintf("pboot_oppose_%d", id)
-	if _, err := c.Cookie(cookieName); err == nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "您已經反對過了", "tourl": ""})
-		return
-	}
-	var ct content.Content
-	if err := model.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&ct).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "內容不存在", "tourl": ""})
-		return
-	}
-	// 使用 .Exec() 原始 SQL 繞過 GORM 回調（同 Visits 方法，避免觸發快取失效）
-	model.DB.WithContext(c.Request.Context()).
-		Exec("UPDATE ay_content SET oppose = oppose + 1 WHERE id = ?", id)
-	common.SetSecureCookie(c, cookieName, "1", 31536000, "/")
-	c.JSON(http.StatusOK, gin.H{"code": 1, "data": "反對成功", "oppose": ct.Oppose + 1})
 }
 
 // checkAntispam 蜜罐 + 時間陷阱通用反垃圾檢查

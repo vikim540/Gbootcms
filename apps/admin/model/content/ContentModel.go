@@ -82,8 +82,6 @@ type Content struct {
 	IsRecommend int       `gorm:"column:isrecommend" json:"isrecommend"`
 	IsHeadline  int       `gorm:"column:isheadline" json:"isheadline"`
 	Visits      int       `gorm:"column:visits" json:"visits"`
-	Likes       int       `gorm:"column:likes" json:"likes"`
-	Oppose      int       `gorm:"column:oppose" json:"oppose"`
 	CreateUser  string    `gorm:"column:create_user;default:''" json:"create_user"`
 	UpdateUser  string    `gorm:"column:update_user;default:''" json:"update_user"`
 	CreateTime  time.Time `gorm:"column:create_time" json:"create_time"`

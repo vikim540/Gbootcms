@@ -126,12 +126,18 @@ func (bc *BaseController) BatchSort(c *gin.Context, modelPtr interface{}, sortCo
 		}
 		// 读取当前值，只在變化時才寫庫（避免無謂的 Update 请求）
 		var current int
-		db.DB.Model(modelPtr).Select(sortColumn).Where("id = ?", id).Scan(&current)
+		if err := db.DB.Model(modelPtr).Select(sortColumn).Where("id = ?", id).Scan(&current).Error; err != nil {
+			slog.Warn("批量排序讀取當前值失敗", "id", id, "column", sortColumn, "error", err)
+			continue
+		}
 		if current == sortVal {
 			unchanged++
 			continue
 		}
-		db.DB.Model(modelPtr).Where("id = ?", id).UpdateColumn(sortColumn, sortVal)
+		if err := db.DB.Model(modelPtr).Where("id = ?", id).UpdateColumn(sortColumn, sortVal).Error; err != nil {
+			slog.Warn("批量排序更新失敗", "id", id, "column", sortColumn, "value", sortVal, "error", err)
+			continue
+		}
 		updated++
 	}
 
@@ -194,6 +200,7 @@ func (bc *BaseController) JSONOKMsgTourl(c *gin.Context, msg string, tourl strin
 }
 
 func (bc *BaseController) JSONFail(c *gin.Context, msg string) {
+	slog.Warn("後台操作失敗", "path", c.Request.URL.Path, "admin", bc.GetAdminUsername(c), "msg", msg, "ip", c.ClientIP())
 	c.JSON(http.StatusOK, gin.H{"code": 0, "data": msg, "msg": msg, "tourl": ""})
 }
 

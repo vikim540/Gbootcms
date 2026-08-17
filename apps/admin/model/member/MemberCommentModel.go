@@ -10,8 +10,6 @@ type MemberComment struct {
 	Comment    string    `gorm:"column:comment" json:"comment"`
 	Uid        uint      `gorm:"column:uid" json:"uid"`
 	Puid       uint      `gorm:"column:puid" json:"puid"`
-	Likes      int       `gorm:"column:likes" json:"likes"`
-	Oppose     int       `gorm:"column:oppose" json:"oppose"`
 	Status     int       `gorm:"column:status" json:"status"`
 	UserIP     string    `gorm:"column:user_ip" json:"user_ip"`
 	UserOS     string    `gorm:"column:user_os" json:"user_os"`
@@ -31,8 +29,6 @@ type CommentView struct {
 	Comment    string    `gorm:"column:comment" json:"comment"`
 	Uid        uint      `gorm:"column:uid" json:"uid"`
 	Puid       uint      `gorm:"column:puid" json:"puid"`
-	Likes      int       `gorm:"column:likes" json:"likes"`
-	Oppose     int       `gorm:"column:oppose" json:"oppose"`
 	Status     int       `gorm:"column:status" json:"status"`
 	UserIP     string    `gorm:"column:user_ip" json:"user_ip"`
 	UserOS     string    `gorm:"column:user_os" json:"user_os"`

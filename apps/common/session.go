@@ -30,8 +30,15 @@ func init() {
 	if cfg.App.SessionKey != "" {
 		sessionKey = []byte(cfg.App.SessionKey)
 	} else {
-		// 降級：配置未設定時使用默認值
-		sessionKey = []byte("gbootcms-session-key-32byte!!!")
+		// 配置未設定時啟動隨機生成密鑰（重啟後所有 session 失效，建議在 config.json 配置固定 session_key）
+		randBytes := make([]byte, 32)
+		if _, err := rand.Read(randBytes); err != nil {
+			slog.Error("隨機生成 session 密鑰失敗，使用後備密鑰", "error", err)
+			sessionKey = []byte("gbootcms-fallback-session-key-32byte!")
+		} else {
+			sessionKey = randBytes
+			slog.Warn("未配置 session_key，已隨機生成臨時密鑰，重啟後所有登入會話將失效，建議在 config.json 中配置 app.session_key")
+		}
 	}
 
 	// 啟動過期 session 清理協程（對齊 PbootCMS PHP 的 session 定期清理）

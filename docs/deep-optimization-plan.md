@@ -87,7 +87,7 @@
 ~50+ 處 acode 表查詢缺少 `.WithContext(c.Request.Context())`，全面補齊。
 
 ### 3.2 .Error 全檢（H3-H5）— 對標 PHP 8.5 `#[NoDiscard]`
-- `front.go` visits/likes/oppose
+- `front.go` visits
 - `seed.go` 11 處 Create
 - `ModelModel.go`、`LabelModel.go`、`ExtFieldModel.go` 多處 Raw/Exec
 - `ContentSortService.go`、`AreaModel.go` Update 結果

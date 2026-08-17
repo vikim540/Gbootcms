@@ -809,7 +809,8 @@ func (ic *IndexController) Upload(c *gin.Context) {
 
 	// 儲存檔案
 	if err := c.SaveUploadedFile(file, savePath); err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "檔案儲存失敗：" + err.Error()})
+		slog.Error("檔案儲存失敗", "path", savePath, "error", err, "admin", c.GetHeader("admin_username"))
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "檔案儲存失敗，請檢查目錄權限或聯繫管理員"})
 		return
 	}
 

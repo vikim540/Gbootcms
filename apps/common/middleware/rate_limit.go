@@ -26,8 +26,6 @@ type ipRateLimiter struct {
 var (
 	// apiRateLimiter API 端點專用限速器：每 IP 每分鐘最多 30 次
 	apiLimiter     = newIPRateLimiter(time.Minute, 30)
-	// voteRateLimiter 投票端點專用限速器：每 IP 每分鐘最多 10 次（更嚴格）
-	voteLimiter     = newIPRateLimiter(time.Minute, 10)
 	// 清理計時器（避免內存無限增長）
 	cleanupOnce    sync.Once
 )
@@ -82,7 +80,6 @@ func startCleanup() {
 			defer ticker.Stop()
 			for range ticker.C {
 				apiLimiter.cleanup()
-				voteLimiter.cleanup()
 			}
 		}()
 	})
@@ -98,24 +95,6 @@ func APIRateLimit() gin.HandlerFunc {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"code": 0,
 				"msg":  "請求過於頻繁，請稍後再試",
-			})
-			c.Abort()
-			return
-		}
-		c.Next()
-	}
-}
-
-// VoteRateLimit 投票端點嚴格速率限制中間件
-// 每 IP 每分鐘最多 10 次請求（防止刷票）
-func VoteRateLimit() gin.HandlerFunc {
-	startCleanup()
-	return func(c *gin.Context) {
-		ip := c.ClientIP()
-		if !voteLimiter.Allow(ip) {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code": 0,
-				"msg":  "操作過於頻繁，請稍後再試",
 			})
 			c.Abort()
 			return

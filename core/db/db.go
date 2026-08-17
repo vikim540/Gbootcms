@@ -119,7 +119,7 @@ func InitDB(cfg *config.Config) error {
 
 	// 註冊 HTML 緩存自動清除回調：
 	// 基於 Cache Tag 精準失效：僅失效受影響的頁面，而非清空全部快取
-	// visits/likes/oppose 等統計欄位更新不清除快取（否則每次瀏覽都清空快取）
+	// visits 等統計欄位更新不清除快取（否則每次瀏覽都清空快取）
 	clearHTMLCache := func(db *gorm.DB) {
 		if db.Error != nil || db.RowsAffected == 0 || OnDataChange == nil {
 			return
@@ -154,12 +154,12 @@ func InitDB(cfg *config.Config) error {
 		if skipTables[tableName] {
 			return
 		}
-		// visits/likes/oppose 等統計欄位更新不清除快取
+		// visits 等統計欄位更新不清除快取
 		// 雙重檢查：Statement.Selects（Select().Update() 鏈式）+ Statement.Dest（UpdateColumn/Update/Updates）
 		// 注意：GORM 的 UpdateColumn("visits", ...) 只設 Dest 不設 Selects，
 		// 因此必須同時檢查 Dest 才能攔截所有路徑
 		skipCols := map[string]bool{
-			"visits": true, "likes": true, "oppose": true,
+			"visits": true,
 			"login_count": true, "last_login_ip": true, "last_login_time": true, "score": true,
 		}
 		if db.Statement != nil {

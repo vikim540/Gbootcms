@@ -180,8 +180,6 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return model.GetConfigValue("message_check_code", "1")
 		case "msgturnstilestatus":
 		return model.GetConfigValue("message_turnstile", "0")
-	case "likesstatus":
-		return model.GetConfigValue("likes_status", "0")
 	case "turnstile_sitekey":
 		return model.GetConfigValue("turnstile_sitekey", "")
 	case "httpurl":
@@ -736,7 +734,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			query = query.Order("isrecommend DESC, istop DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
 		case "isheadline":
 			query = query.Order("isrecommend DESC, istop DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
-		case "visits", "likes", "oppose":
+		case "visits":
 			query = query.Order(order+" DESC, istop DESC, isrecommend DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
 		case "id":
 			query = query.Order("id DESC, istop DESC, isrecommend DESC, isheadline DESC, sorting ASC, date DESC")
@@ -1367,7 +1365,7 @@ func registerPairProviders(p *TagParser, ctx *Context) {
 			query = query.Order("isrecommend DESC, istop DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
 		case "isheadline":
 			query = query.Order("isrecommend DESC, istop DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
-		case "visits", "likes", "oppose":
+		case "visits":
 			query = query.Order(order+" DESC, istop DESC, isrecommend DESC, isheadline DESC, sorting ASC, date DESC, id DESC")
 		case "id":
 			query = query.Order("id DESC, istop DESC, isrecommend DESC, isheadline DESC, sorting ASC, date DESC")
@@ -1793,12 +1791,6 @@ func buildIfContext(ctx *Context) map[string]interface{} {
 	} else {
 		data["registercodestatus"] = 0
 	}
-	// 點讚/反對功能開關
-	if model.GetConfigValue("likes_status", "0") == "1" {
-		data["likesstatus"] = 1
-	} else {
-		data["likesstatus"] = 0
-	}
 	// 評論功能開關（與 commentstatus provider 一致，空值默認啟用）
 	if model.GetConfigValue("comment_status", "1") != "0" {
 		data["commentstatus"] = 1
@@ -2119,10 +2111,6 @@ func getContentField(ctx *Context, field string, params map[string]string) strin
 			}
 		}
 		return strconv.Itoa(val)
-	case "likes":
-		return strconv.Itoa(c.Likes)
-	case "oppose":
-		return strconv.Itoa(c.Oppose)
 	case "date":
 		if style, ok := params["style"]; ok {
 			return c.Date.Format(phpToGoFormat(style))
@@ -2278,8 +2266,6 @@ func contentToMap(ctx *Context, c *model.Content, index int, extMap map[uint]map
 		"source":      c.Source,
 		"author":      c.Author,
 		"visits":      c.Visits,
-		"likes":       c.Likes,
-		"oppose":      c.Oppose,
 		"date":        c.Date.Format("2006-01-02"),
 		"istop":       c.IsTop,
 		"isrecommend": c.IsRecommend,

@@ -267,8 +267,6 @@ func main() {
 	r.GET("/message", fc.Message)
 	r.POST("/message", fc.Message)
 	r.GET("/api/visits", middleware.APIRateLimit(), fc.Visits)
-	r.POST("/api/likes", middleware.VoteRateLimit(), fc.Likes)
-	r.POST("/api/oppose", middleware.VoteRateLimit(), fc.Oppose)
 	r.GET("/api/checkcode", fc.CheckCode)
 
 	// SEO: sitemap 索引 + robots.txt
