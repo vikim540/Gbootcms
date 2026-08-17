@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            ext: .exe
+            asset: gbootcms-windows-amd64
+          - goos: linux
+            goarch: amd64
+            ext: ''
+            asset: gbootcms-linux-amd64
+          - goos: linux
+            goarch: arm64
+            ext: ''
+            asset: gbootcms-linux-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          go build -ldflags "-s -w" -o bin/${{ matrix.asset }}${{ matrix.ext }} .
+
+      - name: Package (Windows)
+        if: matrix.goos == 'windows'
+        run: |
+          mkdir -p dist/${{ matrix.asset }}
+          cp bin/${{ matrix.asset }}${{ matrix.ext }} dist/${{ matrix.asset }}/
+          cp config/config.json dist/${{ matrix.asset }}/
+          cp -r template dist/${{ matrix.asset }}/
+          cp -r static dist/${{ matrix.asset }}/
+          cp README.md dist/${{ matrix.asset }}/
+          cd dist
+          zip -r ../${{ matrix.asset }}.zip ${{ matrix.asset }}
+
+      - name: Package (Linux)
+        if: matrix.goos == 'linux'
+        run: |
+          mkdir -p dist/${{ matrix.asset }}
+          cp bin/${{ matrix.asset }}${{ matrix.ext }} dist/${{ matrix.asset }}/gbootcms
+          cp config/config.json dist/${{ matrix.asset }}/
+          cp -r template dist/${{ matrix.asset }}/
+          cp -r static dist/${{ matrix.asset }}/
+          cp README.md dist/${{ matrix.asset }}/
+          cd dist
+          tar -czf ../${{ matrix.asset }}.tar.gz ${{ matrix.asset }}
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ matrix.asset }}.zip
+            ${{ matrix.asset }}.tar.gz
+          generate_release_notes: true
+          draft: false
