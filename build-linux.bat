@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 title Gbootcms Linux Build ^& Package
 
@@ -55,7 +55,7 @@ copy "%APP_DIR%bin\gbootcms" "%PKG_DIR%\bin\" >nul
 powershell -Command "(Get-Content '%APP_DIR%config\config.json') -replace '\"port\": 8080', '\"port\": %LINUX_PORT%' | Set-Content '%PKG_DIR%\config\config.json' -Encoding UTF8"
 
 :: Database
-copy "%APP_DIR%data\pbootcms.db" "%PKG_DIR%\data\" >nul
+copy "%APP_DIR%data\*.db" "%PKG_DIR%\data\" >nul
 
 :: Templates
 xcopy "%APP_DIR%template" "%PKG_DIR%\template" /E /I /Q /Y >nul
