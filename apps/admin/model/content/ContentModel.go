@@ -61,7 +61,7 @@ type Content struct {
 	Acode       string    `gorm:"column:acode;default:''" json:"acode"`
 	Scode       string    `gorm:"column:scode" json:"scode"`
 	Subscode    string    `gorm:"column:subscode" json:"subscode"`
-	Title       string    `gorm:"column:title" json:"title"`
+	Title       string    `gorm:"column:title;index:ay_content_title_index" json:"title"`
 	TitleColor  string    `gorm:"column:titlecolor;default:''" json:"titlecolor"`
 	Subtitle    string    `gorm:"column:subtitle" json:"subtitle"`
 	Filename    string    `gorm:"column:filename;default:''" json:"filename"`

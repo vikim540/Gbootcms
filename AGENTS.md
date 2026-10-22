@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 > 本文件供 AI 代理（Claude / GPT / Cursor / Trae 等）在接手 Gbootcms 項目時快速建立上下文。
 > 詳細技術文檔見 `docs/pbootcms-go-dev-guide.md`，AI 開發約定見 `docs/AI_GUIDELINES.md`。
@@ -57,20 +57,27 @@ gbootcms/
 │   ├── config.go                    # 配置結構體與載入（Viper 單例）
 │   └── config.json                  # 配置文件（端口、DB 路徑等）
 ├── core/
-│   ├── db/db.go                     # GORM + SQLite 初始化
+│   ├── db/db.go                     # GORM + SQLite 初始化（WAL 模式）
 │   ├── basic/view.go                # 後台模板引擎（pongo2 + PHP 語法轉換）
-│   └── mediaplugin/plugin.go        # GORM 媒體快取失效插件
+│   ├── acodeplugin/                 # 多語言區域隔離 GORM 插件（自動注入 acode 條件）
+│   └── mediaplugin/                 # GORM 媒體快取失效插件
 ├── apps/
 │   ├── route/route.go               # 路由集中註冊
+│   ├── api/                         # RESTful API（JWT + API Key 雙認證，/api/v1/ 前綴）
 │   ├── common/
 │   │   ├── BaseController.go        # 基礎控制器（JSON 回應、批量排序等）
 │   │   ├── Render.go                # 後台模板渲染入口
 │   │   ├── session.go               # 自實現記憶體 Session
-│   │   ├── notice.go                # 通知訊息常量
+│   │   ├── notice.go                # 通知訊息常量（40+ 條）
 │   │   ├── captcha.go               # 驗證碼生成與校驗
 │   │   ├── turnstile.go             # Cloudflare Turnstile 驗證
 │   │   ├── middleware/              # 認證/壓縮/快取/IP過濾/URL重寫等中間件
-│   │   └── parser/                  # 前台模板標籤解析引擎
+│   │   ├── parser/                  # 前台模板標籤解析引擎（{gboot:xxx}）
+│   │   ├── mail/                    # SMTP 郵件發送
+│   │   ├── storage/                 # 文件存儲（上傳/水印/權限校驗）
+│   │   ├── watermark/               # 圖片水印
+│   │   ├── webhook/                 # Webhook 推送
+│   │   └── push/                    # 消息推送
 │   ├── admin/
 │   │   ├── controller/              # 後台控制器
 │   │   │   ├── content/             # 內容管理（Content/ContentSort/Single/Slide/Link/Form/ExtField 等）
@@ -83,13 +90,14 @@ gbootcms/
 │   │   │   └── member/              # 會員模型
 │   │   ├── service/content/         # 業務服務層
 │   │   ├── helper/                  # 模板輔助函數
-│   │   └── view/                    # 後台 HTML 模板
+│   │   ├── seed/                    # 菜單種子數據（首次啟動初始化）
+│   │   └── view/                    # 後台 HTML 模板（Layui）
 │   └── home/
 │       └── controller/
 │           ├── front.go             # 前台控制器
 │           ├── member.go            # 會員前台控制器
 │           └── comment.go           # 評論控制器
-├── template/default/                # 前台模板目錄
+├── template/default/                # 前台模板目錄（{gboot:xxx} 標籤）
 ├── static/                          # 全域靜態資源
 ├── data/pbootcms.db                 # SQLite 數據庫
 ├── bin/                             # 編譯產物
@@ -226,7 +234,7 @@ common.Render(c, "module/template.html", gin.H{
 ```go
 // 有狀態切換的控制器必須用 *action 通配符
 adminGroup.Any("/admin/xxx/mod/*action", ctrl.Mod)
-adminGroup.GET("/admin/xxx/del/*action", ctrl.Del)
+adminGroup.POST("/admin/xxx/del/*action", ctrl.Del) // 刪除必須用 POST（防 CSRF）
 
 // 無狀態切換可用固定路由
 adminGroup.GET("/admin/xxx/index", ctrl.Index)
@@ -358,9 +366,14 @@ if !member.RegisterTime.IsZero() {
     "port": 8080,
     "template_dir": "template/default",
     "admin_template_dir": "apps/admin/view",
+    "static_dir": "static",
+    "runtime_dir": "runtime",
     "url_suffix": ".html",
     "page_size": 15,
-    "admin_path": "admin"
+    "page_num": 5,
+    "admin_path": "admin",
+    "cache_enabled": false,
+    "cache_time": 900
   },
   "database": {
     "type": "sqlite",
@@ -370,6 +383,9 @@ if !member.RegisterTime.IsZero() {
 }
 ```
 
+> `database.host/port/user/passwd` 為 MySQL 預留字段，當前使用 SQLite 時無效。
+> HTML 頁面快取由 `html_cache.go` 獨立控制，永遠開啟，TTL 由 `tpl_html_cache_time`（後台配置）控制，與 `app.cache_enabled` 無關。
+
 環境變數覆蓋（前綴 `PBOOTCMS_GO_`）：
 `PBOOTCMS_GO_DATABASE_TYPE=mysql` 覆蓋 `database.type`
 
@@ -377,55 +393,31 @@ if !member.RegisterTime.IsZero() {
 
 ---
 
-## 反模式清單（高頻錯誤）
+## 反模式清單（硬約束未覆蓋的高頻易錯點）
+
+> 其餘規則見上方「硬約束」章節，此處僅列硬約束未明確覆蓋的常見錯誤。
 
 | # | 錯誤行為 | 正確做法 |
 |---|---------|---------|
-| 1 | 不讀 docs 直接寫代碼 | 先讀 AI_GUIDELINES.md 和 dev-guide |
-| 2 | 猜測方法名 | Grep 確認方法存在 |
-| 3 | 猜測模型欄位名 | 讀 Model struct 定義 |
-| 4 | 用 `:id` 路由而非 `*action` | 檢查模板是否有狀態切換鏈接 |
-| 5 | 忘記傳遞 `list`/`mod` 標誌 | Render 時必須傳 `gin.H{"list": true}` |
-| 6 | 狀態切換鏈接缺少 `class="switch"` | 必須加此 class |
-| 7 | 嵌套 md5.Sum 導致編譯失敗 | 兩行寫法 |
-| 8 | 直接渲染 time.Time | 加 `gorm:"-"` 字串欄位預格式化 |
-| 9 | 硬編碼通知消息 | 引用 notice.go 常量 |
-| 10 | 用簡體中文寫代碼/模板 | 全部繁體化 |
-| 11 | backurl 未 URL-encode | 用 `url.QueryEscape` |
-| 12 | backurl 開放重定向 | 用 `isSafeRedirectURL` 驗證相對路徑 |
-| 13 | pongo2 `{foreach $value->Field(key,value)}` | 不支援 `->`，在 controller 預計算為字串 |
-| 14 | ExtField 同模型 field 名稱重複 | 用 `CheckFieldUnique` 檢查 |
-| 15 | 用 `c.Query()` 在 IndexCatchAll 後讀參數 | 改用 `c.Request.URL.Query().Get()` |
-| 16 | 前台缺少權限檢查 | 必須呼叫 `checkSortPermission` / `checkContentPermission` |
-| 17 | POST body 中用 `c.Query` 讀 backurl | 用 `c.DefaultPostForm` 讀取 |
-| 18 | Layui `form.on('submit')` 攔截非 `lay-submit` 按鈕 | 改用 jQuery `$(document).on('submit')` |
-| 19 | 用戶輸入未過濾直接存入 DB | 必須經過 `common.FilterUserInput()`（XSS 防護） |
-| 20 | 動態 SQL 表名/欄位名未驗證 | 必須用 `CheckVarType()` / `CheckColumnName()` 白名單驗證 |
-| 21 | 會員登入未重新生成 Session ID | 必須呼叫 `common.RegenerateSessionID(c)` |
-| 22 | AJAX 攔截回應只有 `msg` 缺少 `data` | 必須同時包含 `data` + `msg` |
-| 23 | 刪除操作用 GET 請求 | 刪除操作必須用 POST（防 CSRF） |
-| 24 | 通知文案帶感嘆號 | 通知文案**不加感嘆號** |
-| 25 | 用 goroutine 排程器翻轉 status 實現定時發布 | PbootCMS 無排程器，靠查詢 `date <= now` 過濾；排程器會誤發布手動隱藏的文章 |
-| 26 | 單頁查詢加 `date <= now` 過濾 | PbootCMS 單頁不支持定時發布，只查 `status=1` |
-| 27 | 在根目錄創建文件夾或 HTML 文件 | 文檔一律以 `.md` 格式寫入 `docs/` |
-| 28 | 在 `if_eval.go` 的 switch 中硬編碼配置值（如 `return "0"`） | 必須在 `buildIfContext()` 中從 DB 讀取配置注入 data map |
-| 29 | 新增配置開關單標籤但忘記在 `buildIfContext()` 同步注入 | 單標籤 provider 和 `buildIfContext()` 必須同步，否則 `{gboot:if}` 條件判斷走 fallback 返回錯誤值 |
-| 30 | 後台模板用 `=='1'` 比較 ay_config 數字配置值 | `loadConfigToData` 轉為 int，必須用 `==1`（整數無引號）比較 |
-| 31 | 從 PHP 模板直接複製條件判斷不檢查類型 | PHP 鬆散類型 `'1'==1` 為 true，Go+pongo2 強類型 `int(1)=="1"` 為 false，必須統一比較類型 |
-| 32 | 在後端新增圖片壓縮/格式轉換代碼 | CGO_ENABLED=0 下 Go 無法編碼 WebP；圖片壓縮全由前端 Canvas 處理，後端僅存儲+水印 |
-| 33 | 模板輸出配置值用 `[$configs.xxx.value]` | 方括號僅用於 `{if()}` 條件內；HTML 輸出必須用 `{$configs.xxx.value}`（轉為 `{{ Config.Xxx }}`） |
-| 34 | fileRefs 中 nameCol 與實際 DB 欄位名不匹配（如 ay_slide 寫 `name` 實為 `title`） | 修改 fileRefs 前必須 Grep Model struct 的 `gorm:"column:xxx"` 確認欄位名 |
-| 35 | 多值欄位（如 `pics`）未按逗號拆分就進行路徑匹配 | `addPaths()` / `pathMatchField()` 必須先 `strings.Split(val, ",")` 再逐一比對 |
-| 36 | 新增含文件引用的表只改 fileRefs 或只改 MediaReferencingTables | 兩份列表必須同步修改，遺漏任一處都會導致掃描遺漏或緩存不失效 |
+| 1 | 忘記傳遞 `list`/`mod` 標誌 | Render 時必須傳 `gin.H{"list": true}`，否則頁面空白 |
+| 2 | 嵌套 `md5.Sum` 導致編譯失敗 | 兩行寫法：先 `fmt.Sprintf("%x", md5.Sum(...))` 再嵌套一次 |
+| 3 | 直接渲染 `time.Time` | 加 `gorm:"-"` 字串欄位預格式化，模板用字串欄位 |
+| 4 | `backurl` 未 URL-encode | 用 `url.QueryEscape` 編碼 |
+| 5 | `backurl` 開放重定向 | 用 `isSafeRedirectURL` 驗證相對路徑，禁止跳轉外部域名 |
+| 6 | pongo2 `{foreach $value->Field(key,value)}` | 不支援 `->`，在 controller 預計算為字串後傳入 |
+| 7 | ExtField 同模型 field 名稱重複 | 用 `CheckFieldUnique` 檢查 |
+| 8 | 用 `c.Query()` 在 IndexCatchAll 後讀參數 | 改用 `c.Request.URL.Query().Get()` |
+| 9 | 前台缺少權限檢查 | 必須呼叫 `checkSortPermission` / `checkContentPermission` |
+| 10 | POST body 中用 `c.Query` 讀 backurl | 用 `c.DefaultPostForm` 讀取 |
+| 11 | Layui `form.on('submit')` 攔截非 `lay-submit` 按鈕 | 改用 jQuery `$(document).on('submit')` |
 
 ---
-
 ## 已實現功能
 
 ### 後台管理
 
 - 管理員登入/登出（密碼 bcrypt + 雙 MD5 向後相容 + 驗證碼 + 登入鎖定）
-- 安全防護：XSS 過濾（FilterUserInput）、SQL 注入防護（標識符白名單）、CSRF token、Session TTL、Session Fixation 防護
+- 安全防護：XSS 過濾、SQL 注入防護、CSRF token、Session TTL、Session Fixation 防護
 - 內容管理：文章/產品增刪改查、批量排序、擴展字段、ext_ 前綴自定義字段
 - 欄目管理：樹形結構、自定義 URL、模板選擇
 - 單頁管理、站點信息、公司信息
@@ -435,6 +427,7 @@ if !member.RegisterTime.IsZero() {
 - 系統配置（70+ 配置項）、菜單管理、角色權限
 - 用戶管理、數據庫備份、系統日誌、區域管理
 - 會員管理：會員列表/等級/欄位/評論（含批量操作、Excel 匯出）
+- RESTful API：JWT + API Key 雙認證，站點/欄目/內容/搜索/留言/表單等接口
 
 ### 前台展示
 
@@ -445,10 +438,11 @@ if !member.RegisterTime.IsZero() {
 - 模板熱重載（fsnotify）、.html 偽靜態 URL
 - 會員系統：登入/註冊/登出/個人中心/資料修改/密碼找回
 - 評論系統：提交/列表/我的評論/刪除
+- 多語言區域隔離：sc/tc/en 三語言，GORM AcodePlugin 自動數據隔離，URL 前綴路由
+- SEO 優化：hreflang 標籤、canonical、每語言獨立 sitemap.xml、robots.txt、Open Graph
 - Cloudflare Turnstile 人機驗證整合
 
 ---
-
 ## 開發環境
 
 - Go 1.25+
@@ -460,99 +454,13 @@ if !member.RegisterTime.IsZero() {
 
 ## Git 工作流
 
-### 克隆與首次配置
-
-```powershell
-# 1. 克隆倉庫
-git clone https://github.com/vikim540/Gbootcms.git
-cd Gbootcms
-
-# 2. 設定你的提交者身份（項目級，不影響全域配置）
-git config --local user.name "你的名字"
-git config --local user.email "你的郵箱"
-
-# 3. 安裝依賴
-go mod download
-
-# 4. 編譯運行
-go build -o bin/gbootcms.exe .
-.\bin\gbootcms.exe
-```
-
-### 認證方式
-
-倉庫使用 HTTPS 協議，推送時需要 GitHub 認證：
-
-- **Personal Access Token（推薦）**：在 GitHub Settings → Developer settings → Personal access tokens 建立令牌，推送時用令牌代替密碼
-- **GitHub CLI**：`gh auth login` 按提示完成認證
-- **Credential Manager**：Windows 上 Git 會自動使用 Git Credential Manager 快取憑證
-
-### 日常提交與推送
-
-```powershell
-# 查看變更
-git status
-git diff
-
-# 暫存所有改動（排除 runtime 產物）
-git add -A
-
-# 提交（建議使用 Conventional Commits 格式，其次支持在 commit 信息中携带大量Emoji內容）
-git commit -m "fix: 簡述修復內容"
-git commit -m "feat: 簡述新增功能"
-git commit -m "refactor: 簡述重構內容"
-
-# 推送
-git push origin main
-```
-
-### 代理注意事項
-
-如果你使用 VPN 或代理訪問 GitHub，需要配置 git 代理：
-
-```powershell
-# 設定代理（替換為你的代理地址和端口）
-git config --global http.proxy http://127.0.0.1:你的端口
-git config --global https.proxy http://127.0.0.1:你的端口
-
-# 移除代理（不用代理時必須移除，否則推送會失敗）
-git config --global --unset http.proxy
-git config --global --unset https.proxy
-```
-
-**新人接手注意**：如果克隆後 `git push` 報連接超時或拒絕連接，先檢查是否有遺留的代理配置：
-```powershell
-git config --global --get http.proxy   # 查看當前代理
-```
-
-### 換行符規則
-
-項目使用 `.gitattributes` 統一換行符為 **LF**。Windows 用戶無需手動處理，git 會自動轉換：
-
-- 入庫時：CRLF → LF（自動）
-- 檢出時：保持 LF（`core.autocrlf=input`）
-
-如果克隆後發現所有文件都被標記為「已修改」，執行：
-```powershell
-git add --renormalize .
-git commit -m "chore: normalize line endings"
-```
-
-### 已入庫的特殊文件
-
-| 文件 | 說明 |
-|------|------|
-| `data/pbootcms.db` | 開發用 SQLite 數據庫（預設帳號 admin/123456），方便新人克隆後直接運行 |
-| `config/config.json` | 配置文件（端口、DB 路徑等），入庫方便快速啟動 |
-| `static/backup/` | 備份目錄，**已加入 .gitignore**，不應入庫 |
-
-### 分支策略
-
-- `main`：穩定分支，所有提交直接推送到 `main`
-- 功能開發時可臨時建立 `feature/xxx` 分支，完成後合併回 `main`
+- 倉庫：`https://github.com/vikim540/Gbootcms.git`，主分支 `main`
+- 提交規範：Conventional Commits（`feat:` / `fix:` / `refactor:` / `chore:`）
+- 換行符：統一 LF（`.gitattributes` 自動處理，Windows 無需手動設定）
+- 已入庫特殊文件：`data/pbootcms.db`（開發用資料庫）、`config/config.json`（配置文件）
+- `static/backup/` 已加入 `.gitignore`，不應入庫
 
 ---
-
 ## 文檔索引
 
 | 文檔 | 路徑 | 說明 |

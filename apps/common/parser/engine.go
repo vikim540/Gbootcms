@@ -65,7 +65,7 @@ func (ts *TemplateStore) loadAll() error {
 				return nil
 			}
 			ts.mu.Lock()
-			ts.contents[rel] = string(data)
+			ts.contents[rel] = NormalizePbootPrefix(string(data))
 			ts.mtimes[rel] = info.ModTime()
 			ts.mu.Unlock()
 		}
@@ -120,7 +120,7 @@ func (ts *TemplateStore) watchLoop() {
 					data, err := os.ReadFile(event.Name)
 					if err == nil {
 						ts.mu.Lock()
-						ts.contents[rel] = string(data)
+						ts.contents[rel] = NormalizePbootPrefix(string(data))
 						ts.mtimes[rel] = time.Now()
 						ts.mu.Unlock()
 						// 模板變更時觸發 HTML 快取失效（全域 tag + 檔案快取清除）

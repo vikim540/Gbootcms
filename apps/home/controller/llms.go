@@ -47,7 +47,7 @@ func (fc *FrontController) LLMS(c *gin.Context) {
 	// 主要欄目
 	sb.WriteString("## 主要欄目\n\n")
 	var sorts []model.ContentSort
-	model.DB.WithContext(skipCtx).Where("status = 1 AND pcode = ? OR pcode = ''", "0").
+	model.DB.WithContext(skipCtx).Where("status = 1 AND (pcode = ? OR pcode = '')", "0").
 		Order("sorting ASC, id ASC").Find(&sorts)
 	if len(sorts) == 0 {
 		// 回退：查詢所有啟用的欄目

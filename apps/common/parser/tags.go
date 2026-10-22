@@ -233,7 +233,17 @@ func ParseParams(s string) map[string]string {
 	return m
 }
 
+// NormalizePbootPrefix 將 PbootCMS 模板中的 {pboot:xxx} 標籤轉為 {gboot:xxx}，實現 100% 雙向相容
+func NormalizePbootPrefix(s string) string {
+	if strings.Contains(s, "{pboot:") || strings.Contains(s, "{/pboot:") {
+		s = strings.ReplaceAll(s, "{pboot:", "{gboot:")
+		s = strings.ReplaceAll(s, "{/pboot:", "{/gboot:")
+	}
+	return s
+}
+
 func (p *TagParser) Render(content string) string {
+	content = NormalizePbootPrefix(content)
 	p.preBlocks = nil
 
 	if re := p.re("pre"); re != nil {
@@ -269,6 +279,7 @@ func (p *TagParser) Render(content string) string {
 
 // RenderWithoutInclude 渲染模板但不處理 include 標籤（include 已由上層處理）
 func (p *TagParser) RenderWithoutInclude(content string) string {
+	content = NormalizePbootPrefix(content)
 	p.preBlocks = nil
 
 	if re := p.re("pre"); re != nil {

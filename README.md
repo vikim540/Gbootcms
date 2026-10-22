@@ -36,6 +36,8 @@ go build -o bin/gbootcms.exe .
 | 前台模板 | 自研 TagParser | `{gboot:xxx}` 標籤 + fsnotify 熱重載 |
 | 後台 UI | Layui 2.5.4 + jQuery | 與 PbootCMS 原版一致 |
 | 前台 UI | Bootstrap 4 + Swiper 4 | 前台模板自帶 |
+| 配置 | Viper v1.21 | 環境變數前綴 `PBOOTCMS_GO_` |
+| 日誌 | log/slog (stdlib) | 結構化日誌 |
 
 ## 核心特性
 
@@ -44,7 +46,7 @@ go build -o bin/gbootcms.exe .
 - **數據庫零改動**：表結構、字段名、`ay_` 前綴完全一致，可直接遷移數據
 - **URL 100% 兼容**：路由重寫 + NoRoute 兜底，支援原版 URL 格式
 - **模板語法兼容**：後台保留 PbootCMS PHP 模板語法，前台使用 `{gboot:xxx}` 標籤
-- **密碼雙 MD5**：`md5(md5(password))` 與原版用戶數據兼容
+- **密碼安全**：新密碼使用 bcrypt 雜湊，舊版雙 MD5 自動識別並升級，與原版用戶數據兼容
 
 ### 雙模板引擎架構
 
@@ -57,7 +59,7 @@ go build -o bin/gbootcms.exe .
 
 ### 後台管理
 
-- 管理員登入/登出（密碼雙 MD5 + 驗證碼 + 登入鎖定）
+- 管理員登入/登出（密碼 bcrypt + 雙 MD5 向後相容 + 驗證碼 + 登入鎖定）
 - 內容管理：文章/產品增刪改查、批量排序、擴展字段
 - 欄目管理：樹形結構、自定義 URL、模板選擇
 - 單頁管理、站點信息、公司信息

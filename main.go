@@ -160,6 +160,22 @@ func main() {
 
 	r := gin.Default()
 
+	// 商業級安全響應頭（OWASP Secure Headers）
+	// 作用於所有響應，包括前台頁面、後台、API
+	r.Use(middleware.SecurityHeaders())
+
+	// 健康檢查端點（容器編排、負載均衡、K8s liveness/readiness probe）
+	// 放在中間件鏈之前，避免被站點狀態、IP過濾等中間件攔截
+	r.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"time":   time.Now().Format(time.RFC3339),
+		})
+	})
+
+	// 靜態資源長期緩存（CSS/JS/圖片/字體，1年 immutable）
+	r.Use(middleware.StaticCache())
+
 	// URL 規範化：剝離 .html 後綴 + 語言前綴解析（/sc /tc /en）
 	// gin 路由匹配先於中間件，需用 HandleContext 重新路由
 	r.Use(func(c *gin.Context) {
