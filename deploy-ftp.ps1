@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string]$PackageType = "tar.gz",
     [switch]$SkipRestart
@@ -12,6 +12,10 @@ $distDir = Join-Path $appDir "dist"
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host " Gbootcms Auto Deployer (FTP + 1Panel)" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
+
+# 啟用 TLS 1.2 並在需要時忽略自簽名證書 (相容 Windows PowerShell 5.1 與 PS 7)
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12 -bor [System.Net.SecurityProtocolType]::Tls11 -bor [System.Net.SecurityProtocolType]::Tls
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
 
 # 1. 讀取 .env 配置
 if (-not (Test-Path $envFile)) {
@@ -33,7 +37,7 @@ $ftpUser = $envVars["FTP_USER"]
 $ftpPass = $envVars["FTP_PASS"]
 
 $apiKey = $envVars["ONEPANEL_API_KEY"]
-$panelUrl = $envVars["ONEPANEL_URL"] # e.g. https://sjc.pig.my.id:2096/85463eaa21
+$panelUrl = $envVars["ONEPANEL_URL"]
 
 # 2. 準備待上傳檔案
 $targetFileName = "gbootcms-linux.$PackageType"
@@ -120,7 +124,7 @@ if ($apiKey -and -not $SkipRestart) {
     } | ConvertTo-Json
 
     try {
-        $decRes = Invoke-RestMethod -Uri "https://sjc.pig.my.id:2096/api/v2/files/decompress" -Headers $headers -SkipCertificateCheck -Method Post -Body $decompressBody -ContentType "application/json" -TimeoutSec 15
+        $decRes = Invoke-RestMethod -Uri "https://sjc.pig.my.id:2096/api/v2/files/decompress" -Headers $headers -Method Post -Body $decompressBody -ContentType "application/json" -TimeoutSec 15
         Write-Host "[OK] 伺服器解壓完成！" -ForegroundColor Green
     }
     catch {
@@ -135,7 +139,7 @@ if ($apiKey -and -not $SkipRestart) {
     } | ConvertTo-Json
 
     try {
-        $reRes = Invoke-RestMethod -Uri "https://sjc.pig.my.id:2096/api/v2/runtimes/operate" -Headers $headers -SkipCertificateCheck -Method Post -Body $restartBody -ContentType "application/json" -TimeoutSec 30
+        $reRes = Invoke-RestMethod -Uri "https://sjc.pig.my.id:2096/api/v2/runtimes/operate" -Headers $headers -Method Post -Body $restartBody -ContentType "application/json" -TimeoutSec 30
         Write-Host "[OK] 容器重啟完成！" -ForegroundColor Green
     }
     catch {
@@ -143,9 +147,9 @@ if ($apiKey -and -not $SkipRestart) {
     }
 
     # 健康檢查
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 5
     try {
-        $chk = Invoke-WebRequest -Uri "https://gocms.icun.eu.org" -SkipCertificateCheck -TimeoutSec 10
+        $chk = Invoke-WebRequest -Uri "https://gocms.icun.eu.org" -TimeoutSec 10
         Write-Host "網站運行狀態: HTTP $($chk.StatusCode) OK (https://gocms.icun.eu.org)" -ForegroundColor Green
     } catch {
         Write-Host "網站狀態檢查異常: $($_.Exception.Message)" -ForegroundColor Yellow
