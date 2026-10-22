@@ -74,7 +74,11 @@ if exist "%APP_DIR%config\config.example.json" (
     powershell -Command "(Get-Content '%APP_DIR%config\config.example.json') -replace '\"port\": 8080', '\"port\": %LINUX_PORT%' | Set-Content '%PKG_DIR%\config\config.json.default' -Encoding UTF8"
 )
 
-:: Database: Do NOT package local SQLite databases (avoids overwriting production database on deploy)
+:: Database: Package default complete database template so new installs have full content and no captcha,
+:: without overwriting an existing production database
+if exist "%APP_DIR%data\0f13e78cfb83ebff93064bc3b9b7157d.db" (
+    copy "%APP_DIR%data\0f13e78cfb83ebff93064bc3b9b7157d.db" "%PKG_DIR%\data\data.default.db" >nul
+)
 echo. > "%PKG_DIR%\data\.gitkeep"
 
 :: Templates
@@ -98,13 +102,18 @@ if exist "%PKG_DIR%\static\admin\layui\lay\modules" rmdir /s /q "%PKG_DIR%\stati
 :: Admin views
 xcopy "%APP_DIR%apps\admin\view" "%PKG_DIR%\apps\admin\view" /E /I /Q /Y >nul
 
-:: Start script (Safely auto-initializes config.json if not present)
+:: Start script (Safely auto-initializes config.json and database if not present)
 (
 echo #!/bin/bash
 echo cd "$(dirname "$0")"
+echo if [ ! -f "data/0f13e78cfb83ebff93064bc3b9b7157d.db" ] ^&^& [ -f "data/data.default.db" ]; then
+echo     cp data/data.default.db data/0f13e78cfb83ebff93064bc3b9b7157d.db
+echo     chmod 666 data/0f13e78cfb83ebff93064bc3b9b7157d.db
+echo fi
 echo if [ ! -f "config/config.json" ] ^&^& [ -f "config/config.json.default" ]; then
 echo     cp config/config.json.default config/config.json
 echo fi
+echo chmod +x ./bin/gbootcms
 echo ./bin/gbootcms
 ) > "%PKG_DIR%\start.sh"
 

@@ -36,7 +36,19 @@ func InitDB(cfg *config.Config) error {
 
 	// 確保數據庫目錄存在
 	if dir := filepath.Dir(dsn); dir != "" && dir != "." {
-		os.MkdirAll(dir, 0755)
+		os.MkdirAll(dir, 0777)
+	}
+
+	// 智能初始化：如果業務資料庫不存在或為 0 字節空文件，自動從出廠完整範本（data.default.db）拷貝初始化
+	if fi, err := os.Stat(dsn); os.IsNotExist(err) || (err == nil && fi.Size() == 0) {
+		defaultDB := filepath.Join(filepath.Dir(dsn), "data.default.db")
+		if _, defErr := os.Stat(defaultDB); defErr == nil {
+			slog.Info("未檢測到生產資料庫，自動從出廠完整範本初始化", "src", defaultDB, "dst", dsn)
+			data, readErr := os.ReadFile(defaultDB)
+			if readErr == nil {
+				_ = os.WriteFile(dsn, data, 0666)
+			}
+		}
 	}
 
 	// glebarez/sqlite 驅動的 DSN 不支援 _pragma 參數，改用 Exec 設定

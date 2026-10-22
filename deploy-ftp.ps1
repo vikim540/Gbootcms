@@ -173,6 +173,21 @@ if ($apiKey -and -not $SkipRestart) {
         Write-Host "[警告] API 解壓請求失敗: $($_.Exception.Message)" -ForegroundColor Red
     }
 
+    # 關鍵修復：1Panel API 解壓預設以 root:root 0755 解壓，導致非 root 的 Go 容器無權執行 bin/gbootcms 或無權寫入 data/*.db 觸發崩潰
+    # 透過 1Panel API 自動遞迴設定 0777（十進位 511）權限，確保容器 100% 正常重啟
+    Write-Host "正在為 Go 運行環境與資料庫目錄遞迴賦權 (0777)..." -ForegroundColor Gray
+    try {
+        $permBody = @{
+            "path" = "/opt/1panel/www/sites/gocms.icun.eu.org/index/gbootcms-linux"
+            "mode" = 511
+            "sub" = $true
+        } | ConvertTo-Json
+        $permRes = Invoke-RestMethod -Uri "$panelApiBase/api/v2/files/mode" -Headers $headers -Method Post -Body $permBody -ContentType "application/json" -TimeoutSec 15
+        Write-Host "[OK] 運行環境權限校正完成 (0777)！" -ForegroundColor Green
+    } catch {
+        Write-Host "[提示] 權限設定跳過: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
     # 重啟運行環境 gbootcms_go_1_26 (Runtime ID 2)
     Write-Host "[3/3] 正在透過 1Panel API 重啟 Go 容器..." -ForegroundColor Yellow
     $restartBody = @{

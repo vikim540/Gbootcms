@@ -236,7 +236,7 @@ func seedConfigs() {
 	configs := []system.Config{
 		{Name: "close_site", Value: "0"},
 		{Name: "open_wap", Value: "0"},
-		{Name: "admin_check_code", Value: "1"},
+		{Name: "admin_check_code", Value: "0"},
 		{Name: "message_check_code", Value: "1"},
 		{Name: "form_check_code", Value: "0"},
 		{Name: "message_status", Value: "1"},
