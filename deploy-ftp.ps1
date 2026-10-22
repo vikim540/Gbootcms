@@ -1,6 +1,7 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$PackageType = "tar.gz"
+    [string]$PackageType = "tar.gz",
+    [switch]$SkipRestart
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,11 +10,12 @@ $envFile = Join-Path $appDir ".env"
 $distDir = Join-Path $appDir "dist"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Gbootcms FTP Auto Deployer" -ForegroundColor Cyan
+Write-Host " Gbootcms Auto Deployer (FTP + 1Panel)" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
+# 1. 讀取 .env 配置
 if (-not (Test-Path $envFile)) {
-    Write-Error "Error: .env file not found! Please ensure FTP_HOST / FTP_USER / FTP_PASS exist in .env"
+    Write-Error "Error: .env not found!"
     exit 1
 }
 
@@ -30,25 +32,24 @@ $ftpPort = if ($envVars["FTP_PORT"]) { $envVars["FTP_PORT"] } else { "21" }
 $ftpUser = $envVars["FTP_USER"]
 $ftpPass = $envVars["FTP_PASS"]
 
-if (-not $ftpHost -or -not $ftpUser -or -not $ftpPass) {
-    Write-Error ".env missing FTP_HOST, FTP_USER, or FTP_PASS"
-    exit 1
-}
+$apiKey = $envVars["ONEPANEL_API_KEY"]
+$panelUrl = $envVars["ONEPANEL_URL"] # e.g. https://sjc.pig.my.id:2096/85463eaa21
 
+# 2. 準備待上傳檔案
 $targetFileName = "gbootcms-linux.$PackageType"
 $localFilePath = Join-Path $distDir $targetFileName
 
 if (-not (Test-Path $localFilePath)) {
-    Write-Error "Distribution package not found: $localFilePath"
+    Write-Error "Package not found: $localFilePath"
     exit 1
 }
 
 $fileInfo = Get-Item $localFilePath
 $fileSizeMB = [math]::Round($fileInfo.Length / 1MB, 2)
-Write-Host "Target: $targetFileName ($fileSizeMB MB)" -ForegroundColor Yellow
-Write-Host "Host:   ${ftpHost}:${ftpPort} (User: $ftpUser)" -ForegroundColor Yellow
-Write-Host "Connecting and uploading directly..." -ForegroundColor Green
+Write-Host "[1/3] 上傳部署包: $targetFileName ($fileSizeMB MB)" -ForegroundColor Yellow
+Write-Host "目標主機: ${ftpHost}:${ftpPort} (使用者: $ftpUser)" -ForegroundColor Gray
 
+# 3. FTP 上傳
 $ftpUrl = "ftp://${ftpHost}:${ftpPort}/${targetFileName}"
 $request = [System.Net.FtpWebRequest]::Create([System.Uri]$ftpUrl)
 $request.Proxy = $null
@@ -72,15 +73,15 @@ try {
         $ftpStream.Write($buffer, 0, $bytesRead)
         $totalRead += $bytesRead
         $percent = [math]::Floor(($totalRead / $fileInfo.Length) * 100)
-        if ($percent -ne $lastPercent -and ($percent % 20 -eq 0 -or $percent -eq 100)) {
+        if ($percent -ne $lastPercent -and ($percent % 25 -eq 0 -or $percent -eq 100)) {
             $currentMB = [math]::Round($totalRead / 1MB, 2)
-            Write-Host "Upload Progress: $percent% ($currentMB MB / $fileSizeMB MB)" -ForegroundColor Gray
+            Write-Host "上傳進度: $percent% ($currentMB MB / $fileSizeMB MB)" -ForegroundColor Gray
             $lastPercent = $percent
         }
     }
 }
 catch {
-    Write-Error "FTP Upload Error: $($_.Exception.Message)"
+    Write-Error "FTP 上傳失敗: $($_.Exception.Message)"
     exit 1
 }
 finally {
@@ -90,14 +91,67 @@ finally {
 
 try {
     $response = $request.GetResponse()
-    Write-Host "[SUCCESS] $targetFileName uploaded successfully!" -ForegroundColor Green
-    Write-Host "Server response: $($response.StatusDescription.Trim())" -ForegroundColor Cyan
+    Write-Host "[OK] FTP 上傳成功！" -ForegroundColor Green
     $response.Close()
-}
-catch {
-    Write-Host "Upload stream finished. Server notice: $($_.Exception.Message)"
+} catch {}
+
+# 4. 呼叫 1Panel API 自動解壓並重啟容器
+if ($apiKey -and -not $SkipRestart) {
+    Write-Host "[2/3] 正在透過 1Panel API 自動解壓部署包..." -ForegroundColor Yellow
+    
+    $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
+    $rawStr = "1panel" + $apiKey + $timestamp
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($rawStr)
+    $hash = $md5.ComputeHash($bytes)
+    $token = [System.BitConverter]::ToString($hash).Replace("-", "").ToLower()
+
+    $headers = @{
+        "1Panel-Token" = $token
+        "1Panel-Timestamp" = $timestamp
+        "Host" = "sjc.pig.my.id"
+    }
+
+    # 解壓檔案
+    $decompressBody = @{
+        "path" = "/opt/1panel/www/sites/gocms.icun.eu.org/index/$targetFileName"
+        "dst" = "/opt/1panel/www/sites/gocms.icun.eu.org/index"
+        "type" = $PackageType
+    } | ConvertTo-Json
+
+    try {
+        $decRes = Invoke-RestMethod -Uri "https://sjc.pig.my.id:2096/api/v2/files/decompress" -Headers $headers -SkipCertificateCheck -Method Post -Body $decompressBody -ContentType "application/json" -TimeoutSec 15
+        Write-Host "[OK] 伺服器解壓完成！" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "[警告] API 解壓請求失敗: $($_.Exception.Message)" -ForegroundColor Red
+    }
+
+    # 重啟運行環境 gbootcms_go_1_26 (Runtime ID 2)
+    Write-Host "[3/3] 正在透過 1Panel API 重啟 Go 容器..." -ForegroundColor Yellow
+    $restartBody = @{
+        "id" = 2
+        "operate" = "restart"
+    } | ConvertTo-Json
+
+    try {
+        $reRes = Invoke-RestMethod -Uri "https://sjc.pig.my.id:2096/api/v2/runtimes/operate" -Headers $headers -SkipCertificateCheck -Method Post -Body $restartBody -ContentType "application/json" -TimeoutSec 30
+        Write-Host "[OK] 容器重啟完成！" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "[警告] API 重啟請求失敗: $($_.Exception.Message)" -ForegroundColor Red
+    }
+
+    # 健康檢查
+    Start-Sleep -Seconds 2
+    try {
+        $chk = Invoke-WebRequest -Uri "https://gocms.icun.eu.org" -SkipCertificateCheck -TimeoutSec 10
+        Write-Host "網站運行狀態: HTTP $($chk.StatusCode) OK (https://gocms.icun.eu.org)" -ForegroundColor Green
+    } catch {
+        Write-Host "網站狀態檢查異常: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
 }
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Package successfully deployed to server!" -ForegroundColor Green
+Write-Host " 全自動流水線部署完成！" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
