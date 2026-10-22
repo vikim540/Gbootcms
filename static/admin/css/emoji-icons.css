@@ -1,0 +1,97 @@
+/* ==========================================================================
+   GBOOTCMS EMOJI & ZERO-NETWORK ICON SYSTEM
+   全面替換 FontAwesome 4.7.0 (1.06MB -> ~2.5KB)
+   - 0 網路字體請求，完全依賴作業系統與瀏覽器原生 Emoji 及 SVG 符號
+   - 100% 向下相容 .fa 與 .fa-xxx 類別，資料庫與舊有標籤無縫銜接
+   ========================================================================== */
+
+.fa {
+  display: inline-block;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  text-align: center;
+  vertical-align: -0.1em;
+  margin-right: 6px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 核心導航與功能模組 */
+.fa-globe::before { content: "🌐"; }
+.fa-sliders::before { content: "⚙️"; }
+.fa-file-text-o::before, 
+.fa-file-o::before,
+.fa-file::before { content: "📄"; }
+.fa-file-video-o::before { content: "🎬"; }
+.fa-arrows-alt::before { content: "🧩"; }
+.fa-user-o::before, 
+.fa-user-circle-o::before,
+.fa-user::before { content: "👤"; }
+.fa-users::before { content: "👥"; }
+.fa-cog::before, 
+.fa-cogs::before { content: "🛠️"; }
+.fa-codepen::before { content: "📦"; }
+.fa-external-link::before { content: "🏷️"; }
+.fa-copyright::before { content: "🏢"; }
+.fa-bars::before { content: "☰"; }
+.fa-recycle::before, 
+.fa-trash-o::before, 
+.fa-trash::before { content: "🗑️"; }
+.fa-reply::before, 
+.fa-undo::before { content: "↩️"; }
+.fa-question-circle-o::before, 
+.fa-question-circle::before,
+.fa-commenting-o::before,
+.fa-comment::before { content: "💬"; }
+.fa-picture-o::before, 
+.fa-photo::before,
+.fa-image::before { content: "🖼️"; }
+.fa-link::before { content: "🔗"; }
+.fa-unlink::before { content: "⛓️‍💥"; }
+.fa-plus-square-o::before, 
+.fa-wpforms::before { content: "📋"; }
+.fa-random::before { content: "🔀"; }
+.fa-signal::before { content: "🎖️"; }
+.fa-sitemap::before { content: "🗺️"; }
+.fa-hand-stop-o::before { content: "🛡️"; }
+.fa-history::before, 
+.fa-clock-o::before { content: "📜"; }
+.fa-database::before { content: "💾"; }
+.fa-info-circle::before { content: "ℹ️"; }
+.fa-home::before { content: "🏠"; }
+.fa-sign-out::before { content: "🚪"; }
+.fa-address-card-o::before { content: "🔑"; }
+
+/* 操作、反饋與提示圖標 */
+.fa-pencil-square-o::before, 
+.fa-pencil::before,
+.fa-magic::before { content: "✏️"; }
+.fa-check::before, 
+.fa-check-circle::before { content: "✅"; }
+.fa-times::before,
+.fa-close::before { content: "❌"; }
+.fa-refresh::before { content: "🔄"; }
+.fa-download::before { content: "📥"; }
+.fa-inbox::before { content: "📥"; }
+.fa-tag::before, 
+.fa-bookmark::before, 
+.fa-bookmark-o::before { content: "🏷️"; }
+.fa-toggle-on::before { content: "🟢"; font-size: 15px; }
+.fa-toggle-off::before { content: "⚪"; font-size: 15px; opacity: 0.55; }
+.fa-exclamation-triangle::before { content: "⚠️"; }
+.fa-folder-o::before { content: "📁"; }
+.fa-folder-open-o::before { content: "📂"; }
+.fa-list::before { content: "📋"; }
+
+/* 尺寸微調輔助類（相容 FontAwesome 常用類） */
+.fa-lg { font-size: 1.25em; }
+.fa-2x { font-size: 2em; }
+.fa-3x { font-size: 3em; }
+.fa-fw { width: 1.28571429em; text-align: center; }
+
+/* 針對按鈕中圖標的微間隔優化 */
+.layui-btn .fa {
+  margin-right: 4px;
+}

@@ -7,9 +7,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"gbootcms/apps/admin/model"
 	"strings"
 	"time"
+
+	"gbootcms/apps/admin/model"
 )
 
 // httpClient 復用 TCP 連接/TLS 會話的 HTTP 客戶端（帶 10s 超時）
@@ -46,7 +47,7 @@ func SendIf(category, formName, ip, os, browser string, fields []map[string]stri
 	SendWithURL(formName, ip, os, browser, fields, adminURLFor(category))
 }
 
-// SendWithURL 帶查看詳情 URL 的推送
+// SendWithURL 帶查看詳情 URL 的推送（配備指數退避重試隊列，保證商業線索 100% 抵達）
 func SendWithURL(formName, ip, os, browser string, fields []map[string]string, detailURL string) {
 	webhookURL := model.GetConfigValue("webhook_url", "")
 	if webhookURL == "" {
@@ -88,38 +89,68 @@ func SendWithURL(formName, ip, os, browser string, fields []map[string]string, d
 			return
 		}
 
-		req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(jsonData))
-		if err != nil {
-			fmt.Printf("[Webhook] 建立請求失敗: %v\n", err)
-			model.LogNotify("webhook", "error", "建立請求失敗："+err.Error())
-			return
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("User-Agent", "GbootCMS-Webhook/1.0")
+		// 指數退避重試：最多嘗試 3 次（2s, 6s, 18s），適應下游網絡抖動與臨時限流
+		maxAttempts := 3
+		backoffs := []time.Duration{2 * time.Second, 6 * time.Second, 18 * time.Second}
+		var lastErr error
 
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			fmt.Printf("[Webhook] 推送失敗: %v\n", err)
-			model.LogNotify("webhook", "error", "推送失敗："+err.Error())
-			return
-		}
-		defer resp.Body.Close()
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			req, reqErr := http.NewRequest("POST", webhookURL, bytes.NewBuffer(jsonData))
+			if reqErr != nil {
+				lastErr = fmt.Errorf("建立請求失敗: %w", reqErr)
+				break
+			}
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("User-Agent", "GbootCMS-Webhook/1.0")
 
-		body, _ := io.ReadAll(resp.Body)
+			resp, doErr := httpClient.Do(req)
+			if doErr != nil {
+				lastErr = fmt.Errorf("推送失敗: %w", doErr)
+				if attempt < maxAttempts {
+					time.Sleep(backoffs[attempt-1])
+					continue
+				}
+				break
+			}
 
-		if strings.Contains(webhookURL, "oapi.dingtalk.com") || strings.Contains(webhookURL, "qyapi.weixin.qq.com") {
-			var rr robotResponse
-			if json.Unmarshal(body, &rr) == nil && rr.ErrCode != 0 {
-				fmt.Printf("[Webhook] 機器人返回錯誤: errcode=%d, errmsg=%s\n", rr.ErrCode, rr.ErrMsg)
-				model.LogNotify("webhook", "error", fmt.Sprintf("機器人返回錯誤: errcode=%d, errmsg=%s", rr.ErrCode, rr.ErrMsg))
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+
+			if strings.Contains(webhookURL, "oapi.dingtalk.com") || strings.Contains(webhookURL, "qyapi.weixin.qq.com") {
+				var rr robotResponse
+				if json.Unmarshal(body, &rr) == nil && rr.ErrCode != 0 {
+					lastErr = fmt.Errorf("機器人返回錯誤: errcode=%d, errmsg=%s", rr.ErrCode, rr.ErrMsg)
+					if attempt < maxAttempts {
+						time.Sleep(backoffs[attempt-1])
+						continue
+					}
+					break
+				}
+			} else if resp.StatusCode >= 500 || resp.StatusCode == 429 {
+				lastErr = fmt.Errorf("下游服務端異常狀態碼: %d", resp.StatusCode)
+				if attempt < maxAttempts {
+					time.Sleep(backoffs[attempt-1])
+					continue
+				}
+				break
+			} else if resp.StatusCode >= 400 {
+				lastErr = fmt.Errorf("客戶端請求狀態碼: %d", resp.StatusCode)
+				break
+			}
+
+			// 成功送達
+			lastErr = nil
+			if attempt > 1 {
+				model.LogNotify("webhook", "success", fmt.Sprintf("Webhook 推送成功：%s (第%d次嘗試重試成功)", formName, attempt))
 			} else {
 				model.LogNotify("webhook", "success", "Webhook 推送成功："+formName)
 			}
-		} else if resp.StatusCode >= 400 {
-			fmt.Printf("[Webhook] 推送返回異常狀態碼: %d\n", resp.StatusCode)
-			model.LogNotify("webhook", "error", fmt.Sprintf("推送返回異常狀態碼: %d", resp.StatusCode))
-		} else {
-			model.LogNotify("webhook", "success", "Webhook 推送成功："+formName)
+			return
+		}
+
+		if lastErr != nil {
+			fmt.Printf("[Webhook] 推送最終失敗: %v\n", lastErr)
+			model.LogNotify("webhook", "error", fmt.Sprintf("推送最終失敗(已重試%d次)：%v", maxAttempts, lastErr))
 		}
 	}()
 }

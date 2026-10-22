@@ -92,6 +92,7 @@ type Content struct {
 	Gcode       string    `gorm:"-" json:"gcode"` // 非DB：JOIN ay_member_group 取得的等級編號
 	PicsTitle   string    `gorm:"column:picstitle;default:''" json:"picstitle"`
 	URLName     string    `gorm:"column:urlname" json:"urlname"`
+	RelID       int       `gorm:"column:rel_id;default:0;index:ay_content_rel_id_index" json:"rel_id"` // 跨語言內容關聯ID（hreflang SEO）
 }
 
 // TableName 指定表名（對齊 PbootCMS ay_content）

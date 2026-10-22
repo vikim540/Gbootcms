@@ -267,7 +267,25 @@ func SendNotifyMail(formName string, fields []map[string]string) error {
 </div>
 </body></html>`, now))
 
-	return SendMail(sendTo, "新通知："+formName, sb.String())
+	subject := "新通知：" + formName
+	body := sb.String()
+
+	// 指數退避重試（最多嘗試 3 次，防止 SMTP 短暫握手超時或頻率超限）
+	maxAttempts := 3
+	backoffs := []time.Duration{2 * time.Second, 6 * time.Second, 15 * time.Second}
+	var lastErr error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err := SendMail(sendTo, subject, body)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if attempt < maxAttempts {
+			time.Sleep(backoffs[attempt-1])
+		}
+	}
+	return lastErr
 }
 
 // SendTestMail 發送測試郵件（美觀 HTML 模板）

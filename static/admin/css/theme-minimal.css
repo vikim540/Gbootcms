@@ -1,0 +1,386 @@
+/* ==========================================================================
+   GBOOTCMS MINIMALIST MODERN ADMIN THEME
+   基於 Slate / Zinc 冷灰色調的極簡質感視覺體系
+   ========================================================================== */
+
+:root {
+  --admin-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --bg-app: #f8fafc;
+  --bg-card: #ffffff;
+  --header-bg: #0f172a;
+  --sidebar-bg: #1e293b;
+  --sidebar-hover: #334155;
+  --sidebar-active: #2563eb;
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --primary-color: #2563eb;
+  --primary-hover: #1d4ed8;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+body {
+  font-family: var(--admin-font) !important;
+  background-color: var(--bg-app) !important;
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* === 頂部 Header === */
+.layui-layout-admin .layui-header {
+  background-color: var(--header-bg) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.layui-layout-admin .layui-logo {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: #f8fafc !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.layui-layout-admin .layui-logo .layui-badge {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: #94a3b8 !important;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 頂欄導航項微調（僅作用於一級觸發按鈕） */
+.layui-layout-admin .layui-header .layui-nav > .layui-nav-item > a {
+  color: #cbd5e1 !important;
+  transition: color 0.15s ease;
+  font-size: 13px;
+}
+
+.layui-layout-admin .layui-header .layui-nav > .layui-nav-item > a:hover {
+  color: #ffffff !important;
+}
+
+/* 頂欄白色下拉選單（白底 + 高對比深黑字色 + 現代微陰影） */
+.layui-layout-admin .layui-header .layui-nav .layui-nav-child {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.08) !important;
+  padding: 6px !important;
+  top: 52px !important;
+  min-width: 140px;
+}
+
+.layui-layout-admin .layui-header .layui-nav .layui-nav-child dd a {
+  color: #0f172a !important; /* 濃黑高對比文字，徹底杜絕淺灰看不清 */
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  border-radius: 6px !important;
+  padding: 8px 14px !important;
+  line-height: 20px !important;
+  height: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  transition: all 0.15s ease !important;
+}
+
+.layui-layout-admin .layui-header .layui-nav .layui-nav-child dd a:hover {
+  background-color: #f1f5f9 !important;
+  color: #2563eb !important;
+}
+
+/* 摺疊按鈕 */
+.menu li {
+  background: transparent !important;
+}
+.menu .menu-ico {
+  color: #94a3b8;
+  border-radius: var(--radius-md);
+  padding: 4px 8px;
+  transition: all 0.15s ease;
+}
+.menu .menu-ico:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+/* 區域切換下拉 */
+.area-select select {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #f8fafc;
+  border-radius: var(--radius-md);
+  padding: 4px 8px;
+}
+.area-select select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+/* === 左側 Sidebar === */
+.layui-layout-admin .layui-side {
+  background-color: var(--sidebar-bg) !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.layui-nav-tree {
+  background-color: transparent !important;
+}
+
+.layui-nav-tree .layui-nav-item > a {
+  color: #94a3b8 !important;
+  font-size: 13.5px;
+  padding: 0 16px;
+  height: 42px;
+  line-height: 42px;
+  transition: all 0.15s ease;
+  border-radius: var(--radius-md);
+  margin: 2px 8px;
+}
+
+.layui-nav-tree .layui-nav-item > a:hover {
+  background-color: var(--sidebar-hover) !important;
+  color: #ffffff !important;
+}
+
+/* 菜單展開與選中態 */
+.layui-nav-tree .layui-nav-itemed > a {
+  color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.layui-nav-tree .layui-nav-child {
+  background-color: rgba(15, 23, 42, 0.35) !important;
+  padding: 4px 0;
+  margin: 0 8px 6px;
+  border-radius: var(--radius-md);
+}
+
+.layui-nav-tree .layui-nav-child dd a {
+  color: #94a3b8 !important;
+  padding-left: 28px !important;
+  height: 36px;
+  line-height: 36px;
+  font-size: 13px;
+  border-radius: var(--radius-sm);
+  margin: 1px 4px;
+}
+
+.layui-nav-tree .layui-nav-child dd a:hover,
+.layui-nav-tree .layui-nav-child dd.layui-this a {
+  background-color: var(--sidebar-active) !important;
+  color: #ffffff !important;
+}
+
+/* 隱藏原生箭頭裝飾條，改用更簡潔的視覺 */
+.layui-nav-bar {
+  display: none !important;
+}
+
+/* === 主體區域卡片化 === */
+.layui-body {
+  background-color: var(--bg-app);
+}
+
+.layui-tab-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.layui-tab-card > .layui-tab-title {
+  background-color: #f8fafc !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.layui-tab-card > .layui-tab-title .layui-this {
+  background-color: #ffffff !important;
+  color: var(--primary-color) !important;
+  font-weight: 600;
+  border-bottom-color: transparent !important;
+}
+
+/* === 表格極簡美化 === */
+.layui-table {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.layui-table thead tr {
+  background-color: #f1f5f9 !important;
+}
+
+.layui-table th {
+  color: #475569;
+  font-weight: 600;
+  font-size: 13px;
+  border-color: var(--border-subtle) !important;
+  padding: 10px 14px;
+}
+
+.layui-table td {
+  border-color: var(--border-subtle) !important;
+  padding: 10px 14px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.layui-table tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+
+/* === 表單輸入控件 === */
+.layui-input, .layui-textarea, .layui-select {
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-md) !important;
+  color: #1e293b;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  padding-left: 10px;
+}
+
+.layui-input:focus, .layui-textarea:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  outline: none;
+}
+
+.layui-form-label {
+  color: #475569;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+/* === 表單下拉選單 (Layui Form Select) 白底黑字高對比 === */
+.layui-form-select dl {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05) !important;
+  padding: 4px !important;
+  z-index: 9999;
+}
+
+.layui-form-select dl dd {
+  color: #0f172a !important; /* 高對比濃黑字色 */
+  font-size: 13px !important;
+  border-radius: 4px !important;
+  padding: 0 12px !important;
+  line-height: 36px !important;
+  transition: all 0.12s ease !important;
+}
+
+.layui-form-select dl dd:hover {
+  background-color: #f1f5f9 !important;
+  color: #2563eb !important;
+}
+
+.layui-form-select dl dd.layui-this {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.layui-form-select dl dd.layui-select-tips {
+  color: #64748b !important;
+}
+
+/* === 按鈕極簡美化 === */
+.layui-btn {
+  background-color: var(--primary-color);
+  border-radius: var(--radius-md) !important;
+  font-weight: 500;
+  font-size: 13px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.layui-btn:hover {
+  background-color: var(--primary-hover);
+  opacity: 0.95;
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+}
+
+.layui-btn-primary {
+  background-color: #ffffff !important;
+  border: 1px solid var(--border-strong) !important;
+  color: #334155 !important;
+}
+.layui-btn-primary:hover {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.layui-btn-danger {
+  background-color: #ef4444 !important;
+}
+.layui-btn-danger:hover {
+  background-color: #dc2626 !important;
+}
+
+.layui-btn-warm {
+  background-color: #f59e0b !important;
+}
+.layui-btn-warm:hover {
+  background-color: #d97706 !important;
+}
+
+/* === 分頁條美化 === */
+.page-status, .page-index, .page-pre, .page-num, .page-next, .page-last {
+  border-radius: var(--radius-md) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: #475569 !important;
+  margin: 0 2px !important;
+  transition: all 0.15s ease;
+}
+
+.page-status:hover, .page-index:hover, .page-pre:hover, .page-num:hover, .page-next:hover, .page-last:hover {
+  background-color: #f1f5f9 !important;
+  color: var(--primary-color) !important;
+}
+
+.page-num-current {
+  background-color: var(--primary-color) !important;
+  color: #ffffff !important;
+  border-color: var(--primary-color) !important;
+}
+
+/* === 彈窗 Layer 質感優化 === */
+.layui-layer {
+  border-radius: var(--radius-xl) !important;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.08) !important;
+}
+
+.layui-layer-title {
+  background-color: #f8fafc !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  font-weight: 600;
+  color: #1e293b !important;
+}
+
+.layui-layer-btn .layui-layer-btn0 {
+  background-color: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+/* Layer 關閉按鈕乾淨原生化 */
+.layui-layer-setwin .layui-layer-close1 {
+  background: none !important;
+  font-size: 16px;
+  color: #94a3b8 !important;
+  text-decoration: none;
+}
+.layui-layer-setwin .layui-layer-close1:hover {
+  color: #0f172a !important;
+}

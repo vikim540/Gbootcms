@@ -232,6 +232,9 @@ func main() {
 	// IP 黑白名單過濾（對齊 PHP HomeController.__construct，前台生效）
 	r.Use(middleware.IPFilter())
 
+	// 商業獲客營銷歸因：全天候捕捉 Google Ads / Meta / 搜索引擎等投放 UTM 標籤與 GCLID
+	r.Use(middleware.Tracking())
+
 	// 手機版切換（對齊 PHP HomeController.__construct 的 open_wap 邏輯）
 	r.Use(middleware.MobileSwitch())
 

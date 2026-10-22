@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$PackageType = "tar.gz",
-    [switch]$SkipRestart
+    [switch]$SkipRestart,
+    [switch]$ForceFtp
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,7 +11,7 @@ $envFile = Join-Path $appDir ".env"
 $distDir = Join-Path $appDir "dist"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Gbootcms Auto Deployer (FTP + 1Panel)" -ForegroundColor Cyan
+Write-Host " Gbootcms Auto Deployer (1Panel API / FTP)" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
 # 啟用 TLS 1.2 並在需要時忽略自簽名證書 (相容 Windows PowerShell 5.1 與 PS 7)
@@ -51,53 +52,90 @@ if (-not (Test-Path $localFilePath)) {
 $fileInfo = Get-Item $localFilePath
 $fileSizeMB = [math]::Round($fileInfo.Length / 1MB, 2)
 Write-Host "[1/3] 上傳部署包: $targetFileName ($fileSizeMB MB)" -ForegroundColor Yellow
-Write-Host "目標主機: ${ftpHost}:${ftpPort} (使用者: $ftpUser)" -ForegroundColor Gray
 
-# 3. FTP 上傳
-$ftpUrl = "ftp://${ftpHost}:${ftpPort}/${targetFileName}"
-$request = [System.Net.FtpWebRequest]::Create([System.Uri]$ftpUrl)
-$request.Proxy = $null
-$request.Credentials = New-Object System.Net.NetworkCredential($ftpUser, $ftpPass)
-$request.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
-$request.UseBinary = $true
-$request.UsePassive = $true
-$request.KeepAlive = $false
-$request.Timeout = 600000
+$uploaded = $false
 
-$fileStream = [System.IO.File]::OpenRead($localFilePath)
-$ftpStream = $null
+# 3. 優先使用 1Panel REST API 高速上傳（直連主機，安全避開 FTP 553/被動端口限制）
+if ($apiKey -and -not $ForceFtp) {
+    try {
+        Write-Host "使用 1Panel REST API 快速通道傳輸中..." -ForegroundColor Gray
+        $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
+        $rawStr = "1panel" + $apiKey + $timestamp
+        $md5 = [System.Security.Cryptography.MD5]::Create()
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($rawStr)
+        $hash = $md5.ComputeHash($bytes)
+        $token = [System.BitConverter]::ToString($hash).Replace("-", "").ToLower()
 
-try {
-    $ftpStream = $request.GetRequestStream()
-    $buffer = New-Object byte[] 65536
-    $totalRead = 0
-    $lastPercent = -1
+        $panelUri = [System.Uri]$panelUrl
+        $panelApiBase = "$($panelUri.Scheme)://$($panelUri.Authority)"
+        $panelHost = if ($panelUri.Host) { $panelUri.Host } else { "sjc.pig.my.id" }
 
-    while (($bytesRead = $fileStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-        $ftpStream.Write($buffer, 0, $bytesRead)
-        $totalRead += $bytesRead
-        $percent = [math]::Floor(($totalRead / $fileInfo.Length) * 100)
-        if ($percent -ne $lastPercent -and ($percent % 25 -eq 0 -or $percent -eq 100)) {
-            $currentMB = [math]::Round($totalRead / 1MB, 2)
-            Write-Host "上傳進度: $percent% ($currentMB MB / $fileSizeMB MB)" -ForegroundColor Gray
-            $lastPercent = $percent
+        $headers = @{
+            "1Panel-Token" = $token
+            "1Panel-Timestamp" = $timestamp
+            "Host" = $panelHost
         }
+
+        $form = @{
+            path = "/opt/1panel/www/sites/gocms.icun.eu.org/index"
+            file = Get-Item $localFilePath
+        }
+
+        $uploadRes = Invoke-RestMethod -Uri "$panelApiBase/api/v2/files/upload" -Headers $headers -Method Post -Form $form -TimeoutSec 120
+        if ($uploadRes.code -eq 200) {
+            Write-Host "[OK] 1Panel API 直傳成功！" -ForegroundColor Green
+            $uploaded = $true
+        }
+    } catch {
+        Write-Host "[提示] 1Panel API 直傳異常: $($_.Exception.Message)，切換為 FTP 回退模式..." -ForegroundColor Yellow
     }
 }
-catch {
-    Write-Error "FTP 上傳失敗: $($_.Exception.Message)"
-    exit 1
-}
-finally {
-    if ($null -ne $ftpStream) { $ftpStream.Close() }
-    if ($null -ne $fileStream) { $fileStream.Close() }
-}
 
-try {
-    $response = $request.GetResponse()
-    Write-Host "[OK] FTP 上傳成功！" -ForegroundColor Green
-    $response.Close()
-} catch {}
+# 3.2 回退到傳統 FTP 上傳
+if (-not $uploaded) {
+    Write-Host "目標主機: ${ftpHost}:${ftpPort} (使用者: $ftpUser)" -ForegroundColor Gray
+    $ftpUrl = "ftp://${ftpHost}:${ftpPort}/${targetFileName}"
+    $request = [System.Net.FtpWebRequest]::Create([System.Uri]$ftpUrl)
+    $request.Proxy = $null
+    $request.Credentials = New-Object System.Net.NetworkCredential($ftpUser, $ftpPass)
+    $request.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
+    $request.UseBinary = $true
+    $request.UsePassive = $true
+    $request.KeepAlive = $false
+    $request.Timeout = 600000
+
+    $fileStream = [System.IO.File]::OpenRead($localFilePath)
+    $ftpStream = $null
+
+    try {
+        $ftpStream = $request.GetRequestStream()
+        $buffer = New-Object byte[] 65536
+        $totalRead = 0
+        $lastPercent = -1
+
+        while (($bytesRead = $fileStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            $ftpStream.Write($buffer, 0, $bytesRead)
+            $totalRead += $bytesRead
+            $percent = [math]::Floor(($totalRead / $fileInfo.Length) * 100)
+            if ($percent -ne $lastPercent -and ($percent % 25 -eq 0 -or $percent -eq 100)) {
+                $currentMB = [math]::Round($totalRead / 1MB, 2)
+                Write-Host "上傳進度: $percent% ($currentMB MB / $fileSizeMB MB)" -ForegroundColor Gray
+                $lastPercent = $percent
+            }
+        }
+        $response = $request.GetResponse()
+        Write-Host "[OK] FTP 上傳成功！" -ForegroundColor Green
+        $response.Close()
+    }
+    catch {
+        Write-Error "FTP 上傳失敗: $($_.Exception.Message)"
+        exit 1
+    }
+    finally {
+        if ($null -ne $ftpStream) { $ftpStream.Close() }
+        if ($null -ne $fileStream) { $fileStream.Close() }
+    }
+}
 
 # 4. 呼叫 1Panel API 自動解壓並重啟容器
 if ($apiKey -and -not $SkipRestart) {
@@ -110,10 +148,14 @@ if ($apiKey -and -not $SkipRestart) {
     $hash = $md5.ComputeHash($bytes)
     $token = [System.BitConverter]::ToString($hash).Replace("-", "").ToLower()
 
+    $panelUri = [System.Uri]$panelUrl
+    $panelApiBase = "$($panelUri.Scheme)://$($panelUri.Authority)"
+    $panelHost = if ($panelUri.Host) { $panelUri.Host } else { "sjc.pig.my.id" }
+
     $headers = @{
         "1Panel-Token" = $token
         "1Panel-Timestamp" = $timestamp
-        "Host" = "sjc.pig.my.id"
+        "Host" = $panelHost
     }
 
     # 解壓檔案
@@ -124,7 +166,7 @@ if ($apiKey -and -not $SkipRestart) {
     } | ConvertTo-Json
 
     try {
-        $decRes = Invoke-RestMethod -Uri "https://sjc.pig.my.id:2096/api/v2/files/decompress" -Headers $headers -Method Post -Body $decompressBody -ContentType "application/json" -TimeoutSec 15
+        $decRes = Invoke-RestMethod -Uri "$panelApiBase/api/v2/files/decompress" -Headers $headers -Method Post -Body $decompressBody -ContentType "application/json" -TimeoutSec 30
         Write-Host "[OK] 伺服器解壓完成！" -ForegroundColor Green
     }
     catch {
@@ -139,7 +181,7 @@ if ($apiKey -and -not $SkipRestart) {
     } | ConvertTo-Json
 
     try {
-        $reRes = Invoke-RestMethod -Uri "https://sjc.pig.my.id:2096/api/v2/runtimes/operate" -Headers $headers -Method Post -Body $restartBody -ContentType "application/json" -TimeoutSec 30
+        $reRes = Invoke-RestMethod -Uri "$panelApiBase/api/v2/runtimes/operate" -Headers $headers -Method Post -Body $restartBody -ContentType "application/json" -TimeoutSec 30
         Write-Host "[OK] 容器重啟完成！" -ForegroundColor Green
     }
     catch {
@@ -147,10 +189,10 @@ if ($apiKey -and -not $SkipRestart) {
     }
 
     # 健康檢查
-    Start-Sleep -Seconds 5
+    Start-Sleep -Seconds 4
     try {
-        $chk = Invoke-WebRequest -Uri "https://gocms.icun.eu.org" -TimeoutSec 10
-        Write-Host "網站運行狀態: HTTP $($chk.StatusCode) OK (https://gocms.icun.eu.org)" -ForegroundColor Green
+        $chk = Invoke-WebRequest -Uri "https://gocms.icun.eu.org/admin/" -TimeoutSec 10
+        Write-Host "網站運行狀態: HTTP $($chk.StatusCode) OK (https://gocms.icun.eu.org/admin/)" -ForegroundColor Green
     } catch {
         Write-Host "網站狀態檢查異常: $($_.Exception.Message)" -ForegroundColor Yellow
     }

@@ -7,8 +7,10 @@
   <title>{CMSNAME}管理中心-V{APP_VERSION}-{RELEASE_TIME}</title>
   <link rel="shortcut icon" href="{SITE_DIR}favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="{APP_THEME_DIR}/layui/css/layui.css?v=v2.5.4">
-  <link rel="stylesheet" href="{APP_THEME_DIR}/font-awesome/css/font-awesome.min.css?v=v4.7.0" type="text/css">
+  <link rel="stylesheet" href="{APP_THEME_DIR}/css/emoji-icons.css?v=v1.0.0">
   <link rel="stylesheet" href="{APP_THEME_DIR}/css/comm.css?v=v3.0.6">
+  <link rel="stylesheet" href="{APP_THEME_DIR}/css/theme-minimal.css?v=v1.0.0">
+  <link rel="stylesheet" href="{APP_THEME_DIR}/css/uno.css?v=v1.0.0">
   <script type="text/javascript" src="{APP_THEME_DIR}/js/jquery-1.12.4.min.js"></script>
 </head>
 
@@ -28,17 +30,12 @@
     <div class="layui-logo">
     <a href="{url./admin/Index/home}">
     <img src="{APP_THEME_DIR}/images/logo.png" height="30">
-	    {CMSNAME} 
-	   	{if(LICENSE==3)}
-	   		<span class="layui-badge">SVIP</span>
-	   	{else}
-	   		<span class="layui-badge layui-bg-gray">V{APP_VERSION}</span>	
-	   	{/if}
+	    {CMSNAME} <span class="layui-badge">V{APP_VERSION}</span>
     </a>
     </div>
     
     <ul class="menu">
-    	<li class="menu-ico" title="顯示或隱藏側邊欄"><i class="fa fa-bars" aria-hidden="true"></i></li>
+    	<li class="menu-ico" title="顯示或隱藏側邊欄">☰</li>
 	</ul>
 	{if(![$one_area])}
 	<form method="post" action="{url./admin/Index/area}" class="area-select">
@@ -59,22 +56,22 @@
     <ul class="layui-nav layui-layout-right">
     
        <li class="layui-nav-item layui-hide-xs">
-      	 <a href="{$homeURL}" target="_blank"><i class="fa fa-home" aria-hidden="true"></i> 網站主頁</a>
+      	 <a href="{$homeURL}" target="_blank">🏠 網站主頁</a>
        </li>
 
        <li class="layui-nav-item layui-hide-xs">
-       		<a href="{url./admin/deleCache/index}"><i class="fa fa-trash-o" aria-hidden="true"></i> 清理緩存</a>
+       		<a href="{url./admin/deleCache/index}">🧹 清理緩存</a>
        </li>
 
        <li class="layui-nav-item layui-hide-xs">
 	        <a href="javascript:;">
-	          <i class="fa fa-user-circle-o" aria-hidden="true"></i> {$session.realname}
+	          👤 {$session.realname}
 	        </a>
 	        <dl class="layui-nav-child">
-	          <dd><a href="{url./admin/Index/ucenter}"><i class="fa fa-address-card-o" aria-hidden="true"></i> 密碼修改</a></dd>
-	          <dd><a href="{url./admin/Index/loginOut}"><i class="fa fa-sign-out" aria-hidden="true"></i> 退出登錄</a></dd>
+	          <dd><a href="{url./admin/Index/ucenter}">🔑 密碼修改</a></dd>
+	          <dd><a href="{url./admin/Index/loginOut}">🚪 退出登錄</a></dd>
 	          {if(session('ucode')==10001)}
-	          	<dd><a href="{url./admin/Index/clearSession}" class="ajaxlink"><i class="fa fa-trash-o" aria-hidden="true"></i> 清理會話</a></dd>
+	          	<dd><a href="{url./admin/Index/clearSession}" class="ajaxlink">🧹 清理會話</a></dd>
 	          {/if}
 	        </dl>
       </li>
@@ -119,19 +116,19 @@
 		<li style="height:1px;background:#666" class="layui-hide-sm"></li>
 		
 		<li class="layui-nav-item layui-hide-sm">
-		 <a href="{$homeURL}" target="_blank"><i class="fa fa-home" aria-hidden="true"></i> 網站主頁</a>
+		 <a href="{$homeURL}" target="_blank">🏠 網站主頁</a>
 		</li>
 		
 		<li class="layui-nav-item layui-hide-sm">
-          <a href="{url./admin/Index/ucenter}"><i class="fa fa-address-card-o" aria-hidden="true"></i> 資料修改</a>
+          <a href="{url./admin/Index/ucenter}">🔑 資料修改</a>
         </li>
 
         <li class="layui-nav-item layui-hide-sm">
-         <a href="{url./admin/deleCache/index}"><i class="fa fa-trash-o" aria-hidden="true"></i> 清理緩存</a>
+         <a href="{url./admin/deleCache/index}">🧹 清理緩存</a>
         </li>
 
         <li class="layui-nav-item layui-hide-sm">
-         <a href="{url./admin/Index/loginOut}"><i class="fa fa-sign-out" aria-hidden="true"></i> 退出登錄</a>
+         <a href="{url./admin/Index/loginOut}">🚪 退出登錄</a>
         </li>
 
       </ul>

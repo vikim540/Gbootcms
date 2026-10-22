@@ -48,6 +48,19 @@
 								操作系統:[value->user_os]
 							</td>
 					    </tr>
+					    {if($value->utm_source || $value->gclid || $value->referrer || $value->landing_page)}
+					    <tr>
+					      	<th>營銷歸因</th>
+					      	<td>
+					      		{if($value->utm_source)}<span class="layui-badge layui-bg-blue" style="margin-right:5px;font-size:12px;padding:2px 8px;border-radius:4px;">來源: [value->utm_source]</span>{/if}
+					      		{if($value->utm_medium)}<span class="layui-badge layui-bg-cyan" style="margin-right:5px;font-size:12px;padding:2px 8px;border-radius:4px;">媒介: [value->utm_medium]</span>{/if}
+					      		{if($value->utm_campaign)}<span class="layui-badge layui-bg-green" style="margin-right:5px;font-size:12px;padding:2px 8px;border-radius:4px;">活動: [value->utm_campaign]</span>{/if}
+					      		{if($value->gclid)}<span class="layui-badge layui-bg-orange" style="margin-right:5px;font-size:12px;padding:2px 8px;border-radius:4px;">GCLID: [value->gclid]</span>{/if}
+					      		{if($value->landing_page)}<div style="font-size:12px;color:#64748b;margin-top:4px;">著陸頁面：[value->landing_page]</div>{/if}
+					      		{if($value->referrer)}<div style="font-size:12px;color:#64748b;margin-top:2px;">來源網址：[value->referrer]</div>{/if}
+					      	</td>
+					    </tr>
+					    {/if}
 					    {if($value->username)}
 					    <tr>
 					      	<th>會員帳號</th>

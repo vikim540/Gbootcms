@@ -35,6 +35,12 @@ type msgRow struct {
 	UserBs        string        // 別名: [value->user_bs] → val1.UserBs（匹配 SnakeToPascal 輸出）
 	UserOs        string        // 別名: [value->user_os] → val1.UserOs（匹配 SnakeToPascal 輸出）
 	Recontent     string        // 別名: [value->recontent] → val1.Recontent（匹配 SnakeToPascal 輸出）
+	UtmSource     string        // 別名: [value->utm_source]
+	UtmMedium     string        // 別名: [value->utm_medium]
+	UtmCampaign   string        // 別名: [value->utm_campaign]
+	Gclid         string        // 別名: [value->gclid]
+	LandingPage   string        // 別名: [value->landing_page]
+	Referrer      string        // 別名: [value->referrer]
 	Username      string        // 會員帳號（LEFT JOIN ay_member）
 	Nickname      string        // 會員暱稱（LEFT JOIN ay_member）
 	Fields        []fieldDisplay // 動態字段列表
@@ -85,6 +91,18 @@ func getMsgFieldValue(m model.Message, columnName string) string {
 		return m.OS
 	case "recontent", "replycontent":
 		return m.ReContent
+	case "utm_source":
+		return m.UtmSource
+	case "utm_medium":
+		return m.UtmMedium
+	case "utm_campaign":
+		return m.UtmCampaign
+	case "gclid":
+		return m.Gclid
+	case "landing_page":
+		return m.LandingPage
+	case "referrer":
+		return m.Referrer
 	case "status":
 		return strconv.Itoa(m.Status)
 	case "create_time", "askdate":
@@ -170,11 +188,17 @@ func (ms *MessageController) Index(c *gin.Context) {
 	rows := make([]msgRow, 0, len(messages))
 	for _, m := range messages {
 		row := msgRow{
-			Message:   m,
-			UserIPStr: long2ip(m.IP),
-			UserBs:    m.Browser,
-			UserOs:    m.OS,
-			Recontent: m.ReContent,
+			Message:     m,
+			UserIPStr:   long2ip(m.IP),
+			UserBs:      m.Browser,
+			UserOs:      m.OS,
+			Recontent:   m.ReContent,
+			UtmSource:   m.UtmSource,
+			UtmMedium:   m.UtmMedium,
+			UtmCampaign: m.UtmCampaign,
+			Gclid:       m.Gclid,
+			LandingPage: m.LandingPage,
+			Referrer:    m.Referrer,
 		}
 		if !m.CreateTime.IsZero() {
 			row.CreateTimeStr = m.CreateTime.Format("2006-01-02 15:04:05")
@@ -344,6 +368,12 @@ func (ms *MessageController) exportMessages(c *gin.Context) {
 	sb.WriteString("<th>IP</th>")
 	sb.WriteString("<th>瀏覽器</th>")
 	sb.WriteString("<th>操作系統</th>")
+	sb.WriteString("<th>廣告來源(UTM)</th>")
+	sb.WriteString("<th>廣告媒介</th>")
+	sb.WriteString("<th>廣告活動</th>")
+	sb.WriteString("<th>GCLID</th>")
+	sb.WriteString("<th>著陸頁面</th>")
+	sb.WriteString("<th>來源網址</th>")
 	sb.WriteString("<th>回覆內容</th>")
 	sb.WriteString("</tr>")
 
@@ -361,6 +391,12 @@ func (ms *MessageController) exportMessages(c *gin.Context) {
 		sb.WriteString(fmt.Sprintf("<td>%s</td>", long2ip(m.IP)))
 		sb.WriteString(fmt.Sprintf("<td>%s</td>", m.Browser))
 		sb.WriteString(fmt.Sprintf("<td>%s</td>", m.OS))
+		sb.WriteString(fmt.Sprintf("<td>%s</td>", m.UtmSource))
+		sb.WriteString(fmt.Sprintf("<td>%s</td>", m.UtmMedium))
+		sb.WriteString(fmt.Sprintf("<td>%s</td>", m.UtmCampaign))
+		sb.WriteString(fmt.Sprintf("<td>%s</td>", m.Gclid))
+		sb.WriteString(fmt.Sprintf("<td>%s</td>", m.LandingPage))
+		sb.WriteString(fmt.Sprintf("<td>%s</td>", m.Referrer))
 		sb.WriteString(fmt.Sprintf("<td>%s</td>", m.ReContent))
 		sb.WriteString("</tr>")
 	}

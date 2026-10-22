@@ -558,19 +558,28 @@ func (fc *FrontController) Message(c *gin.Context) {
 	chPlatformVer := c.GetHeader("Sec-CH-UA-Platform-Version")
 	osName, bsName := common.ParseUserAgent(ua, chPlatformVer)
 
+	attr := common.GetLeadAttribution(c)
 	msg := model.Message{
-		Acode:      acodeplugin.GetAcode(c.Request.Context()),
-		Contacts:   common.FilterSensitiveWords(filterGbootIf(c.PostForm("contacts"))),
-		Mobile:     filterGbootIf(c.PostForm("mobile")),
-		Content:    common.FilterSensitiveWords(filterGbootIf(c.PostForm("content"))),
-		IP:         clientIP,
-		OS:         osName,
-		Browser:    bsName,
-			CreateTime: time.Now(),
-			Status:     0,
-			CreateUser: "guest",
-			UpdateUser: "guest",
-		}
+		Acode:       acodeplugin.GetAcode(c.Request.Context()),
+		Contacts:    common.FilterSensitiveWords(filterGbootIf(c.PostForm("contacts"))),
+		Mobile:      filterGbootIf(c.PostForm("mobile")),
+		Content:     common.FilterSensitiveWords(filterGbootIf(c.PostForm("content"))),
+		IP:          clientIP,
+		OS:          osName,
+		Browser:     bsName,
+		UtmSource:   attr.UtmSource,
+		UtmMedium:   attr.UtmMedium,
+		UtmCampaign: attr.UtmCampaign,
+		UtmTerm:     attr.UtmTerm,
+		UtmContent:  attr.UtmContent,
+		Gclid:       attr.Gclid,
+		LandingPage: attr.LandingPage,
+		Referrer:    attr.Referrer,
+		CreateTime:  time.Now(),
+		Status:      0,
+		CreateUser:  "guest",
+		UpdateUser:  "guest",
+	}
 		// 審核狀態：message_verify='0' 時直接通過
 		if model.GetConfigValue("message_verify", "1") == "0" {
 			msg.Status = 1
@@ -592,6 +601,18 @@ func (fc *FrontController) Message(c *gin.Context) {
 				{"label": "操作系統", "value": msg.OS},
 				{"label": "瀏覽器", "value": msg.Browser},
 			}
+			if attr.UtmSource != "" {
+				mailFields = append(mailFields, map[string]string{"label": "廣告來源(UTM)", "value": attr.UtmSource})
+			}
+			if attr.UtmCampaign != "" {
+				mailFields = append(mailFields, map[string]string{"label": "廣告活動", "value": attr.UtmCampaign})
+			}
+			if attr.Gclid != "" {
+				mailFields = append(mailFields, map[string]string{"label": "GCLID", "value": attr.Gclid})
+			}
+			if attr.LandingPage != "" {
+				mailFields = append(mailFields, map[string]string{"label": "著陸頁面", "value": attr.LandingPage})
+			}
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
@@ -611,6 +632,18 @@ func (fc *FrontController) Message(c *gin.Context) {
 			{"label": "聯繫人", "value": msg.Contacts},
 			{"label": "手機", "value": msg.Mobile},
 			{"label": "內容", "value": msg.Content},
+		}
+		if attr.UtmSource != "" {
+			webhookFields = append(webhookFields, map[string]string{"label": "廣告來源(UTM)", "value": attr.UtmSource})
+		}
+		if attr.UtmCampaign != "" {
+			webhookFields = append(webhookFields, map[string]string{"label": "廣告活動", "value": attr.UtmCampaign})
+		}
+		if attr.Gclid != "" {
+			webhookFields = append(webhookFields, map[string]string{"label": "GCLID", "value": attr.Gclid})
+		}
+		if attr.LandingPage != "" {
+			webhookFields = append(webhookFields, map[string]string{"label": "著陸頁面", "value": attr.LandingPage})
 		}
 		webhook.SendIf("message", "在線留言", msg.IP, msg.OS, msg.Browser, webhookFields)
 
@@ -688,6 +721,24 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 		vals = append(vals, val)
 		placeholders = append(placeholders, "?")
 		notifyFields = append(notifyFields, map[string]string{"label": f.Description, "value": val})
+	}
+
+	// 商業營銷歸因（附加 UTM 與流量來源至通知）
+	attr := common.GetLeadAttribution(c)
+	if attr.UtmSource != "" {
+		notifyFields = append(notifyFields, map[string]string{"label": "廣告來源(UTM)", "value": attr.UtmSource})
+	}
+	if attr.UtmCampaign != "" {
+		notifyFields = append(notifyFields, map[string]string{"label": "廣告活動", "value": attr.UtmCampaign})
+	}
+	if attr.Gclid != "" {
+		notifyFields = append(notifyFields, map[string]string{"label": "GCLID", "value": attr.Gclid})
+	}
+	if attr.LandingPage != "" {
+		notifyFields = append(notifyFields, map[string]string{"label": "著陸頁面", "value": attr.LandingPage})
+	}
+	if attr.Referrer != "" {
+		notifyFields = append(notifyFields, map[string]string{"label": "來源網址", "value": attr.Referrer})
 	}
 
 	// 動態 INSERT（參數化查詢值，表名/欄位名驗證）
@@ -1199,7 +1250,80 @@ func postRender(html string, ctx context.Context) string {
 	// 語言前綴連結重寫
 	html = rewriteLangLinks(html, ctx)
 
+	// Google 出海 SEO 規範：自動注入多語言 hreflang 雙向交織標籤
+	html = injectHreflangTags(html, ctx)
+
 	return html
+}
+
+// injectHreflangTags 動態在 <head> 內注入符合 Google 規範的 hreflang 雙向替代標籤
+func injectHreflangTags(html string, ctx context.Context) string {
+	if !strings.Contains(html, "</head>") {
+		return html
+	}
+
+	areas := model.GetCachedAreas()
+	if len(areas) <= 1 {
+		return html
+	}
+
+	langCodeMap := map[string]string{
+		"sc":      "zh-Hans",
+		"zh-cn":   "zh-Hans",
+		"cn":      "zh-Hans",
+		"tc":      "zh-Hant",
+		"hk":      "zh-Hant-HK",
+		"tw":      "zh-Hant-TW",
+		"en":      "en",
+		"ja":      "ja",
+		"ko":      "ko",
+		"es":      "es",
+		"fr":      "fr",
+		"de":      "de",
+		"default": "zh-Hant",
+	}
+
+	baseURL := model.GetConfigValue("httpurl", "")
+	if baseURL == "" {
+		var site model.Site
+		if model.DB.WithContext(ctx).First(&site).Error == nil && site.Domain != "" {
+			baseURL = site.Domain
+			if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+				baseURL = "https://" + baseURL
+			}
+		}
+	}
+	if baseURL == "" {
+		baseURL = "http://localhost:8080"
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	var defaultURL string
+	var sb strings.Builder
+	sb.WriteString("\n\t<!-- Google Multilingual SEO Hreflang Tags -->\n")
+
+	for _, a := range areas {
+		isoLang := langCodeMap[strings.ToLower(a.Acode)]
+		if isoLang == "" {
+			isoLang = a.Acode
+		}
+
+		var pageURL string
+		if a.IsDefault == "1" {
+			pageURL = baseURL + "/"
+			defaultURL = pageURL
+		} else {
+			pageURL = fmt.Sprintf("%s/%s/", baseURL, a.Acode)
+		}
+
+		sb.WriteString(fmt.Sprintf("\t<link rel=\"alternate\" hreflang=\"%s\" href=\"%s\" />\n", isoLang, pageURL))
+	}
+
+	if defaultURL != "" {
+		sb.WriteString(fmt.Sprintf("\t<link rel=\"alternate\" hreflang=\"x-default\" href=\"%s\" />\n", defaultURL))
+	}
+
+	return strings.Replace(html, "</head>", sb.String()+"\t</head>", 1)
 }
 
 // linkRewriteRe 匹配 href="/path"、action="/path"、data-action="/path" 的內部連結

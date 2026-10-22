@@ -532,16 +532,25 @@ func CreateMessage(c *gin.Context) {
 		uid = v.(int)
 	}
 
+	attr := common.GetLeadAttribution(c)
 	msg := model.Message{
-		Contacts:   contacts,
-		Mobile:     mobile,
-		Content:    contentText,
-		IP:         clientIP,
-		OS:         osName,
-		Browser:    bsName,
-		UID:        uid,
-		Status:     0,
-		CreateTime: time.Now(),
+		Contacts:    contacts,
+		Mobile:      mobile,
+		Content:     contentText,
+		IP:          clientIP,
+		OS:          osName,
+		Browser:     bsName,
+		UID:         uid,
+		UtmSource:   attr.UtmSource,
+		UtmMedium:   attr.UtmMedium,
+		UtmCampaign: attr.UtmCampaign,
+		UtmTerm:     attr.UtmTerm,
+		UtmContent:  attr.UtmContent,
+		Gclid:       attr.Gclid,
+		LandingPage: attr.LandingPage,
+		Referrer:    attr.Referrer,
+		Status:      0,
+		CreateTime:  time.Now(),
 	}
 	if err := dbCtx(c).Create(&msg).Error; err != nil {
 		apiFail(c, http.StatusInternalServerError, "提交失敗")
