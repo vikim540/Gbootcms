@@ -88,6 +88,9 @@ del /s /q "%PKG_DIR%\*.map" >nul 2>&1
 if exist "%PKG_DIR%\static\admin\font-awesome" rmdir /s /q "%PKG_DIR%\static\admin\font-awesome"
 if exist "%PKG_DIR%\static\admin\layui\images\face" rmdir /s /q "%PKG_DIR%\static\admin\layui\images\face"
 if exist "%PKG_DIR%\static\admin\layui\lay\modules" rmdir /s /q "%PKG_DIR%\static\admin\layui\lay\modules"
+if exist "%PKG_DIR%\wiki" rmdir /s /q "%PKG_DIR%\wiki"
+if exist "%PKG_DIR%\docs" rmdir /s /q "%PKG_DIR%\docs"
+if exist "%PKG_DIR%\tools" rmdir /s /q "%PKG_DIR%\tools"
 
 :: Admin views
 xcopy "%APP_DIR%apps\admin\view" "%PKG_DIR%\apps\admin\view" /E /I /Q /Y >nul
