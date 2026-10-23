@@ -10,6 +10,7 @@
 
 | 專題模組 | 內容摘要 | 關鍵代碼範例 |
 | :--- | :--- | :--- |
+| **[全景使用手冊 (Guide)](guide)** | **從入門、架構、標籤、壓縮到部署的完整全景指南** | **推薦閱讀** |
 | [快速上手 (Quick Start)](Quick-Start) | 開發環境、本地編譯、發行版打包與啟動 | `build-run.bat`, `build-linux.bat` |
 | [系統架構 (Architecture)](Architecture) | 單一 DB 連線池、唯一 Migrate 入口、遙測單一資料源 | `core/db/db.go`, `telemetry.go` |
 | [前台標籤語法 (TagParser)](TagParser-Guide) | `{gboot:xxx}` 標籤語法、欄目與內容解析 | `{gboot:nav}`, `{gboot:list}` |
