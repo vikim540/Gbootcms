@@ -3,82 +3,82 @@
 <div class="layui-body">
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">伺服器與運行時遙測</li>
+	    <li class="layui-this" lay-id="t1">系統監控</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	   <div class="layui-tab-item layui-show">
 
-			<!-- ─── Go 原生運行時遙測 ─── -->
+			<!-- ─── 運行狀態 ─── -->
 			<table class="layui-table table-two">
 			   <thead>
 				    <tr>
-		               <th colspan="4" style="background:#f8f9fa;color:#009688;font-weight:bold;"><i class="fa fa-dashboard"></i> Go 原生運行時監控 (Runtime Telemetry)</th>
+		               <th colspan="4" style="background:#f8f9fa;color:#009688;font-weight:bold;"><i class="fa fa-dashboard"></i> 運行狀態</th>
 				    </tr>
 			   </thead>
 			   <tbody>
 					<tr>
-						<th width="140">進程運行時間</th>
+						<th width="140">運行時間</th>
 						<td><span class="layui-badge layui-bg-green">{{ Uptime }}</span></td>
-						<th width="140">當前活躍 Goroutines</th>
+						<th width="140">協程數量</th>
 						<td><span class="layui-badge layui-bg-blue">{{ Goroutines }}</span></td>
 					</tr>
 					<tr>
-						<th>記憶體即時佔用 (Alloc)</th>
+						<th>即時記憶體</th>
 						<td>{{ AllocMB }}</td>
-						<th>累計分配記憶體 (Total)</th>
+						<th>累計分配</th>
 						<td>{{ TotalAllocMB }}</td>
 					</tr>
 					<tr>
-						<th>系統保留記憶體 (Sys)</th>
+						<th>系統保留</th>
 						<td>{{ SysMB }}</td>
-						<th>垃圾回收次數 (GC)</th>
+						<th>GC 次數</th>
 						<td>{{ NumGC }}</td>
 					</tr>
 					<tr>
-						<th>SQLite 數據庫體積</th>
-						<td>{{ DBSize }} (WAL 模式: {{ WalSize }})</td>
-						<th>媒體靜態資源大小</th>
-						<td>{{ UploadSize }} (static/upload/)</td>
+						<th>資料庫大小</th>
+						<td>{{ DBSize }} (WAL: {{ WalSize }})</td>
+						<th>上傳大小</th>
+						<td>{{ UploadSize }}</td>
 					</tr>
 				</tbody>
 			</table>
 
-			<!-- ─── 應用基礎架構 ─── -->
+			<!-- ─── 環境資訊 ─── -->
 			<table class="layui-table table-two" style="margin-top:15px;">
 			   <thead>
 				    <tr>
-		               <th colspan="2">應用基本架構與環境</th>
+		               <th colspan="2">環境資訊</th>
 				    </tr>
 			   </thead>
 			   <tbody>
 					<tr>
-						<th width="140">應用程式版本</th>
-						<td><strong>{{ CmsName }} {{ AppVersion }}</strong> (Git: {{ BuildVersion }})</td>
+						<th width="140">系統版本</th>
+						<td><strong>{{ CmsName }} {{ AppVersion }}</strong> ({{ BuildVersion }})</td>
 					</tr>
 					<tr>
-						<th>Go 運行時與引擎</th>
+						<th>運行環境</th>
 						<td>{{ WebSoftware }}</td>
 					</tr>
 					<tr>
-						<th>宿主作業系統架構</th>
+						<th>系統架構</th>
 						<td>{{ Goos }} / {{ Goarch }}</td>
 					</tr>
 					<tr>
-						<th>資料庫引擎驅動</th>
+						<th>資料庫驅動</th>
 						<td>{{ DBDriver }}</td>
 					</tr>
 					<tr>
-						<th>路由表註冊總量</th>
+						<th>路由數量</th>
 						<td>{{ RouteCount }}</td>
 					</tr>
 				</tbody>
 			</table>
 
-			<!-- ─── 技術棧模組 ─── -->
+			<!-- ─── 核心模組 ─── -->
 			<table class="layui-table table-two" style="margin-top:15px;">
 			   <thead>
 				    <tr>
-		               <th colspan="2">技術棧與性能套件 (Modules)</th>
+		               <th colspan="2">核心模組</th>
 				    </tr>
 			   </thead>
 			   <tbody>
@@ -91,18 +91,18 @@
 				</tbody>
 			</table>
 
-			<!-- ─── 中介軟體 ─── -->
+			<!-- ─── 中間件 ─── -->
 			<table class="layui-table table-two" style="margin-top:15px;">
 			   <thead>
 				    <tr>
-		               <th colspan="2">核心中介軟體管線 (Middleware Pipeline)</th>
+		               <th colspan="2">中間件</th>
 				    </tr>
 			   </thead>
 			   <tbody>
 				    {% for mw in Middlewares %}
 					<tr>
 						<th>{{ mw }}</th>
-						<td style="color:#009688;"><i class="fa fa-check-circle"></i> 運作中 (Active)</td>
+						<td style="color:#009688;"><i class="fa fa-check-circle"></i> 運作中</td>
 					</tr>
 					{% endfor %}
 				</tbody>

@@ -1,10 +1,8 @@
 package content
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/admin/model/content"
@@ -106,39 +104,9 @@ func (si *SiteController) Mod(c *gin.Context) {
 }
 
 // Server - 伺服器資訊頁面
-// 展示應用版本、技術棧模組與中介軟體，讓管理者一目了然專案技術全貌。
+// 展示應用版本、技術棧模組與中介軟體，調用統一遙測數據源（符合奧卡姆剃刀原則）。
 func (si *SiteController) Server(c *gin.Context) {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-
-	allocMB := fmt.Sprintf("%.2f MB", float64(m.Alloc)/1024/1024)
-	totalAllocMB := fmt.Sprintf("%.2f MB", float64(m.TotalAlloc)/1024/1024)
-	sysMB := fmt.Sprintf("%.2f MB", float64(m.Sys)/1024/1024)
-	numGC := fmt.Sprintf("%d 次", m.NumGC)
-	goroutines := fmt.Sprintf("%d 個", runtime.NumGoroutine())
-	uptime := version.Uptime()
-
-	// 資料庫檔案與 WAL 狀態
-	dbPath := model.GetDBName()
-	dbSizeStr := "未知"
-	walSizeStr := "無 / 未開啟"
-	if fi, err := os.Stat(dbPath); err == nil {
-		dbSizeStr = fmt.Sprintf("%.2f MB", float64(fi.Size())/1024/1024)
-	}
-	walPath := dbPath + "-wal"
-	if fi, err := os.Stat(walPath); err == nil {
-		walSizeStr = fmt.Sprintf("%.2f KB (活躍)", float64(fi.Size())/1024)
-	}
-
-	// 上傳目錄大小
-	var uploadSize int64
-	_ = filepath.Walk("static/upload", func(_ string, info os.FileInfo, err error) error {
-		if err == nil && info != nil && !info.IsDir() {
-			uploadSize += info.Size()
-		}
-		return nil
-	})
-	uploadSizeStr := fmt.Sprintf("%.2f MB", float64(uploadSize)/1024/1024)
+	telemetry := version.GetServerTelemetry(c)
 
 	// --- 技術棧模組清單 ---
 	type moduleInfo struct {
@@ -165,26 +133,19 @@ func (si *SiteController) Server(c *gin.Context) {
 		"IPFilter / RateLimit (智慧防爬與安全訪問頻率防禦)",
 	}
 
-	common.Render(c, "system/server.html", gin.H{
-		"go_version":     runtime.Version(),
-		"goos":           runtime.GOOS,
-		"goarch":         runtime.GOARCH,
-		"web_software":   "Go " + runtime.Version() + " / Gin v" + gin.Version,
-		"db_driver":      "SQLite 3 (GORM + glebarez/sqlite WAL)",
-		"modules":        modules,
-		"middlewares":    middlewares,
-		"route_count":    "~80 條已註冊路由",
-		"uptime":         uptime,
-		"goroutines":     goroutines,
-		"alloc_mb":       allocMB,
-		"total_alloc_mb": totalAllocMB,
-		"sys_mb":         sysMB,
-		"num_gc":         numGC,
-		"db_path":        dbPath,
-		"db_size":        dbSizeStr,
-		"wal_size":       walSizeStr,
-		"upload_size":    uploadSizeStr,
-	})
+	data := gin.H{
+		"Modules":     modules,
+		"modules":     modules,
+		"Middlewares": middlewares,
+		"middlewares": middlewares,
+		"RouteCount":  "~80 條已註冊路由",
+		"route_count": "~80 條已註冊路由",
+	}
+	for k, v := range telemetry {
+		data[k] = v
+	}
+
+	common.Render(c, "system/server.html", data)
 }
 
 // gormVersion 取得 GORM 版本（編譯期常數）

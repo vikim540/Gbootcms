@@ -18,7 +18,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -216,8 +215,6 @@ func (ic *IndexController) Home(c *gin.Context) {
 	}
 
 	dbsecurity := true
-	dbType := model.GetConfigValue("database.type", "sqlite")
-	dbPath := model.GetDBName()
 	if _, err := os.Stat("data/pbootcms.db"); err == nil {
 		newName := fmt.Sprintf("data/%s.db", fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))))
 		os.Rename("data/pbootcms.db", newName)
@@ -281,31 +278,8 @@ func (ic *IndexController) Home(c *gin.Context) {
 	var models []model.ContentModel
 	model.DB.Where("status = 1").Order("sorting ASC").Find(&models)
 
-	// 4. 運行時監控
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
-	allocMB := fmt.Sprintf("%.2f MB", float64(mem.Alloc)/1024/1024)
-	dbSizeStr := "未知"
-	if fi, err := os.Stat(dbPath); err == nil {
-		dbSizeStr = fmt.Sprintf("%.2f MB", float64(fi.Size())/1024/1024)
-	}
-
-	serverInfo := gin.H{
-		"PhpOs":             runtime.GOOS,
-		"HttpHost":          c.Request.Host,
-		"ServerName":        c.Request.Host,
-		"ServerPort":        c.Request.URL.Port(),
-		"ServerAddr":        c.Request.Host,
-		"ServerSoftware":    "Go " + runtime.Version() + " / Gin",
-		"PhpVersion":        "Go " + runtime.Version(),
-		"DbDriver":          strings.ToUpper(dbType),
-		"UploadMaxFilesize": model.GetConfigValue("upload_max_size", "50") + "M",
-		"PostMaxSize":       model.GetConfigValue("upload_max_size", "50") + "M",
-		"Goroutines":        runtime.NumGoroutine(),
-		"AllocMB":           allocMB,
-		"Uptime":            version.Uptime(),
-		"DBSize":            dbSizeStr,
-	}
+	// 4. 運行時監控（單一數據源，符合奧卡姆剃刀原則）
+	serverInfo := version.GetServerTelemetry(c)
 
 	scheme := "http"
 	if c.Request.TLS != nil {

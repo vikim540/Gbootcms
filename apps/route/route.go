@@ -73,6 +73,18 @@ func SetupAdminRoutes(r *gin.Engine) {
 		adminGroup.POST("/content/media/restore", mediaCtl.Restore)
 		adminGroup.POST("/content/media/backupClear", mediaCtl.BackupClear)
 
+		// 媒體庫短路由與大小寫兼容別名（對齊菜單 M1007 /admin/Media/index 與模板調用）
+		adminGroup.GET("/media/index", mediaCtl.Index)
+		adminGroup.GET("/Media/index", mediaCtl.Index)
+		adminGroup.GET("/media/list", mediaCtl.List)
+		adminGroup.GET("/media/detail", mediaCtl.Detail)
+		adminGroup.POST("/media/mark", mediaCtl.Mark)
+		adminGroup.POST("/media/clean", mediaCtl.Clean)
+		adminGroup.POST("/media/refresh", mediaCtl.Refresh)
+		adminGroup.GET("/media/backup", mediaCtl.BackupList)
+		adminGroup.POST("/media/restore", mediaCtl.Restore)
+		adminGroup.POST("/media/backupClear", mediaCtl.BackupClear)
+
 		co := &content.CompanyController{}
 		adminGroup.GET("/content/company/index", co.Index)
 		adminGroup.POST("/content/company/mod", co.Mod)

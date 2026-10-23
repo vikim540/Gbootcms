@@ -35,6 +35,7 @@ var (
 	reDollarArrow     = regexp.MustCompile(`\{\$([\w]+)->([\w]+)\}`)
 	reDollarSession   = regexp.MustCompile(`\{\$session\.([\w]+)\}`)
 	reDollarGet       = regexp.MustCompile(`\{\$get\.([\w]+)\}`)
+	reDollarDot       = regexp.MustCompile(`\{\$([\w]+)\.([\w]+)\}`)
 	reDollarVar       = regexp.MustCompile(`\{\$([\w]+)\}`)
 	reBracketArrow       = regexp.MustCompile(`\[([\w]+)->([\w]+)\]`)
 	reBracketDollarArrow = regexp.MustCompile(`\[\$([\w]+)->([\w]+)\]`)
@@ -912,6 +913,14 @@ func processPongo2DollarVars(html string) string {
 			return match
 		}
 		return fmt.Sprintf("{{ %s }}", SnakeToPascal("get_"+subs[1]))
+	})
+
+	html = reDollarDot.ReplaceAllStringFunc(html, func(match string) string {
+		subs := reDollarDot.FindStringSubmatch(match)
+		if len(subs) < 3 {
+			return match
+		}
+		return fmt.Sprintf("{{ %s.%s }}", SnakeToPascal(subs[1]), SnakeToPascal(subs[2]))
 	})
 
 	html = reDollarVar.ReplaceAllStringFunc(html, func(match string) string {

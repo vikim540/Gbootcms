@@ -11,6 +11,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	_ "golang.org/x/image/webp"
 	"log/slog"
 	"net/http"
 	"os"
@@ -269,8 +270,9 @@ func (c *MediaController) Index(ctx *gin.Context) {
 			if np == "" {
 				continue
 			}
-			isUsed := cache.UsedPaths[np] || cache.UsedPaths["/"+np]
-			isMarked := cache.MarkedPaths[np]
+			base := strings.TrimPrefix(np, "static/")
+			isUsed := cache.UsedPaths[np] || cache.UsedPaths["/"+np] || cache.UsedPaths[base] || cache.UsedPaths["/"+base]
+			isMarked := cache.MarkedPaths[np] || cache.MarkedPaths[base]
 			totalSize += f.Size
 			if isMarked {
 				markedCount++
@@ -319,8 +321,9 @@ func (c *MediaController) List(ctx *gin.Context) {
 		if np == "" {
 			continue
 		}
-		f.Used = cache.UsedPaths[np] || cache.UsedPaths["/"+np]
-		f.Marked = cache.MarkedPaths[np]
+		base := strings.TrimPrefix(np, "static/")
+		f.Used = cache.UsedPaths[np] || cache.UsedPaths["/"+np] || cache.UsedPaths[base] || cache.UsedPaths["/"+base]
+		f.Marked = cache.MarkedPaths[np] || cache.MarkedPaths[base]
 		f.Category = getCategory(f.Name)
 		items = append(items, f)
 	}
@@ -442,8 +445,9 @@ func (c *MediaController) Clean(ctx *gin.Context) {
 		if np == "" {
 			continue
 		}
-		isUsed := cache.UsedPaths[np] || cache.UsedPaths["/"+np]
-		isMarked := cache.MarkedPaths[np]
+		base := strings.TrimPrefix(np, "static/")
+		isUsed := cache.UsedPaths[np] || cache.UsedPaths["/"+np] || cache.UsedPaths[base] || cache.UsedPaths["/"+base]
+		isMarked := cache.MarkedPaths[np] || cache.MarkedPaths[base]
 
 		if isUsed {
 			continue
@@ -782,6 +786,28 @@ func findUsages(filePath string) []UsageInfo {
 		}
 	}
 
+	// 特殊處理：ay_content_ext 擴展欄位中的自定義圖片/附件引用
+	var extRows []map[string]interface{}
+	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content_ext").Find(&extRows)
+	for _, row := range extRows {
+		contentID := 0
+		if cid, ok := row["contentid"]; ok {
+			if cidInt, ok := cid.(int64); ok {
+				contentID = int(cidInt)
+			} else if cidInt, ok := cid.(int); ok {
+				contentID = cidInt
+			}
+		}
+		for col, val := range row {
+			if col == "id" || col == "contentid" {
+				continue
+			}
+			if s, ok := val.(string); ok && pathMatchField(s, np, base) {
+				usages = append(usages, UsageInfo{"ay_content_ext", contentID, fmt.Sprintf("內容ID: %d", contentID), col + "(擴展欄位)"})
+			}
+		}
+	}
+
 	return usages
 }
 
@@ -833,12 +859,12 @@ func normalizePath(path string) string {
 	return path
 }
 
-// scanFiles 掃描 static/upload/ 下所有上傳文件
+// scanFiles 掃描 static/upload/ 下所有上傳文件（自動忽略系統隱藏檔案如 .gitkeep / .DS_Store）
 func scanFiles() []MediaFile {
 	var files []MediaFile
 	uploadDir := filepath.Join("static", "upload")
 	filepath.Walk(uploadDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+		if err != nil || info.IsDir() || strings.HasPrefix(info.Name(), ".") {
 			return nil
 		}
 		files = append(files, MediaFile{
@@ -904,6 +930,17 @@ func getUsedPaths() map[string]bool {
 		extractSrcPaths(decoded, used)
 	}
 
+	// ay_content_ext 擴展欄位中的圖片/附件引用
+	var extRows []map[string]interface{}
+	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content_ext").Find(&extRows)
+	for _, row := range extRows {
+		for _, val := range row {
+			if s, ok := val.(string); ok && strings.Contains(s, "upload/") {
+				addPaths(used, s)
+			}
+		}
+	}
+
 	return used
 }
 
@@ -930,9 +967,7 @@ func extractSrcPaths(html string, used map[string]bool) {
 		}
 		src := html[start+1 : start+1+end]
 		if strings.Contains(src, "upload/") {
-			np := normalizePath(src)
-			used[np] = true
-			used["/"+np] = true
+			addPaths(used, src)
 		}
 		idx = start + 1 + end
 	}
@@ -944,14 +979,19 @@ func getMarkedPaths() map[string]bool {
 	var marks []content.MediaMark
 	model.DB.Find(&marks)
 	for _, m := range marks {
-		marked[m.Path] = true
+		np := normalizePath(m.Path)
+		base := strings.TrimPrefix(np, "static/")
+		marked[np] = true
+		marked["/"+np] = true
+		marked[base] = true
+		marked["/"+base] = true
 	}
 	return marked
 }
 
 // addPaths 將文件路徑加入 used 集合
-// 對齊 PbootCMS PHP 原版 explode(',', $value['pics']) 邏輯：
-// 逗號分隔的多值欄位（如 ay_content.pics）需逐一路徑處理
+// 支援全路徑變體（upload/..., /upload/..., static/upload/..., /static/upload/...），
+// 徹底解決數據庫路徑前綴與物理磁盤掃描路徑不一致導致的誤判。
 func addPaths(set map[string]bool, val string) {
 	if val == "" {
 		return
@@ -965,8 +1005,13 @@ func addPaths(set map[string]bool, val string) {
 		if np == "" {
 			continue
 		}
+		base := strings.TrimPrefix(np, "static/")
 		set[np] = true
 		set["/"+np] = true
+		set[base] = true
+		set["/"+base] = true
+		set["static/"+base] = true
+		set["/static/"+base] = true
 	}
 }
 

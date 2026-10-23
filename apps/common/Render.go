@@ -235,6 +235,7 @@ func loadConfigToData(data gin.H) {
 func flattenData(data gin.H) gin.H {
 	result := gin.H{}
 	for k, v := range data {
+		result[k] = v
 		result[SnakeToPascal(k)] = v
 	}
 	return result
@@ -420,6 +421,8 @@ func SnakeToPascal(s string) string {
 		"cms":  "CMS",
 		"html": "HTML",
 		"os":   "OS",
+		"mb":   "MB",
+		"gc":   "GC",
 	}
 	// PbootCMS compound words without underscore separator
 	// These need special handling because SnakeToPascal can't split them
