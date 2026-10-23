@@ -94,6 +94,11 @@ var configCachePtr atomic.Pointer[map[string]string]
 
 // preloadConfigCache 一次性載入所有配置到記憶體
 func preloadConfigCache() {
+	if db.DB == nil {
+		m := make(map[string]string)
+		configCachePtr.Store(&m)
+		return
+	}
 	var configs []system.Config
 	db.DB.Find(&configs)
 	m := make(map[string]string, len(configs))

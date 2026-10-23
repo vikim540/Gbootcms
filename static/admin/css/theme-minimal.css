@@ -259,7 +259,33 @@ body {
   font-size: 13px;
 }
 
-/* === 表單下拉選單 (Layui Form Select) 白底黑字高對比 === */
+/* === 表單下拉選單 (Layui Form Select & 原生 Select) 白底黑字高對比 === */
+select, 
+.layui-select, 
+.page-select, 
+.area-select select,
+.layui-form-select .layui-input {
+  color: #0f172a !important; /* 濃黑高對比文字 */
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  font-weight: 500 !important;
+}
+
+select option,
+.layui-select option,
+.page-select option {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+}
+
+.layui-form-select .layui-edge {
+  border-top-color: #475569 !important;
+}
+
+.layui-form-selected .layui-edge {
+  border-bottom-color: #2563eb !important;
+}
+
 .layui-form-select dl {
   background-color: #ffffff !important;
   border: 1px solid #cbd5e1 !important;
@@ -272,6 +298,7 @@ body {
 .layui-form-select dl dd {
   color: #0f172a !important; /* 高對比濃黑字色 */
   font-size: 13px !important;
+  font-weight: 500 !important;
   border-radius: 4px !important;
   padding: 0 12px !important;
   line-height: 36px !important;
@@ -279,7 +306,7 @@ body {
 }
 
 .layui-form-select dl dd:hover {
-  background-color: #f1f5f9 !important;
+  background-color: #eff6ff !important;
   color: #2563eb !important;
 }
 
@@ -290,7 +317,8 @@ body {
 }
 
 .layui-form-select dl dd.layui-select-tips {
-  color: #64748b !important;
+  color: #334155 !important; /* 清晰深灰提示，杜絕淺色看不清 */
+  font-weight: 500 !important;
 }
 
 /* === 按鈕極簡美化 === */

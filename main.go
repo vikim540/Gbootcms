@@ -174,7 +174,6 @@ func main() {
 	})
 
 	// 靜態資源長期緩存（CSS/JS/圖片/字體，1年 immutable）
-	r.Use(middleware.StaticCache())
 
 	// URL 規範化：剝離 .html 後綴 + 語言前綴解析（/sc /tc /en）
 	// gin 路由匹配先於中間件，需用 HandleContext 重新路由
@@ -224,10 +223,7 @@ func main() {
 	r.Use(middleware.SiteStatus())
 
 	// 301 重定向（應用層 URL 重寫規則，補充 Nginx 靜態規則）
-	r.Use(middleware.Redirect301())
-
-	// HTTPS 跳轉和主域名跳轉（對齊 PHP HomeController.__construct，前台生效）
-	r.Use(middleware.SiteRedirect())
+	r.Use(middleware.RedirectMiddleware())
 
 	// IP 黑白名單過濾（對齊 PHP HomeController.__construct，前台生效）
 	r.Use(middleware.IPFilter())
@@ -241,10 +237,6 @@ func main() {
 	// 蜘蛛訪問記錄（對齊 PHP SpiderController，異步寫入日誌）
 	r.Use(middleware.SpiderLog())
 
-	// 頁面壓縮：Brotli 優先，Gzip 回退（對齊 PHP Controller::gzip）
-	// 必須在 HTMLCache 之前：壓縮先包裹 ResponseWriter，緩存再包裹壓縮層
-	// 這樣緩存存的是未壓縮 HTML，命中時經壓縮層正常壓縮返回
-	r.Use(middleware.Compress())
 
 	// 動態頁面緩存（記憶體層永遠開啟，檔案層由 tpl_html_cache 控制）
 	// 在 Compress 之後：快取未壓縮的原始 HTML，命中時自動經壓縮層返回
@@ -264,8 +256,6 @@ func main() {
 	route.SetupAdminRoutes(r)
 	route.SetupAPIRoutes(r)
 
-	// 初始化 MeiliSearch 全文搜索（如果已配置）
-	go api.InitMeiliSearch()
 
 	// API JWT 密鑰檢查：未配置時輸出警告（不阻止啟動，但登入會回傳 500）
 	if !api.IsJWTConfigured() {

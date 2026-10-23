@@ -116,7 +116,6 @@ func evalLogicalExpr(expr string) bool {
 
 func evalSimpleExpr(expr string) bool {
 	expr = strings.TrimSpace(expr)
-	expr = strings.Trim(expr, "'\"")
 
 	ops := []string{"==", "!=", ">=", "<=", ">", "<", "%"}
 	for _, op := range ops {
@@ -125,8 +124,8 @@ func evalSimpleExpr(expr string) bool {
 			if len(parts) != 2 {
 				continue
 			}
-			left := strings.TrimSpace(strings.Trim(parts[0], "'\""))
-			right := strings.TrimSpace(strings.Trim(parts[1], "'\""))
+			left := strings.Trim(strings.TrimSpace(parts[0]), "'\"")
+			right := strings.Trim(strings.TrimSpace(parts[1]), "'\"")
 
 			switch op {
 			case "==":
@@ -147,6 +146,7 @@ func evalSimpleExpr(expr string) bool {
 		}
 	}
 
+	expr = strings.Trim(expr, "'\"")
 	return expr != "" && expr != "0" && expr != "false"
 }
 

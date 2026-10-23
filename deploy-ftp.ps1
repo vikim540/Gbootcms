@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$PackageType = "tar.gz",
+    [string]$File,
+    [switch]$Restart,
     [switch]$SkipRestart,
     [switch]$ForceFtp
 )
@@ -40,7 +42,96 @@ $ftpPass = $envVars["FTP_PASS"]
 $apiKey = $envVars["ONEPANEL_API_KEY"]
 $panelUrl = $envVars["ONEPANEL_URL"]
 
-# 2. 準備待上傳檔案
+# Helper: 生成 1Panel API 認證頭
+function Get-PanelHeaders {
+    $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
+    $rawStr = "1panel" + $apiKey + $timestamp
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($rawStr)
+    $hash = $md5.ComputeHash($bytes)
+    $token = [System.BitConverter]::ToString($hash).Replace("-", "").ToLower()
+
+    $panelUri = [System.Uri]$panelUrl
+    $panelHost = if ($panelUri.Host) { $panelUri.Host } else { "sjc.pig.my.id" }
+
+    return @{
+        Headers = @{
+            "1Panel-Token" = $token
+            "1Panel-Timestamp" = $timestamp
+            "Host" = $panelHost
+        }
+        ApiBase = "$($panelUri.Scheme)://$($panelUri.Authority)"
+    }
+}
+
+# ---------------------------------------------------------
+# 模式 A: 單檔案 / 子檔案熱更新替換模式 (-File "path/to/file")
+# ---------------------------------------------------------
+if ($File) {
+    $fullPath = if (Test-Path $File) { (Get-Item $File).FullName } else { (Join-Path $appDir $File) }
+    if (-not (Test-Path $fullPath)) {
+        Write-Error "待替換檔案不存在: $File"
+        exit 1
+    }
+    $targetItem = Get-Item $fullPath
+
+    # 計算相對於根目錄的相對子路徑
+    $relPath = $fullPath.Replace($appDir, "").TrimStart("\", "/")
+    # 如果使用者傳入的是 dist\gbootcms-linux\xxx，自動剝離前綴以對齊伺服器運行環境目錄結構
+    $relPath = $relPath -replace '^(dist[\\/]gbootcms-linux[\\/])', ''
+    $relDir = [System.IO.Path]::GetDirectoryName($relPath).Replace("\", "/")
+    
+    $remoteBase = "/opt/1panel/www/sites/gocms.icun.eu.org/index/gbootcms-linux"
+    $remoteTargetDir = if ($relDir) { "$remoteBase/$relDir" } else { $remoteBase }
+
+    Write-Host "[熱更新模式] 正在推送單檔案: $relPath" -ForegroundColor Yellow
+    Write-Host "伺服器目標目錄: $remoteTargetDir" -ForegroundColor Gray
+
+    $auth = Get-PanelHeaders
+    $form = @{
+        path = $remoteTargetDir
+        file = $targetItem
+    }
+
+    try {
+        $uploadRes = Invoke-RestMethod -Uri "$($auth.ApiBase)/api/v2/files/upload" -Headers $auth.Headers -Method Post -Form $form -TimeoutSec 60
+        Write-Host "[OK] 單檔案即時替換成功！" -ForegroundColor Green
+    } catch {
+        Write-Error "單檔案上傳失敗: $($_.Exception.Message)"
+        exit 1
+    }
+
+    # 如果是 Go 二進位執行檔或指定了 -Restart，則重啟容器
+    $isBinary = $targetItem.Name -eq "gbootcms" -or $targetItem.Extension -eq ""
+    if ($Restart -or ($isBinary -and -not $SkipRestart)) {
+        Write-Host "正在賦權與重啟 Go 容器..." -ForegroundColor Yellow
+        try {
+            $permBody = @{
+                "path" = "$remoteTargetDir/$($targetItem.Name)"
+                "mode" = 511
+                "sub"  = $false
+            } | ConvertTo-Json
+            Invoke-RestMethod -Uri "$($auth.ApiBase)/api/v2/files/mode" -Headers $auth.Headers -Method Post -Body $permBody -ContentType "application/json" -TimeoutSec 15 | Out-Null
+
+            $restartBody = @{ "id" = 2; "operate" = "restart" } | ConvertTo-Json
+            Invoke-RestMethod -Uri "$($auth.ApiBase)/api/v2/runtimes/operate" -Headers $auth.Headers -Method Post -Body $restartBody -ContentType "application/json" -TimeoutSec 30 | Out-Null
+            Write-Host "[OK] Go 容器重啟完成！" -ForegroundColor Green
+        } catch {
+            Write-Host "[警告] 重啟失敗: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "[提示] 靜態樣式/模板檔案替換已即時生效，無需重啟容器。" -ForegroundColor Cyan
+    }
+
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host " 熱更新完成！" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Cyan
+    exit 0
+}
+
+# ---------------------------------------------------------
+# 模式 B: 全量打包部署模式（dist/gbootcms-linux.tar.gz）
+# ---------------------------------------------------------
 $targetFileName = "gbootcms-linux.$PackageType"
 $localFilePath = Join-Path $distDir $targetFileName
 
@@ -55,33 +146,18 @@ Write-Host "[1/3] 上傳部署包: $targetFileName ($fileSizeMB MB)" -Foreground
 
 $uploaded = $false
 
-# 3. 優先使用 1Panel REST API 高速上傳（直連主機，安全避開 FTP 553/被動端口限制）
+# 3. 優先使用 1Panel REST API 高速上傳
 if ($apiKey -and -not $ForceFtp) {
     try {
         Write-Host "使用 1Panel REST API 快速通道傳輸中..." -ForegroundColor Gray
-        $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
-        $rawStr = "1panel" + $apiKey + $timestamp
-        $md5 = [System.Security.Cryptography.MD5]::Create()
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($rawStr)
-        $hash = $md5.ComputeHash($bytes)
-        $token = [System.BitConverter]::ToString($hash).Replace("-", "").ToLower()
-
-        $panelUri = [System.Uri]$panelUrl
-        $panelApiBase = "$($panelUri.Scheme)://$($panelUri.Authority)"
-        $panelHost = if ($panelUri.Host) { $panelUri.Host } else { "sjc.pig.my.id" }
-
-        $headers = @{
-            "1Panel-Token" = $token
-            "1Panel-Timestamp" = $timestamp
-            "Host" = $panelHost
-        }
+        $auth = Get-PanelHeaders
 
         $form = @{
             path = "/opt/1panel/www/sites/gocms.icun.eu.org/index"
             file = Get-Item $localFilePath
         }
 
-        $uploadRes = Invoke-RestMethod -Uri "$panelApiBase/api/v2/files/upload" -Headers $headers -Method Post -Form $form -TimeoutSec 120
+        $uploadRes = Invoke-RestMethod -Uri "$($auth.ApiBase)/api/v2/files/upload" -Headers $auth.Headers -Method Post -Form $form -TimeoutSec 120
         if ($uploadRes.code -eq 200) {
             Write-Host "[OK] 1Panel API 直傳成功！" -ForegroundColor Green
             $uploaded = $true
@@ -117,46 +193,24 @@ if (-not $uploaded) {
             $ftpStream.Write($buffer, 0, $bytesRead)
             $totalRead += $bytesRead
             $percent = [math]::Floor(($totalRead / $fileInfo.Length) * 100)
-            if ($percent -ne $lastPercent -and ($percent % 25 -eq 0 -or $percent -eq 100)) {
-                $currentMB = [math]::Round($totalRead / 1MB, 2)
-                Write-Host "上傳進度: $percent% ($currentMB MB / $fileSizeMB MB)" -ForegroundColor Gray
+            if ($percent -ne $lastPercent -and $percent % 10 -eq 0) {
+                Write-Host "上傳進度: $percent%" -ForegroundColor DarkGray
                 $lastPercent = $percent
             }
         }
-        $response = $request.GetResponse()
+        $ftpStream.Flush()
         Write-Host "[OK] FTP 上傳成功！" -ForegroundColor Green
-        $response.Close()
-    }
-    catch {
-        Write-Error "FTP 上傳失敗: $($_.Exception.Message)"
-        exit 1
     }
     finally {
-        if ($null -ne $ftpStream) { $ftpStream.Close() }
-        if ($null -ne $fileStream) { $fileStream.Close() }
+        if ($null -ne $ftpStream) { $ftpStream.Dispose() }
+        if ($null -ne $fileStream) { $fileStream.Dispose() }
     }
 }
 
-# 4. 呼叫 1Panel API 自動解壓並重啟容器
+# 4. 透過 1Panel API 解壓並重啟容器
 if ($apiKey -and -not $SkipRestart) {
-    Write-Host "[2/3] 正在透過 1Panel API 自動解壓部署包..." -ForegroundColor Yellow
-    
-    $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
-    $rawStr = "1panel" + $apiKey + $timestamp
-    $md5 = [System.Security.Cryptography.MD5]::Create()
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($rawStr)
-    $hash = $md5.ComputeHash($bytes)
-    $token = [System.BitConverter]::ToString($hash).Replace("-", "").ToLower()
-
-    $panelUri = [System.Uri]$panelUrl
-    $panelApiBase = "$($panelUri.Scheme)://$($panelUri.Authority)"
-    $panelHost = if ($panelUri.Host) { $panelUri.Host } else { "sjc.pig.my.id" }
-
-    $headers = @{
-        "1Panel-Token" = $token
-        "1Panel-Timestamp" = $timestamp
-        "Host" = $panelHost
-    }
+    Write-Host "[2/3] 正在透過 1Panel API 解壓部署包..." -ForegroundColor Yellow
+    $auth = Get-PanelHeaders
 
     # 解壓檔案
     $decompressBody = @{
@@ -166,15 +220,14 @@ if ($apiKey -and -not $SkipRestart) {
     } | ConvertTo-Json
 
     try {
-        $decRes = Invoke-RestMethod -Uri "$panelApiBase/api/v2/files/decompress" -Headers $headers -Method Post -Body $decompressBody -ContentType "application/json" -TimeoutSec 30
+        $decRes = Invoke-RestMethod -Uri "$($auth.ApiBase)/api/v2/files/decompress" -Headers $auth.Headers -Method Post -Body $decompressBody -ContentType "application/json" -TimeoutSec 30
         Write-Host "[OK] 伺服器解壓完成！" -ForegroundColor Green
     }
     catch {
         Write-Host "[警告] API 解壓請求失敗: $($_.Exception.Message)" -ForegroundColor Red
     }
 
-    # 關鍵修復：1Panel API 解壓預設以 root:root 0755 解壓，導致非 root 的 Go 容器無權執行 bin/gbootcms 或無權寫入 data/*.db 觸發崩潰
-    # 透過 1Panel API 自動遞迴設定 0777（十進位 511）權限，確保容器 100% 正常重啟
+    # 透過 1Panel API 自動遞迴設定 0777（十進位 511）權限
     Write-Host "正在為 Go 運行環境與資料庫目錄遞迴賦權 (0777)..." -ForegroundColor Gray
     try {
         $permBody = @{
@@ -182,7 +235,7 @@ if ($apiKey -and -not $SkipRestart) {
             "mode" = 511
             "sub" = $true
         } | ConvertTo-Json
-        $permRes = Invoke-RestMethod -Uri "$panelApiBase/api/v2/files/mode" -Headers $headers -Method Post -Body $permBody -ContentType "application/json" -TimeoutSec 15
+        $permRes = Invoke-RestMethod -Uri "$($auth.ApiBase)/api/v2/files/mode" -Headers $auth.Headers -Method Post -Body $permBody -ContentType "application/json" -TimeoutSec 15
         Write-Host "[OK] 運行環境權限校正完成 (0777)！" -ForegroundColor Green
     } catch {
         Write-Host "[提示] 權限設定跳過: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -196,7 +249,7 @@ if ($apiKey -and -not $SkipRestart) {
     } | ConvertTo-Json
 
     try {
-        $reRes = Invoke-RestMethod -Uri "$panelApiBase/api/v2/runtimes/operate" -Headers $headers -Method Post -Body $restartBody -ContentType "application/json" -TimeoutSec 30
+        $reRes = Invoke-RestMethod -Uri "$($auth.ApiBase)/api/v2/runtimes/operate" -Headers $auth.Headers -Method Post -Body $restartBody -ContentType "application/json" -TimeoutSec 30
         Write-Host "[OK] 容器重啟完成！" -ForegroundColor Green
     }
     catch {
@@ -214,5 +267,5 @@ if ($apiKey -and -not $SkipRestart) {
 }
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " 全自動流水線部署完成！" -ForegroundColor Green
+Write-Host " 流水線部署完成！" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan

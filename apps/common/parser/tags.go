@@ -19,6 +19,10 @@ var (
 	globalRegexesOnce sync.Once
 )
 
+func init() {
+	globalRegexesOnce.Do(initGlobalRegexes)
+}
+
 func initGlobalRegexes() {
 	globalRegexes = make(map[string]*regexp.Regexp)
 	defs := map[string]string{

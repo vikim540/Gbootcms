@@ -403,19 +403,6 @@ func SearchContent(c *gin.Context) {
 
 	page, pagesize := parsePagination(c)
 
-	// 嘗試使用 MeiliSearch（如果已配置）
-	if meiliAvailable {
-		results, err := meiliSearch(keyword, acodeplugin.GetAcode(c.Request.Context()), page, pagesize)
-		if err == nil && results != nil {
-			apiOKWithMeta(c, results.Hits, &apiMeta{
-				Page:     page,
-				Pagesize: pagesize,
-				Total:    int64(results.EstimatedTotalHits),
-			})
-			return
-		}
-		// MeiliSearch 失敗則降級到 SQL LIKE
-	}
 
 	// 解析搜索字段（預設 title+keywords+description+content）
 	field := c.DefaultQuery("field", "title|keywords|description|content")

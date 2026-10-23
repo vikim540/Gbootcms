@@ -6,7 +6,6 @@ import (
 	"gbootcms/apps/admin/helper"
 	"gbootcms/apps/admin/model"
 	svc "gbootcms/apps/admin/service/content"
-	"gbootcms/apps/api"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/push"
 	"gbootcms/core/acodeplugin"
@@ -153,8 +152,6 @@ func (cc *ContentController) Add(c *gin.Context) {
 			return
 		}
 		cc.LogAction(c, "新增文章成功")
-	// 同步到 MeiliSearch
-	api.SyncContentToMeili(&doc)
 	// 返回 tourl 跳轉到列表頁，防止頁面停留在新增表單導致重複新增
 	tourl := "/admin/content/index"
 	if mcode != "" {
@@ -390,11 +387,6 @@ func (cc *ContentController) Mod(c *gin.Context) {
 		return
 	}
 	cc.LogAction(c, "修改文章成功")
-	// 同步到 MeiliSearch
-	var updatedContent model.Content
-	// 加 WithContext 使 AcodePlugin 自動注入區域過濾
-	model.DB.WithContext(c.Request.Context()).First(&updatedContent, id)
-	api.SyncContentToMeili(&updatedContent)
 	cc.JSONOKMsg(c, common.NoticeModify)
 		return
 	}
@@ -453,12 +445,6 @@ func (cc *ContentController) Del(c *gin.Context) {
 				cc.JSONFail(c, err.Error())
 				return
 			}
-			// 從 MeiliSearch 移除已刪除內容
-			for _, id := range ids {
-				if idInt, err := strconv.Atoi(id); err == nil {
-					api.DeleteFromMeili(uint(idInt))
-				}
-			}
 			cc.LogAction(c, "刪除文章成功")
 			cc.JSONOKMsg(c, common.NoticeDelete)
 			return
@@ -472,12 +458,6 @@ func (cc *ContentController) Del(c *gin.Context) {
 		cc.LogAction(c, "刪除文章失敗")
 		cc.JSONFail(c, err.Error())
 		return
-	}
-	// 從 MeiliSearch 移除已刪除內容
-	for _, id := range ids {
-		if idInt, err := strconv.Atoi(id); err == nil {
-			api.DeleteFromMeili(uint(idInt))
-		}
 	}
 	cc.LogAction(c, "刪除文章成功")
 	cc.JSONOKMsg(c, common.NoticeDelete)
@@ -618,12 +598,6 @@ func (cc *ContentController) PermanentDel(c *gin.Context) {
 				cc.LogAction(c, "永久刪除文章失敗")
 				cc.JSONFail(c, err.Error())
 				return
-			}
-			// 從 MeiliSearch 移除已永久刪除內容
-			for _, id := range ids {
-				if idInt, err := strconv.Atoi(id); err == nil {
-					api.DeleteFromMeili(uint(idInt))
-				}
 			}
 			cc.LogAction(c, "永久刪除文章成功")
 			cc.JSONOKMsg(c, common.NoticeDelete)
