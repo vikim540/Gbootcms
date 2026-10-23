@@ -77,11 +77,17 @@ func TrackingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 
-		// 忽略後台、API與靜態資源
+		// 忽略後台、API、靜態資源、系統與爬蟲端點（防止 g_landing_page 等 Cookie 污染系統文件）
 		if strings.HasPrefix(path, "/static") ||
 			strings.HasPrefix(path, "/admin") ||
 			strings.HasPrefix(path, "/api") ||
-			strings.HasPrefix(path, "/template") {
+			strings.HasPrefix(path, "/template") ||
+			strings.HasPrefix(path, "/upload") ||
+			path == "/robots.txt" ||
+			strings.HasPrefix(path, "/sitemap") ||
+			path == "/llms.txt" ||
+			path == "/llms-full.txt" ||
+			path == "/favicon.ico" {
 			c.Next()
 			return
 		}

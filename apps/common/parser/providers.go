@@ -59,6 +59,112 @@ func addLeadingSlash(path string) string {
 	return path
 }
 
+// i18nUIDict 內建多語言 UI 靜態文字詞典（支持中簡、中繁、英）
+var i18nUIDict = map[string]map[string]string{
+	"home": {
+		"tc": "首頁",
+		"sc": "首页",
+		"en": "Homepage",
+		"default": "首頁",
+	},
+	"ucenter": {
+		"tc": "個人中心",
+		"sc": "个人中心",
+		"en": "My Account",
+		"default": "個人中心",
+	},
+	"register": {
+		"tc": "註冊",
+		"sc": "注册",
+		"en": "Register",
+		"default": "註冊",
+	},
+	"login": {
+		"tc": "登入",
+		"sc": "登录",
+		"en": "Login",
+		"default": "登入",
+	},
+	"contact_us": {
+		"tc": "聯繫我們",
+		"sc": "联系我们",
+		"en": "Contact Us",
+		"default": "聯繫我們",
+	},
+	"phone": {
+		"tc": "電話",
+		"sc": "电话",
+		"en": "Phone",
+		"default": "電話",
+	},
+	"email": {
+		"tc": "郵箱",
+		"sc": "邮箱",
+		"en": "Email",
+		"default": "郵箱",
+	},
+	"address": {
+		"tc": "公司地址",
+		"sc": "公司地址",
+		"en": "Address",
+		"default": "公司地址",
+	},
+	"license": {
+		"tc": "營業執照",
+		"sc": "营业执照",
+		"en": "Business License",
+		"default": "營業執照",
+	},
+	"icp": {
+		"tc": "備案號",
+		"sc": "备案号",
+		"en": "Filing No.",
+		"default": "備案號",
+	},
+	"scan_mobile": {
+		"tc": "掃碼手機端訪問",
+		"sc": "扫码手机端访问",
+		"en": "Scan for mobile access",
+		"default": "掃碼手機端訪問",
+	},
+	"friendly_links": {
+		"tc": "友情連結",
+		"sc": "友情链接",
+		"en": "Links",
+		"default": "友情連結",
+	},
+	"online_service": {
+		"tc": "在線諮詢",
+		"sc": "在线咨询",
+		"en": "Online Consultation",
+		"default": "在線諮詢",
+	},
+	"free_call": {
+		"tc": "免費通話",
+		"sc": "免费通话",
+		"en": "Free Call",
+		"default": "免費通話",
+	},
+	"back_to_top": {
+		"tc": "返回頂部",
+		"sc": "返回顶部",
+		"en": "Back to Top",
+		"default": "返回頂部",
+	},
+	"wechat_contact": {
+		"tc": "微信聯繫",
+		"sc": "微信联系",
+		"en": "WeChat Contact",
+		"default": "微信聯繫",
+	},
+	"search": {
+		"tc": "搜索",
+		"sc": "搜索",
+		"en": "Search",
+		"default": "搜索",
+	},
+}
+
 func RegisterAllProviders(p *TagParser, ctx *Context) {
 	registerSingleProviders(p, ctx)
 	registerPairProviders(p, ctx)
@@ -501,6 +607,32 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 			return labels[0].Value
 		}
 		return ""
+	})
+
+	p.Register("i18n", func(tagName string, params map[string]string, inner string) string {
+		field := params["_field"]
+		if field == "" {
+			field = params["field"]
+		}
+		if field == "" {
+			return ""
+		}
+		acode := acodeplugin.GetAcode(ctx.Ctx)
+		if acode == "" {
+			acode = "default"
+		}
+		if dict, ok := i18nUIDict[field]; ok {
+			if val, vok := dict[acode]; vok && val != "" {
+				return val
+			}
+			if val, vok := dict["default"]; vok && val != "" {
+				return val
+			}
+			if val, vok := dict["tc"]; vok && val != "" {
+				return val
+			}
+		}
+		return field
 	})
 
 	// buildSortChain 從當前欄目向上遞歸到根欄目，返回從根到當前的有序鏈
@@ -2581,27 +2713,6 @@ func findTranslatedContent(reqCtx context.Context, cur *model.Content, targetAco
 		}
 	}
 
-	// 3. 同欄目 (scode) 下的順序關聯對齊（同欄目相對位次對映）
-	if cur.Scode != "" {
-		var sameSortCur []model.Content
-		model.DB.WithContext(skipCtx).Where("scode = ? AND acode = ? AND status = 1", cur.Scode, cur.Acode).Order("sorting ASC, id ASC").Find(&sameSortCur)
-		curIndex := -1
-		for idx, item := range sameSortCur {
-			if item.ID == cur.ID {
-				curIndex = idx
-				break
-			}
-		}
-
-		if curIndex >= 0 {
-			var sameSortTarget []model.Content
-			model.DB.WithContext(skipCtx).Where("scode = ? AND acode = ? AND status = 1", cur.Scode, targetAcode).Order("sorting ASC, id ASC").Find(&sameSortTarget)
-			if curIndex < len(sameSortTarget) {
-				return &sameSortTarget[curIndex]
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -2762,8 +2873,8 @@ func buildHreflang(ctx *Context) string {
 	return sb.String()
 }
 
-// buildCanonical 生成 canonical 標籤，指向當前頁面的標準 URL
-func buildCanonical(ctx *Context) string {
+// GetCanonicalURL 獲取當前頁面的標準 Canonical URL（共享函數，保證與 JSON-LD @id 100% 一致）
+func GetCanonicalURL(ctx *Context) string {
 	acode := acodeplugin.GetAcode(ctx.Ctx)
 
 	currentPath := ctx.CurrentPath
@@ -2785,13 +2896,17 @@ func buildCanonical(ctx *Context) string {
 	}
 
 	canonicalPath := currentPath
-	if !isDefault && acode != "" {
-		canonicalPath = "/" + acode + currentPath
+	if !isDefault && acode != "" && !strings.HasPrefix(canonicalPath, "/"+acode+"/") && canonicalPath != "/"+acode {
+		canonicalPath = "/" + acode + canonicalPath
 	}
 
 	domain := getEffectiveDomain(ctx)
-	canonicalURL := domain + canonicalPath
+	return domain + canonicalPath
+}
 
+// buildCanonical 生成 canonical 標籤，指向當前頁面的標準 URL
+func buildCanonical(ctx *Context) string {
+	canonicalURL := GetCanonicalURL(ctx)
 	return fmt.Sprintf(`<link rel="canonical" href="%s" />`, canonicalURL)
 }
 

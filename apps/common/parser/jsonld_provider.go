@@ -139,10 +139,8 @@ func buildArticleJSONLD(ctx *Context) interface{} {
 
 	ct := ctx.Content
 	base := getBaseURL(ctx)
-	url := getContentURL(ct)
-	if base != "" && !strings.HasPrefix(url, "http") {
-		url = base + url
-	}
+	// mainEntityOfPage.@id 必須與當前頁面 canonical 標籤完全一致（由同一函數生成）
+	url := GetCanonicalURL(ctx)
 
 	// 取得首圖
 	image := ""
