@@ -1,6 +1,9 @@
 package middleware
 
 import (
+	"strings"
+
+	"gbootcms/apps/admin/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -9,6 +12,11 @@ import (
 // 僅作用於前台頁面（text/html），API 和靜態資源由各自邏輯處理
 func SecurityHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 1. 環境感知防收錄：若當前為測試站、預覽站或本地開發，強制注入 noindex 防爬蟲污染主站權重
+		if isStagingOrDevHost(c) {
+			c.Header("X-Robots-Tag", "noindex, nofollow, noarchive")
+		}
+
 		// 防止點擊劫持：頁面不允許被嵌入 iframe
 		// 後台頁面建議用 SAMEORIGIN，前台用 DENY 更安全
 		c.Header("X-Frame-Options", "SAMEORIGIN")
@@ -32,4 +40,38 @@ func SecurityHeaders() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// isStagingOrDevHost 判斷是否非生產正式環境
+func isStagingOrDevHost(c *gin.Context) bool {
+	host := strings.ToLower(c.Request.Host)
+	if idx := strings.Index(host, ":"); idx != -1 {
+		host = host[:idx]
+	}
+	if host == "localhost" || host == "127.0.0.1" || strings.HasSuffix(host, ".eu.org") ||
+		strings.HasSuffix(host, ".test") || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".nip.io") {
+		return true
+	}
+	domain := model.GetConfigValue("httpurl", "")
+	if domain == "" {
+		var site model.Site
+		if model.DB.WithContext(c.Request.Context()).First(&site).Error == nil && site.Domain != "" {
+			domain = site.Domain
+		}
+	}
+	if domain != "" {
+		domain = strings.TrimPrefix(domain, "http://")
+		domain = strings.TrimPrefix(domain, "https://")
+		domain = strings.TrimRight(domain, "/")
+		if idx := strings.Index(domain, "/"); idx != -1 {
+			domain = domain[:idx]
+		}
+		if idx := strings.Index(domain, ":"); idx != -1 {
+			domain = domain[:idx]
+		}
+		if host != strings.ToLower(domain) {
+			return true
+		}
+	}
+	return false
 }

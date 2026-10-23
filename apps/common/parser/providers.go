@@ -2469,6 +2469,163 @@ func acodeToHreflang(acode string) string {
 	}
 }
 
+// getEffectiveDomain 獲取當前頁面生效的域名（包含協議）
+func getEffectiveDomain(ctx *Context) string {
+	// 如果是測試環境（如 gocms.icun.eu.org、localhost 等），強制使用當前請求的動態 Host，絕不跨域名污染生產站
+	if ctx != nil && ctx.HttpURL != "" {
+		host := strings.ToLower(ctx.HttpURL)
+		if strings.Contains(host, ".eu.org") || strings.Contains(host, "localhost") || strings.Contains(host, "127.0.0.1") ||
+			strings.Contains(host, ".test") || strings.Contains(host, ".local") || strings.Contains(host, ".nip.io") {
+			return strings.TrimRight(ctx.HttpURL, "/")
+		}
+	}
+
+	// 生產環境：優先使用站點配置的正式域名
+	if ctx != nil && ctx.Site != nil && ctx.Site.Domain != "" {
+		domain := ctx.Site.Domain
+		if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
+			domain = "https://" + domain
+		}
+		return strings.TrimRight(domain, "/")
+	}
+
+	if ctx != nil && ctx.HttpURL != "" {
+		return strings.TrimRight(ctx.HttpURL, "/")
+	}
+	return "http://localhost:8080"
+}
+
+// buildDetailURL 構建內容頁語言相對路徑
+func buildDetailURL(acode, defaultAcode string, c *model.Content) string {
+	var path string
+	if c.Filename != "" {
+		path = "/" + c.Filename + ".html"
+	} else if c.URLName != "" {
+		path = "/" + c.URLName + ".html"
+	} else {
+		var sortPath string
+		if c.Scode != "" {
+			var s model.ContentSort
+			if model.DB.Where("scode = ? AND acode = ?", c.Scode, acode).First(&s).Error == nil {
+				if s.Filename != "" {
+					sortPath = s.Filename
+				} else if s.URLName != "" {
+					sortPath = s.URLName
+				}
+			}
+		}
+		if sortPath != "" {
+			path = fmt.Sprintf("/%s/%d", sortPath, c.ID)
+		} else {
+			path = fmt.Sprintf("/content/%d", c.ID)
+		}
+	}
+
+	if acode == defaultAcode {
+		return path
+	}
+	return "/" + acode + path
+}
+
+// buildSortURLWithLang 構建欄目頁語言相對路徑
+func buildSortURLWithLang(acode, defaultAcode string, s *model.ContentSort) string {
+	var path string
+	if s.Filename != "" {
+		path = "/" + s.Filename
+	} else if s.URLName != "" {
+		path = "/" + s.URLName
+	} else if s.Scode != "" {
+		path = fmt.Sprintf("/sort/%s", s.Scode)
+	} else {
+		path = "/"
+	}
+
+	if acode == defaultAcode {
+		return path
+	}
+	return "/" + acode + path
+}
+
+// findTranslatedContent 在目標語言中查找與當前文章對應的翻譯版本（精準匹配，杜絕 404）
+func findTranslatedContent(reqCtx context.Context, cur *model.Content, targetAcode string) *model.Content {
+	if cur == nil || targetAcode == "" {
+		return nil
+	}
+	skipCtx := acodeplugin.SkipAcode(reqCtx)
+
+	// 1. 若當前文章有關聯 ID (rel_id > 0)
+	if cur.RelID > 0 {
+		var target model.Content
+		if err := model.DB.WithContext(skipCtx).Where("(rel_id = ? OR id = ?) AND acode = ? AND status = 1", cur.RelID, cur.RelID, targetAcode).First(&target).Error; err == nil {
+			return &target
+		}
+	} else {
+		// 當前文章 rel_id == 0，嘗試查是否有其他文章將 rel_id 指向當前文章 ID
+		var target model.Content
+		if err := model.DB.WithContext(skipCtx).Where("rel_id = ? AND acode = ? AND status = 1", cur.ID, targetAcode).First(&target).Error; err == nil {
+			return &target
+		}
+	}
+
+	// 2. 自定義 URL 別名（urlname / filename）精準匹配
+	if cur.URLName != "" {
+		var target model.Content
+		if err := model.DB.WithContext(skipCtx).Where("urlname = ? AND acode = ? AND status = 1", cur.URLName, targetAcode).First(&target).Error; err == nil {
+			return &target
+		}
+	}
+	if cur.Filename != "" {
+		var target model.Content
+		if err := model.DB.WithContext(skipCtx).Where("filename = ? AND acode = ? AND status = 1", cur.Filename, targetAcode).First(&target).Error; err == nil {
+			return &target
+		}
+	}
+
+	// 3. 同欄目 (scode) 下的順序關聯對齊（同欄目相對位次對映）
+	if cur.Scode != "" {
+		var sameSortCur []model.Content
+		model.DB.WithContext(skipCtx).Where("scode = ? AND acode = ? AND status = 1", cur.Scode, cur.Acode).Order("sorting ASC, id ASC").Find(&sameSortCur)
+		curIndex := -1
+		for idx, item := range sameSortCur {
+			if item.ID == cur.ID {
+				curIndex = idx
+				break
+			}
+		}
+
+		if curIndex >= 0 {
+			var sameSortTarget []model.Content
+			model.DB.WithContext(skipCtx).Where("scode = ? AND acode = ? AND status = 1", cur.Scode, targetAcode).Order("sorting ASC, id ASC").Find(&sameSortTarget)
+			if curIndex < len(sameSortTarget) {
+				return &sameSortTarget[curIndex]
+			}
+		}
+	}
+
+	return nil
+}
+
+// findTranslatedSort 在目標語言中查找對應欄目
+func findTranslatedSort(reqCtx context.Context, cur *model.ContentSort, targetAcode string) *model.ContentSort {
+	if cur == nil || targetAcode == "" {
+		return nil
+	}
+	skipCtx := acodeplugin.SkipAcode(reqCtx)
+
+	var target model.ContentSort
+	if cur.Scode != "" {
+		if err := model.DB.WithContext(skipCtx).Where("scode = ? AND acode = ? AND status = 1", cur.Scode, targetAcode).First(&target).Error; err == nil {
+			return &target
+		}
+	}
+	if cur.Filename != "" {
+		if err := model.DB.WithContext(skipCtx).Where("filename = ? AND acode = ? AND status = 1", cur.Filename, targetAcode).First(&target).Error; err == nil {
+			return &target
+		}
+	}
+	return nil
+}
+
 // buildHreflang 生成 hreflang 標籤組（自引用 + 雙向對稱 + x-default）
 func buildHreflang(ctx *Context) string {
 	areas := model.GetCachedAreas()
@@ -2476,14 +2633,7 @@ func buildHreflang(ctx *Context) string {
 		return ""
 	}
 
-	// 當前頁面路徑（已剝離 acode 前綴）
-	currentPath := ctx.CurrentPath
-	if currentPath == "" {
-		currentPath = "/"
-	}
-	if !strings.HasPrefix(currentPath, "/") {
-		currentPath = "/" + currentPath
-	}
+	domain := getEffectiveDomain(ctx)
 
 	// 找默認區域
 	defaultAcode := ""
@@ -2497,38 +2647,117 @@ func buildHreflang(ctx *Context) string {
 		defaultAcode = areas[0].Acode
 	}
 
-	// 站點域名（用於絕對 URL）
-	domain := ""
-	if ctx.Site != nil && ctx.Site.Domain != "" {
-		domain = ctx.Site.Domain
-		// 確保域名帶協議前綴，但不重複
-		if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
-			domain = "https://" + domain
+	var sb strings.Builder
+	var defaultHref string
+
+	// 場景 1：內容詳情頁 (ctx.Content != nil)
+	if ctx.Content != nil {
+		curContent := ctx.Content
+		curAcode := curContent.Acode
+
+		for _, a := range areas {
+			hreflangCode := acodeToHreflang(a.Acode)
+
+			// 若是當前語言，使用當前文章自己的真實 URL
+			if a.Acode == curAcode {
+				link := buildDetailURL(a.Acode, defaultAcode, curContent)
+				href := domain + link
+				sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="%s" href="%s" />`, hreflangCode, href))
+				sb.WriteString("\n")
+				if a.Acode == defaultAcode {
+					defaultHref = href
+				}
+				continue
+			}
+
+			// 跨語言尋找真正對應的翻譯文章（避免 404 與偽實現）
+			targetContent := findTranslatedContent(ctx.Ctx, curContent, a.Acode)
+			if targetContent == nil {
+				// 該語言無對應翻譯文章，依 Google 規範嚴格不輸出該語言 hreflang，避免 404 報錯
+				continue
+			}
+
+			link := buildDetailURL(a.Acode, defaultAcode, targetContent)
+			href := domain + link
+			sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="%s" href="%s" />`, hreflangCode, href))
+			sb.WriteString("\n")
+			if a.Acode == defaultAcode {
+				defaultHref = href
+			}
 		}
+
+		if defaultHref != "" {
+			sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="x-default" href="%s" />`, defaultHref))
+		}
+		return sb.String()
 	}
 
-	var sb strings.Builder
+	// 場景 2：欄目列表頁 (ctx.Sort != nil && ctx.Content == nil)
+	if ctx.Sort != nil {
+		curSort := ctx.Sort
+		curAcode := curSort.Acode
+
+		for _, a := range areas {
+			hreflangCode := acodeToHreflang(a.Acode)
+			if a.Acode == curAcode {
+				link := buildSortURLWithLang(a.Acode, defaultAcode, curSort)
+				href := domain + link
+				sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="%s" href="%s" />`, hreflangCode, href))
+				sb.WriteString("\n")
+				if a.Acode == defaultAcode {
+					defaultHref = href
+				}
+				continue
+			}
+
+			targetSort := findTranslatedSort(ctx.Ctx, curSort, a.Acode)
+			if targetSort == nil {
+				continue
+			}
+			link := buildSortURLWithLang(a.Acode, defaultAcode, targetSort)
+			href := domain + link
+			sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="%s" href="%s" />`, hreflangCode, href))
+			sb.WriteString("\n")
+			if a.Acode == defaultAcode {
+				defaultHref = href
+			}
+		}
+
+		if defaultHref != "" {
+			sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="x-default" href="%s" />`, defaultHref))
+		}
+		return sb.String()
+	}
+
+	// 場景 3：首頁 / 靜態頁
+	currentPath := ctx.CurrentPath
+	if currentPath == "" || currentPath == "/" {
+		currentPath = "/"
+	} else if !strings.HasPrefix(currentPath, "/") {
+		currentPath = "/" + currentPath
+	}
+
 	for _, a := range areas {
 		link := currentPath
 		if a.Acode != defaultAcode {
-			link = "/" + a.Acode + currentPath
+			if currentPath == "/" {
+				link = "/" + a.Acode + "/"
+			} else {
+				link = "/" + a.Acode + currentPath
+			}
 		}
-		href := link
-		if domain != "" {
-			href = domain + link
-		}
+		href := domain + link
 		hreflangCode := acodeToHreflang(a.Acode)
 		sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="%s" href="%s" />`, hreflangCode, href))
 		sb.WriteString("\n")
+		if a.Acode == defaultAcode {
+			defaultHref = href
+		}
 	}
 
-	// x-default 指向默認語言
-	defaultLink := currentPath
-	defaultHref := defaultLink
-	if domain != "" {
-		defaultHref = domain + defaultLink
+	if defaultHref != "" {
+		sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="x-default" href="%s" />`, defaultHref))
 	}
-	sb.WriteString(fmt.Sprintf(`<link rel="alternate" hreflang="x-default" href="%s" />`, defaultHref))
 
 	return sb.String()
 }
@@ -2545,35 +2774,25 @@ func buildCanonical(ctx *Context) string {
 		currentPath = "/" + currentPath
 	}
 
-	// 站點域名
-	domain := ""
-	if ctx.Site != nil && ctx.Site.Domain != "" {
-		domain = ctx.Site.Domain
-		if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
-			domain = "https://" + domain
+	// 默認區域不需要前綴
+	areas := model.GetCachedAreas()
+	isDefault := false
+	for _, a := range areas {
+		if a.Acode == acode && a.IsDefault == "1" {
+			isDefault = true
+			break
 		}
 	}
 
-	link := currentPath
-	if acode != "" {
-		areas := model.GetCachedAreas()
-		isDefault := false
-		for _, a := range areas {
-			if a.Acode == acode && a.IsDefault == "1" {
-				isDefault = true
-				break
-			}
-		}
-		if !isDefault {
-			link = "/" + acode + currentPath
-		}
+	canonicalPath := currentPath
+	if !isDefault && acode != "" {
+		canonicalPath = "/" + acode + currentPath
 	}
 
-	href := link
-	if domain != "" {
-		href = domain + link
-	}
-	return fmt.Sprintf(`<link rel="canonical" href="%s" />`, href)
+	domain := getEffectiveDomain(ctx)
+	canonicalURL := domain + canonicalPath
+
+	return fmt.Sprintf(`<link rel="canonical" href="%s" />`, canonicalURL)
 }
 
 // acodeToLocale 將 acode 轉換為 Open Graph locale 格式（zh_CN / zh_HK / en_US）

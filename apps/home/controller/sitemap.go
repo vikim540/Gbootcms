@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gbootcms/apps/admin/model"
+	"gbootcms/apps/common"
 	"gbootcms/core/acodeplugin"
 
 	"github.com/gin-gonic/gin"
@@ -179,6 +180,15 @@ func (fc *FrontController) sitemapLangHandler(c *gin.Context, acode string) {
 
 // Robots 生成 robots.txt（符合 RFC 9309 規範）
 func (fc *FrontController) Robots(c *gin.Context) {
+	// 0. 環境感知防收錄：若當前為測試站、預覽站或本地開發，強制封鎖爬蟲，避免污染主站搜尋引擎權重
+	if common.IsStagingHost(c) {
+		c.Header("Content-Type", "text/plain; charset=utf-8")
+		c.Header("X-Robots-Tag", "noindex, nofollow, noarchive")
+		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		c.String(http.StatusOK, "User-agent: *\nDisallow: /\n")
+		return
+	}
+
 	skipCtx := acodeplugin.SkipAcode(c.Request.Context())
 
 	// 1. 若後台自定義了 robots_content 則優先使用
@@ -213,18 +223,19 @@ func (fc *FrontController) Robots(c *gin.Context) {
 
 // getDomain 獲取站點域名（含協議）
 func (fc *FrontController) getDomain(c *gin.Context) string {
-	// 優先使用請求的協議和 Host
 	scheme := "http"
-	if c.Request.TLS != nil {
+	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
-	// 如果配置了反向代理，檢查 X-Forwarded-Proto
-	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
+
+	// 若為測試站，絕不跨域名綁定正式生產域名，嚴格使用當前請求域名
+	if common.IsStagingHost(c) {
+		return scheme + "://" + c.Request.Host
 	}
+
 	domain := scheme + "://" + c.Request.Host
 
-	// 如果後台配置了域名，使用配置的域名（更穩定）
+	// 如果後台配置了生產域名，使用配置的域名（更穩定）
 	skipCtx := acodeplugin.SkipAcode(c.Request.Context())
 	var site model.Site
 	if err := model.DB.WithContext(skipCtx).First(&site).Error; err == nil && site.Domain != "" {

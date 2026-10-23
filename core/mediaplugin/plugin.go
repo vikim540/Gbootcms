@@ -37,6 +37,33 @@ import (
 // 在高併發寫場景下，atomic 開關性能遠優於 RWMutex。
 var dirtyFlag atomic.Bool
 
+// MarkDirty 標記媒體緩存為臟。
+func MarkDirty() {
+	dirtyFlag.Store(true)
+}
+
+// IsDirty 檢查緩存是否被標記為臟。
+func IsDirty() bool {
+	return dirtyFlag.Load()
+}
+
+// ClearDirty 清除臟標記。
+func ClearDirty() {
+	dirtyFlag.Store(false)
+}
+
+// MediaReferencingTables 引用媒體文件的表白名單。
+var MediaReferencingTables = map[string]bool{
+	"slide":        true,
+	"content":      true,
+	"content_sort": true,
+	"link":         true,
+	"company":      true,
+	"site":         true,
+	"member":       true,
+	"label":        true,
+}
+
 // schemaTableCache 緩存 GORM Schema 對應的短表名。
 // 為什麼需要：GORM 內部會把 "ay_slide" 這樣的表名反覆傳遞，
 // 在熱路徑上避免重複 TrimPrefix 可以減少字符串分配。

@@ -16,8 +16,14 @@ import (
 func registerJSONLDProvider(p *TagParser, ctx *Context) {
 	p.Register("jsonld", func(tagName string, params map[string]string, inner string) string {
 		ldType := params["type"]
-		if ldType == "" {
-			ldType = "article"
+		if ldType == "" || ldType == "auto" {
+			if ctx.Content != nil {
+				ldType = "article"
+			} else if ctx.Sort != nil {
+				ldType = "breadcrumb"
+			} else {
+				ldType = "website"
+			}
 		}
 
 		var data interface{}
@@ -53,23 +59,9 @@ func registerJSONLDProvider(p *TagParser, ctx *Context) {
 	})
 }
 
-// getBaseURL 取得站點基礎 URL
+// getBaseURL 取得站點基礎 URL（自動感知測試環境與正式域名，防止跨域污染）
 func getBaseURL(ctx *Context) string {
-	if ctx.Site != nil && ctx.Site.Domain != "" {
-		domain := ctx.Site.Domain
-		if !strings.HasPrefix(domain, "http") {
-			domain = "https://" + domain
-		}
-		return strings.TrimSuffix(domain, "/")
-	}
-	httpurl := model.GetConfigValue("httpurl", "")
-	if httpurl != "" && httpurl != "/" {
-		if !strings.HasPrefix(httpurl, "http") {
-			httpurl = "https://" + httpurl
-		}
-		return strings.TrimSuffix(httpurl, "/")
-	}
-	return ""
+	return getEffectiveDomain(ctx)
 }
 
 // getLogoURL 取得 Logo 完整 URL

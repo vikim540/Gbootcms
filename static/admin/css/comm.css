@@ -155,15 +155,26 @@ body {
 }
 .area-select select {
   height: 30px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: #f8fafc !important;
-  border-radius: var(--radius-md);
-  padding: 4px 8px;
+  background-color: #ffffff !important;
+  border: 1px solid var(--border-strong, #cbd5e1) !important;
+  color: #0f172a !important; /* 白色底高對比度文字，確保跨瀏覽器與跨系統清晰可讀 */
+  border-radius: var(--radius-md, 6px);
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+.area-select select:focus,
+.area-select select:hover {
+  border-color: var(--primary-color, #2563eb) !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 .area-select select option {
-  background-color: #ffffff;
+  background-color: #ffffff !important;
   color: #0f172a !important;
+  padding: 4px;
 }
 
 /* 左側邊欄 Sidebar */
@@ -632,4 +643,96 @@ a.page-num-current:hover {
   .layui-form-label { width: 80px; }
   .pic { margin-left: 110px; }
   .layui-input-block { margin-left: 110px; }
+}
+
+/* --------------------------------------------------------------------------
+   9. Admin Login Page (Merged from login.css for Single-Bundle Delivery)
+   -------------------------------------------------------------------------- */
+.user-login {
+  position: relative;
+  left: 0;
+  top: 0;
+  padding: 120px 0;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.user-login-main {
+  width: 375px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  background-color: rgba(248, 248, 255, 0.2);
+  border-radius: var(--radius-lg, 8px);
+  backdrop-filter: blur(8px);
+}
+.user-login-header {
+  text-align: center;
+  padding-top: 20px;
+}
+.user-login-header h2 {
+  margin-bottom: 10px;
+  font-size: 24px;
+  color: #fff;
+  font-weight: 700;
+}
+.user-login-header p {
+  font-weight: 400;
+  color: #e2e8f0;
+}
+.user-login-box {
+  padding: 20px;
+}
+.user-login-icon {
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  width: 38px;
+  line-height: 36px;
+  text-align: center;
+  color: #94a3b8;
+}
+.user-login-box .layui-form-item {
+  position: relative;
+}
+.user-login-box .layui-form-item .layui-input {
+  padding-left: 38px;
+  border-radius: var(--radius-md, 6px);
+}
+.user-login-codeimg {
+  height: 38px;
+  width: 100%;
+  cursor: pointer;
+  box-sizing: border-box;
+  border-radius: var(--radius-md, 6px);
+}
+.user-login-footer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  line-height: 1.5;
+  padding: 20px;
+  text-align: center;
+  box-sizing: border-box;
+  color: rgba(255, 255, 255, 0.7);
+}
+.user-login-footer span {
+  padding: 0 5px;
+}
+.user-login-footer a {
+  color: rgba(255, 255, 255, 0.8);
+}
+.user-login-footer a:hover {
+  color: #ffffff;
+}
+
+@media screen and (max-width: 768px) {
+  .user-login {
+    padding-top: 60px;
+  }
+  .user-login-main {
+    width: 300px;
+  }
+  .user-login-box {
+    padding: 10px;
+  }
 }

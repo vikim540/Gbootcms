@@ -16,10 +16,7 @@ import (
 
 	home "gbootcms/apps/home/controller"
 	"gbootcms/apps/admin/model"
-	"gbootcms/apps/admin/model/content"
 	admincontent "gbootcms/apps/admin/controller/content"
-	"gbootcms/apps/admin/model/member"
-	"gbootcms/apps/admin/model/system"
 	"gbootcms/apps/admin/seed"
 	"gbootcms/apps/api"
 	"gbootcms/apps/common"
@@ -128,10 +125,10 @@ func main() {
 		}
 	}
 
-	// AutoMigrate all models: system + content + member
-	system.AutoMigrate()
-	content.AutoMigrate()
-	member.AutoMigrate()
+	// AutoMigrate all models: unified single entry
+	if err := model.AutoMigrate(); err != nil {
+		slog.Warn("AutoMigrate failed", "err", err)
+	}
 
 	// Seed initial data (admin user, menus, configs, etc.)
 	seed.Init()
@@ -248,8 +245,6 @@ func main() {
 	// PbootCMS 兼容: 前台模板靜態資源（CSS/JS/圖片）
 	r.Static("/template/default/static", filepath.Join(cfg.App.TemplateDir, "static"))
 	// 多語言模板靜態資源
-	r.Static("/template/sc/static", filepath.Join(filepath.Dir(cfg.App.TemplateDir), "sc", "static"))
-	r.Static("/template/en/static", filepath.Join(filepath.Dir(cfg.App.TemplateDir), "en", "static"))
 
 	route.SetupAdminRoutes(r)
 	route.SetupAPIRoutes(r)
