@@ -1,6 +1,7 @@
 package storage
 
-import (
+import (	"gbootcms/core/db"
+
 	"context"
 	"fmt"
 	"log/slog"
@@ -10,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"gbootcms/apps/admin/model"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -25,11 +25,11 @@ type R2Storage struct {
 
 // NewR2Storage 建立新的 R2 存儲實例
 func NewR2Storage() (*R2Storage, error) {
-	endpoint := model.GetConfigValue("r2_endpoint", "")
-	accessKey := model.GetConfigValue("r2_access_key", "")
-	secretKey := model.GetConfigValue("r2_secret_key", "")
-	bucket := model.GetConfigValue("r2_bucket", "")
-	publicURL := model.GetConfigValue("r2_public_url", "")
+	endpoint := db.GetConfigValue("r2_endpoint", "")
+	accessKey := db.GetConfigValue("r2_access_key", "")
+	secretKey := db.GetConfigValue("r2_secret_key", "")
+	bucket := db.GetConfigValue("r2_bucket", "")
+	publicURL := db.GetConfigValue("r2_public_url", "")
 
 	if endpoint == "" || accessKey == "" || secretKey == "" || bucket == "" {
 		return nil, fmt.Errorf("R2 配置不完整：需要 endpoint, access_key, secret_key, bucket")
@@ -147,7 +147,7 @@ func (r *R2Storage) GetURL(objectKey string) string {
 		return r.publicURL + "/" + r2Key
 	}
 	// 如果沒有配置 publicURL，使用 R2 預設 URL 格式
-	return fmt.Sprintf("https://%s/%s/%s", strings.TrimPrefix(model.GetConfigValue("r2_endpoint", ""), "https://"), r.bucket, r2Key)
+	return fmt.Sprintf("https://%s/%s/%s", strings.TrimPrefix(db.GetConfigValue("r2_endpoint", ""), "https://"), r.bucket, r2Key)
 }
 
 // Exists 檢查檔案是否存在於 R2

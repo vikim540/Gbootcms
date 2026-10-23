@@ -1,8 +1,8 @@
 package member
 
-import (
+import (	"gbootcms/core/db"
+
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	memberModel "gbootcms/apps/admin/model/member"
 	"gbootcms/apps/common"
 	"gbootcms/config"
@@ -27,10 +27,10 @@ func (mf *MemberFieldController) Index(c *gin.Context) {
 
 	// 統計總記錄數
 	var total int64
-	model.DB.WithContext(c.Request.Context()).Model(&model.MemberField{}).Count(&total)
+	db.DB.WithContext(c.Request.Context()).Model(&memberModel.MemberField{}).Count(&total)
 
-	var fields []model.MemberField
-	model.DB.WithContext(c.Request.Context()).Order("sorting ASC, id ASC").Offset(offset).Limit(pageSize).Find(&fields)
+	var fields []memberModel.MemberField
+	db.DB.WithContext(c.Request.Context()).Order("sorting ASC, id ASC").Offset(offset).Limit(pageSize).Find(&fields)
 	common.Render(c, "member/field.html", gin.H{
 		"list":     true,
 		"fields":   fields,
@@ -82,7 +82,7 @@ func (mf *MemberFieldController) Add(c *gin.Context) {
 
 		now := time.Now()
 		username := mf.GetAdminUsername(c)
-		if err := model.DB.WithContext(c.Request.Context()).Create(&model.MemberField{
+		if err := db.DB.WithContext(c.Request.Context()).Create(&memberModel.MemberField{
 			Name:        name,
 			Length:      length,
 			Required:    required,
@@ -126,7 +126,7 @@ func (mf *MemberFieldController) Mod(c *gin.Context) {
 	}
 
 	if field != "" && value != "" {
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberField{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Model(&memberModel.MemberField{}).Where("id = ?", id).Update(field, value).Error; err != nil {
 			mf.JSONFail(c, "修改失敗："+err.Error())
 			return
 		}
@@ -139,7 +139,7 @@ func (mf *MemberFieldController) Mod(c *gin.Context) {
 		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberField{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := db.DB.WithContext(c.Request.Context()).Model(&memberModel.MemberField{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"description": c.PostForm("description"),
 			"required":    required,
 			"sorting":     sorting,
@@ -155,8 +155,8 @@ func (mf *MemberFieldController) Mod(c *gin.Context) {
 	}
 
 	// GET 載入修改頁面
-	var field1 model.MemberField
-	model.DB.WithContext(c.Request.Context()).First(&field1, id)
+	var field1 memberModel.MemberField
+	db.DB.WithContext(c.Request.Context()).First(&field1, id)
 	common.Render(c, "member/field.html", gin.H{
 		"mod":   true,
 		"field": field1,
@@ -183,7 +183,7 @@ func (mf *MemberFieldController) Del(c *gin.Context) {
 	// 取得欄位名稱（刪除前查詢，用於 DROP COLUMN）
 	fieldName := memberModel.GetFieldNameByID(idStr)
 
-	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.MemberField{}, idStr).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Delete(&memberModel.MemberField{}, idStr).Error; err != nil {
 		mf.JSONFail(c, "刪除失敗："+err.Error())
 		return
 	}

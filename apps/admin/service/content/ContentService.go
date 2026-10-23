@@ -1,11 +1,11 @@
 package content
 
-import (
+import (	"gbootcms/core/db"
+
 	"context"
 	"errors"
 	"fmt"
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	contentModel "gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
 	"log/slog"
@@ -18,12 +18,12 @@ import (
 type ContentService struct{}
 
 // ListContents returns paginated content list and total count
-func (s *ContentService) ListContents(ctx context.Context, mcode, scode, keyword string, page, pageSize int) ([]model.Content, int64, error) {
+func (s *ContentService) ListContents(ctx context.Context, mcode, scode, keyword string, page, pageSize int) ([]contentModel.Content, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	var total int64
-	query := model.DB.WithContext(ctx).Model(&model.Content{}).Where("status >= 0")
+	query := db.DB.WithContext(ctx).Model(&contentModel.Content{}).Where("status >= 0")
 	if mcode != "" {
 		query = query.Where("scode IN (SELECT scode FROM ay_content_sort WHERE mcode = ?)", mcode)
 	}
@@ -36,7 +36,7 @@ func (s *ContentService) ListContents(ctx context.Context, mcode, scode, keyword
 	}
 	query.Count(&total)
 
-	var contents []model.Content
+	var contents []contentModel.Content
 	err := query.Order("date DESC, id DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
@@ -45,9 +45,9 @@ func (s *ContentService) ListContents(ctx context.Context, mcode, scode, keyword
 }
 
 // GetContent returns a single content by ID
-func (s *ContentService) GetContent(ctx context.Context, id int) (*model.Content, error) {
-	var doc model.Content
-	err := model.DB.WithContext(ctx).First(&doc, id).Error
+func (s *ContentService) GetContent(ctx context.Context, id int) (*contentModel.Content, error) {
+	var doc contentModel.Content
+	err := db.DB.WithContext(ctx).First(&doc, id).Error
 	if err != nil {
 		return nil, errors.New("內容不存在")
 	}
@@ -128,7 +128,7 @@ func (s *ContentService) CollectExtFieldData(
 
 // CreateContent creates a new content record with optional ext field data
 // 對齊 PHP: addContent($data) → autoTime() 自動設置 create_time/update_time
-func (s *ContentService) CreateContent(ctx context.Context, doc *model.Content, extData map[string]interface{}) error {
+func (s *ContentService) CreateContent(ctx context.Context, doc *contentModel.Content, extData map[string]interface{}) error {
 	if doc.Title == "" || doc.Scode == "" {
 		return errors.New("標題和欄目不能為空")
 	}
@@ -142,7 +142,7 @@ func (s *ContentService) CreateContent(ctx context.Context, doc *model.Content, 
 	now := time.Now()
 	doc.CreateTime = now
 	doc.UpdateTime = now
-	if err := model.DB.WithContext(ctx).Create(doc).Error; err != nil {
+	if err := db.DB.WithContext(ctx).Create(doc).Error; err != nil {
 		return err
 	}
 	// 如果有擴展數據，插入 ay_content_ext
@@ -150,7 +150,7 @@ func (s *ContentService) CreateContent(ctx context.Context, doc *model.Content, 
 		extData["contentid"] = doc.ID
 		if err := contentModel.InsertContentExt(extData); err != nil {
 			// 回滾：刪除已插入的內容
-			if delErr := model.DB.WithContext(ctx).Delete(&model.Content{}, doc.ID).Error; delErr != nil {
+			if delErr := db.DB.WithContext(ctx).Delete(&contentModel.Content{}, doc.ID).Error; delErr != nil {
 				slog.Error("回滾刪除內容失敗", "id", doc.ID, "error", delErr)
 			}
 			return errors.New("創建擴展數據失敗: " + err.Error())
@@ -164,7 +164,7 @@ func (s *ContentService) CreateContent(ctx context.Context, doc *model.Content, 
 func (s *ContentService) UpdateContent(ctx context.Context, id int, updates map[string]interface{}, extData map[string]interface{}) error {
 	// autoTime: 更新修改時間（SQLite 無 ON UPDATE CURRENT_TIMESTAMP）
 	updates["update_time"] = time.Now()
-	result := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).Updates(updates)
+	result := db.DB.WithContext(ctx).Model(&contentModel.Content{}).Where("id = ?", id).Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -182,7 +182,7 @@ func (s *ContentService) UpdateContent(ctx context.Context, id int, updates map[
 // DeleteContent performs soft delete by setting status = -1 (move to recycle bin)
 func (s *ContentService) DeleteContent(ctx context.Context, ids []string) error {
 	for _, id := range ids {
-		if err := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).Update("status", -1).Error; err != nil {
+		if err := db.DB.WithContext(ctx).Model(&contentModel.Content{}).Where("id = ?", id).Update("status", -1).Error; err != nil {
 			return err
 		}
 	}
@@ -190,12 +190,12 @@ func (s *ContentService) DeleteContent(ctx context.Context, ids []string) error 
 }
 
 // ListTrashedContents returns paginated trashed content (status = -1)
-func (s *ContentService) ListTrashedContents(ctx context.Context, mcode, scode, keyword string, page, pageSize int) ([]model.Content, int64, error) {
+func (s *ContentService) ListTrashedContents(ctx context.Context, mcode, scode, keyword string, page, pageSize int) ([]contentModel.Content, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	var total int64
-	query := model.DB.WithContext(ctx).Model(&model.Content{}).Where("status = -1")
+	query := db.DB.WithContext(ctx).Model(&contentModel.Content{}).Where("status = -1")
 	if mcode != "" {
 		query = query.Where("scode IN (SELECT scode FROM ay_content_sort WHERE mcode = ?)", mcode)
 	}
@@ -208,7 +208,7 @@ func (s *ContentService) ListTrashedContents(ctx context.Context, mcode, scode, 
 	}
 	query.Count(&total)
 
-	var contents []model.Content
+	var contents []contentModel.Content
 	err := query.Order("update_time DESC, id DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
@@ -219,7 +219,7 @@ func (s *ContentService) ListTrashedContents(ctx context.Context, mcode, scode, 
 // RestoreContent restores trashed content by setting status back to 0 (draft)
 func (s *ContentService) RestoreContent(ctx context.Context, ids []string) error {
 	for _, id := range ids {
-		if err := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ? AND status = -1", id).Update("status", 0).Error; err != nil {
+		if err := db.DB.WithContext(ctx).Model(&contentModel.Content{}).Where("id = ? AND status = -1", id).Update("status", 0).Error; err != nil {
 			return err
 		}
 	}
@@ -229,7 +229,7 @@ func (s *ContentService) RestoreContent(ctx context.Context, ids []string) error
 // PermanentDeleteContent permanently deletes content and its ext data
 func (s *ContentService) PermanentDeleteContent(ctx context.Context, ids []string) error {
 	for _, id := range ids {
-		if err := model.DB.WithContext(ctx).Where("id = ? AND status = -1", id).Delete(&model.Content{}).Error; err != nil {
+		if err := db.DB.WithContext(ctx).Where("id = ? AND status = -1", id).Delete(&contentModel.Content{}).Error; err != nil {
 			return err
 		}
 		// 同步刪除擴展數據
@@ -245,11 +245,11 @@ func (s *ContentService) CopyContent(ctx context.Context, id int, targetScode st
 	if targetScode == "" {
 		return errors.New("目標欄目不能為空")
 	}
-	var src model.Content
-	if err := model.DB.WithContext(ctx).First(&src, id).Error; err != nil {
+	var src contentModel.Content
+	if err := db.DB.WithContext(ctx).First(&src, id).Error; err != nil {
 		return errors.New("內容不存在")
 	}
-	copyDoc := model.Content{
+	copyDoc := contentModel.Content{
 		Scode:       targetScode,
 		Subscode:    src.Subscode,
 		Title:       src.Title,
@@ -269,7 +269,7 @@ func (s *ContentService) CopyContent(ctx context.Context, id int, targetScode st
 		Sorting:     src.Sorting,
 		Status:      1,
 	}
-	if err := model.DB.WithContext(ctx).Create(&copyDoc).Error; err != nil {
+	if err := db.DB.WithContext(ctx).Create(&copyDoc).Error; err != nil {
 		return err
 	}
 	// 複製擴展數據
@@ -294,13 +294,13 @@ func (s *ContentService) MoveContent(ctx context.Context, id int, targetScode st
 	if targetScode == "" {
 		return errors.New("目標欄目不能為空")
 	}
-	return model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).Update("scode", targetScode).Error
+	return db.DB.WithContext(ctx).Model(&contentModel.Content{}).Where("id = ?", id).Update("scode", targetScode).Error
 }
 
 // UpdateSorting updates sorting for multiple contents
 func (s *ContentService) UpdateSorting(ctx context.Context, idSortingMap map[string]int) error {
 	for idStr, sorting := range idSortingMap {
-		if err := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", idStr).Update("sorting", sorting).Error; err != nil {
+		if err := db.DB.WithContext(ctx).Model(&contentModel.Content{}).Where("id = ?", idStr).Update("sorting", sorting).Error; err != nil {
 			return err
 		}
 	}
@@ -323,7 +323,7 @@ func (s *ContentService) UpdateSingleField(ctx context.Context, id int, field, v
 		return errors.New("不允許修改的欄位: " + field)
 	}
 	// 對齊 PHP: modContent($id, "$field='$value',update_user='...'") 同時更新 update_time
-	result := model.DB.WithContext(ctx).Model(&model.Content{}).Where("id = ?", id).
+	result := db.DB.WithContext(ctx).Model(&contentModel.Content{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
 			field:        value,
 			"update_time": time.Now(),
@@ -338,9 +338,9 @@ func (s *ContentService) UpdateSingleField(ctx context.Context, id int, field, v
 }
 
 // GetAllSorts returns all active sorts ordered by sorting
-func (s *ContentService) GetAllSorts(ctx context.Context) ([]model.ContentSort, error) {
-	var sorts []model.ContentSort
-	err := model.DB.WithContext(ctx).Where("status = 1").Order("sorting ASC").Find(&sorts).Error
+func (s *ContentService) GetAllSorts(ctx context.Context) ([]contentModel.ContentSort, error) {
+	var sorts []contentModel.ContentSort
+	err := db.DB.WithContext(ctx).Where("status = 1").Order("sorting ASC").Find(&sorts).Error
 	return sorts, err
 }
 

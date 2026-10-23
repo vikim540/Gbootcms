@@ -1,9 +1,10 @@
 package content
 
-import (
+import (	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"fmt"
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"strconv"
 	"time"
@@ -20,7 +21,7 @@ type SlideController struct {
 // getGids returns available slide group IDs for the template dropdown.
 func (sl *SlideController) getGids(c *gin.Context) []int {
 	var gids []int
-	model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Distinct("gid").Pluck("gid", &gids)
+	db.DB.WithContext(c.Request.Context()).Model(&contentModel.Slide{}).Distinct("gid").Pluck("gid", &gids)
 	found := false
 	for _, g := range gids {
 		if g == 1 {
@@ -36,14 +37,14 @@ func (sl *SlideController) getGids(c *gin.Context) []int {
 
 // getGroups 返回所有輪播圖分組，包含名稱和輪播圖數量
 // 對於有 slide 記錄但無分組名稱的 gid，自動生成 "分組N" 臨時名稱
-func (sl *SlideController) getGroups(c *gin.Context) []model.SlideGroup {
+func (sl *SlideController) getGroups(c *gin.Context) []contentModel.SlideGroup {
 	// 1. 從 DB 載入已命名的分組
-	var groups []model.SlideGroup
-	model.DB.WithContext(c.Request.Context()).Order("sorting ASC, gid ASC").Find(&groups)
+	var groups []contentModel.SlideGroup
+	db.DB.WithContext(c.Request.Context()).Order("sorting ASC, gid ASC").Find(&groups)
 
 	// 2. 取得所有 slide 中的 distinct gid
 	var slideGIDs []int
-	model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Distinct("gid").Pluck("gid", &slideGIDs)
+	db.DB.WithContext(c.Request.Context()).Model(&contentModel.Slide{}).Distinct("gid").Pluck("gid", &slideGIDs)
 
 	// 3. 為沒有分組名稱的 gid 生成臨時名稱
 	groupGIDSet := make(map[int]bool)
@@ -52,7 +53,7 @@ func (sl *SlideController) getGroups(c *gin.Context) []model.SlideGroup {
 	}
 	for _, gid := range slideGIDs {
 		if !groupGIDSet[gid] {
-			groups = append(groups, model.SlideGroup{
+			groups = append(groups, contentModel.SlideGroup{
 				GID:  gid,
 				Name: fmt.Sprintf("分組%d", gid),
 			})
@@ -65,7 +66,7 @@ func (sl *SlideController) getGroups(c *gin.Context) []model.SlideGroup {
 		Count int64 `gorm:"column:count"`
 	}
 	var counts []gidCount
-	model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Select("gid, COUNT(*) as count").Group("gid").Find(&counts)
+	db.DB.WithContext(c.Request.Context()).Model(&contentModel.Slide{}).Select("gid, COUNT(*) as count").Group("gid").Find(&counts)
 	countMap := make(map[int]int64)
 	for _, gc := range counts {
 		countMap[gc.GID] = gc.Count
@@ -86,8 +87,8 @@ func (sl *SlideController) Index(c *gin.Context) {
 	// 支援 ?gid=X 篩選
 	filterGID := c.Query("gid")
 
-	var slides []model.Slide
-	query := model.DB.WithContext(c.Request.Context()).Model(&model.Slide{})
+	var slides []contentModel.Slide
+	query := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Slide{})
 	if filterGID != "" {
 		if gid, err := strconv.Atoi(filterGID); err == nil && gid > 0 {
 			query = query.Where("gid = ?", gid)
@@ -159,11 +160,11 @@ func (sl *SlideController) GroupManage(c *gin.Context) {
 
 		// 自動遞增 gid：取當前最大 gid + 1
 		var maxGID int
-		model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Select("COALESCE(MAX(gid),0)").Scan(&maxGID)
+		db.DB.WithContext(c.Request.Context()).Model(&contentModel.Slide{}).Select("COALESCE(MAX(gid),0)").Scan(&maxGID)
 		gid := maxGID + 1
 
 		now := time.Now().Format("2006-01-02 15:04:05")
-		if err := model.DB.WithContext(c.Request.Context()).Create(&model.SlideGroup{
+		if err := db.DB.WithContext(c.Request.Context()).Create(&contentModel.SlideGroup{
 			GID:        gid,
 			Name:       name,
 			Sorting:    sorting,
@@ -194,11 +195,11 @@ func (sl *SlideController) GroupManage(c *gin.Context) {
 				return
 			}
 			// 檢查是否已存在同 gid 的分組記錄（防止併發重複創建）
-			var existing model.SlideGroup
-			result := model.DB.WithContext(c.Request.Context()).Where("gid = ?", gid).First(&existing)
+			var existing contentModel.SlideGroup
+			result := db.DB.WithContext(c.Request.Context()).Where("gid = ?", gid).First(&existing)
 			if result.Error == nil {
 				// 已存在記錄，改為更新
-				if err := model.DB.WithContext(c.Request.Context()).Model(&model.SlideGroup{}).Where("id = ?", existing.ID).Updates(map[string]interface{}{
+				if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.SlideGroup{}).Where("id = ?", existing.ID).Updates(map[string]interface{}{
 					"name":        name,
 					"sorting":     sorting,
 					"update_time": now,
@@ -208,7 +209,7 @@ func (sl *SlideController) GroupManage(c *gin.Context) {
 				}
 			} else {
 				// 不存在，創建新記錄
-				if err := model.DB.WithContext(c.Request.Context()).Create(&model.SlideGroup{
+				if err := db.DB.WithContext(c.Request.Context()).Create(&contentModel.SlideGroup{
 					GID:        gid,
 					Name:       name,
 					Sorting:    sorting,
@@ -225,7 +226,7 @@ func (sl *SlideController) GroupManage(c *gin.Context) {
 		}
 
 		// 正常更新已有記錄
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.SlideGroup{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.SlideGroup{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"name":        name,
 			"sorting":     sorting,
 			"update_time": now,
@@ -242,7 +243,7 @@ func (sl *SlideController) GroupManage(c *gin.Context) {
 			sl.JSONFail(c, "缺少分組ID")
 			return
 		}
-		if err := model.DB.WithContext(c.Request.Context()).Delete(&model.SlideGroup{}, id).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Delete(&contentModel.SlideGroup{}, id).Error; err != nil {
 			sl.JSONFail(c, "刪除分組失敗："+err.Error())
 			return
 		}
@@ -262,12 +263,12 @@ func (sl *SlideController) Add(c *gin.Context) {
 		if gid == 0 {
 			// Auto-increment gid: find max gid and add 1
 			var maxGID int
-			model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Select("COALESCE(MAX(gid),0)").Scan(&maxGID)
+			db.DB.WithContext(c.Request.Context()).Model(&contentModel.Slide{}).Select("COALESCE(MAX(gid),0)").Scan(&maxGID)
 			gid = maxGID + 1
 		}
 		now := time.Now().Format("2006-01-02 15:04:05")
 		username := sl.GetAdminUsername(c)
-		if err := model.DB.WithContext(c.Request.Context()).Create(&model.Slide{
+		if err := db.DB.WithContext(c.Request.Context()).Create(&contentModel.Slide{
 			GID:        gid,
 			Pic:        c.PostForm("pic"),
 			PicMobile:  c.PostForm("pic_mobile"),
@@ -315,7 +316,7 @@ func (sl *SlideController) Mod(c *gin.Context) {
 
 	// Handle sorting batch update (POST with submit=sorting)
 	if sl.IsBatchSort(c) {
-		sl.BatchSort(c, &model.Slide{}, "sorting", 255)
+		sl.BatchSort(c, &contentModel.Slide{}, "sorting", 255)
 		return
 	}
 
@@ -324,7 +325,7 @@ func (sl *SlideController) Mod(c *gin.Context) {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		now := time.Now().Format("2006-01-02 15:04:05")
 		username := sl.GetAdminUsername(c)
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Slide{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Slide{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"gid":         gid,
 			"pic":         c.PostForm("pic"),
 			"pic_mobile":  c.PostForm("pic_mobile"),
@@ -345,8 +346,8 @@ func (sl *SlideController) Mod(c *gin.Context) {
 	}
 
 	// GET: show edit form
-	var slide model.Slide
-	model.DB.WithContext(c.Request.Context()).First(&slide, id)
+	var slide contentModel.Slide
+	db.DB.WithContext(c.Request.Context()).First(&slide, id)
 
 	// 填充分組名稱
 	groups := sl.getGroups(c)
@@ -380,7 +381,7 @@ func (sl *SlideController) Del(c *gin.Context) {
 	if idStr != "" {
 		id, _ := strconv.Atoi(idStr)
 		if id > 0 {
-			if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Slide{}, id).Error; err != nil {
+			if err := db.DB.WithContext(c.Request.Context()).Delete(&contentModel.Slide{}, id).Error; err != nil {
 				sl.JSONFail(c, "刪除失敗："+err.Error())
 				return
 			}

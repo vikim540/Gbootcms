@@ -1,12 +1,13 @@
 package content
 
-import (
+import (	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"gbootcms/core/acodeplugin"
 	"strconv"
@@ -46,9 +47,9 @@ func (dc *DeleCacheController) Index(c *gin.Context) {
 		return
 	}
 
-	var sorts []model.ContentSort
+	var sorts []contentModel.ContentSort
 	// 加 WithContext 使 AcodePlugin 自動注入區域過濾
-	model.DB.WithContext(c.Request.Context()).Order("sorting ASC, id ASC").Find(&sorts)
+	db.DB.WithContext(c.Request.Context()).Order("sorting ASC, id ASC").Find(&sorts)
 
 	dc.render(c, "content/delecache.html", gin.H{
 		"sorts":        sorts,
@@ -81,9 +82,9 @@ func (dc *DeleCacheController) deleIndex(cacheDir string) {
 func (dc *DeleCacheController) deleSort(cacheDir string, scode string) {
 	var scodes []string
 	if scode == "" {
-		var sorts []model.ContentSort
+		var sorts []contentModel.ContentSort
 		// 快取清理需跨區查詢所有欄目，用 SkipAcode 跳過區域隔離
-		model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Where("type IN (1,2)").Find(&sorts)
+		db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Where("type IN (1,2)").Find(&sorts)
 		for _, s := range sorts {
 			scodes = append(scodes, s.Scode)
 		}
@@ -119,9 +120,9 @@ func (dc *DeleCacheController) deleContent(cacheDir string, idMin string, idMax 
 		minID, _ := strconv.Atoi(idMin)
 		maxID, _ := strconv.Atoi(idMax)
 		for i := minID; i <= maxID; i++ {
-			var content model.Content
+			var content contentModel.Content
 			// 快取清理需跨區查詢所有內容，用 SkipAcode 跳過區域隔離
-			if err := model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).First(&content, i).Error; err == nil {
+			if err := db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).First(&content, i).Error; err == nil {
 				cacheKey := fmt.Sprintf("%x", []byte(content.URLName+content.Title))
 				cacheFile := filepath.Join(cacheDir, cacheKey+".html")
 				os.Remove(cacheFile)

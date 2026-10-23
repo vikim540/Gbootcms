@@ -1,6 +1,8 @@
 package content
 
-import (
+import (	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"fmt"
 	"net/http"
 	"strconv"
@@ -8,7 +10,6 @@ import (
 	"time"
 
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/admin/model/member"
 	"gbootcms/apps/common"
 
@@ -29,7 +30,7 @@ type formFieldDef struct {
 
 // msgRow 留言列表行，嵌入 Message 並添加計算字段
 type msgRow struct {
-	model.Message
+	contentModel.Message
 	CreateTimeStr string        // 格式化後的創建時間
 	UserIPStr     string        // 轉換後的 IP 地址（整數→點分格式）
 	UserBs        string        // 別名: [value->user_bs] → val1.UserBs（匹配 SnakeToPascal 輸出）
@@ -58,7 +59,7 @@ func getFormFields(c *gin.Context, fcode string) []formFieldDef {
 		Name        string `gorm:"column:name"`
 		Description string `gorm:"column:description"`
 	}
-	model.DB.WithContext(c.Request.Context()).Table("ay_form_field").
+	db.DB.WithContext(c.Request.Context()).Table("ay_form_field").
 		Select("name, description").
 		Where("fcode = ?", fcode).
 		Order("sorting ASC, id ASC").
@@ -75,7 +76,7 @@ func getFormFields(c *gin.Context, fcode string) []formFieldDef {
 }
 
 // getMsgFieldValue 根據列名獲取 Message 字段值
-func getMsgFieldValue(m model.Message, columnName string) string {
+func getMsgFieldValue(m contentModel.Message, columnName string) string {
 	switch columnName {
 	case "contacts":
 		return m.Contacts
@@ -155,11 +156,11 @@ func (ms *MessageController) Index(c *gin.Context) {
 
 	// 查詢總數
 	var total int64
-	model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Count(&total)
+	db.DB.WithContext(c.Request.Context()).Model(&contentModel.Message{}).Count(&total)
 
 	// 查詢留言列表（分頁）
-	var messages []model.Message
-	model.DB.WithContext(c.Request.Context()).Order("id DESC").Offset(offset).Limit(pageSize).Find(&messages)
+	var messages []contentModel.Message
+	db.DB.WithContext(c.Request.Context()).Order("id DESC").Offset(offset).Limit(pageSize).Find(&messages)
 
 	// 批量查詢會員信息（避免 N+1 查詢）
 	uidSet := make(map[int]bool)
@@ -175,7 +176,7 @@ func (ms *MessageController) Index(c *gin.Context) {
 			uids = append(uids, uid)
 		}
 		var members []member.Member
-		model.DB.WithContext(c.Request.Context()).Where("id IN ?", uids).Find(&members)
+		db.DB.WithContext(c.Request.Context()).Where("id IN ?", uids).Find(&members)
 		for _, mem := range members {
 			memberMap[int(mem.ID)] = mem
 		}
@@ -257,7 +258,7 @@ func (ms *MessageController) Mod(c *gin.Context) {
 		value = c.Query("value")
 	}
 	if field != "" && value != "" && id > 0 {
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Message{}).Where("id = ?", id).Update(field, value).Error; err != nil {
 			c.Redirect(http.StatusFound, "/admin/content/message/index")
 			return
 		}
@@ -269,7 +270,7 @@ func (ms *MessageController) Mod(c *gin.Context) {
 		// 回覆提交
 		recontent := c.PostForm("recontent")
 		status := c.PostForm("status")
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Message{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"recontent":   recontent,
 			"status":      status,
 			"update_time": time.Now().Format("2006-01-02 15:04:05"),
@@ -283,8 +284,8 @@ func (ms *MessageController) Mod(c *gin.Context) {
 	}
 
 	// 顯示回覆表單
-	var msg model.Message
-	model.DB.WithContext(c.Request.Context()).First(&msg, id)
+	var msg contentModel.Message
+	db.DB.WithContext(c.Request.Context()).First(&msg, id)
 	// 使用 msgRow 包裝，提供 Recontent 別名字段（匹配模板轉換器 SnakeToPascal 輸出）
 	modRow := msgRow{
 		Message:   msg,
@@ -309,7 +310,7 @@ func (ms *MessageController) Del(c *gin.Context) {
 	if idStr != "" {
 		id, _ := strconv.Atoi(idStr)
 		if id > 0 {
-			if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Message{}, id).Error; err != nil {
+			if err := db.DB.WithContext(c.Request.Context()).Delete(&contentModel.Message{}, id).Error; err != nil {
 				ms.JSONFail(c, "刪除失敗："+err.Error())
 				return
 			}
@@ -329,7 +330,7 @@ func (ms *MessageController) Clear(c *gin.Context) {
 			if s != "" {
 				id, _ := strconv.Atoi(s)
 				if id > 0 {
-					if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Message{}, id).Error; err != nil {
+					if err := db.DB.WithContext(c.Request.Context()).Delete(&contentModel.Message{}, id).Error; err != nil {
 						continue // 批量刪除中單條失敗則跳過，繼續刪除其他記錄
 					}
 				}
@@ -340,7 +341,7 @@ func (ms *MessageController) Clear(c *gin.Context) {
 	}
 	// 清空全部（僅 ucode==10001 有權限）
 	if common.GetSessionInt(c, "admin_ucode") == 10001 {
-		if err := model.DB.WithContext(c.Request.Context()).Where("1 = 1").Delete(&model.Message{}).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Where("1 = 1").Delete(&contentModel.Message{}).Error; err != nil {
 			ms.JSONFail(c, "清空失敗："+err.Error())
 			return
 		}
@@ -350,8 +351,8 @@ func (ms *MessageController) Clear(c *gin.Context) {
 
 // exportMessages 導出留言記錄為 Excel（HTML 表格格式）
 func (ms *MessageController) exportMessages(c *gin.Context) {
-	var messages []model.Message
-	model.DB.WithContext(c.Request.Context()).Order("id DESC").Find(&messages)
+	var messages []contentModel.Message
+	db.DB.WithContext(c.Request.Context()).Order("id DESC").Find(&messages)
 
 	fieldDefs := getFormFields(c, "1")
 

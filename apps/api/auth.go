@@ -1,12 +1,12 @@
 package api
 
-import (
+import (	"gbootcms/core/db"
+
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
 
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/admin/model/system"
 	"gbootcms/apps/common"
 	"gbootcms/core/acodeplugin"
@@ -41,7 +41,7 @@ func Login(c *gin.Context) {
 	// 查詢管理員（跳過 acode 隔離，與後台登入邏輯一致）
 	loginCtx := acodeplugin.SkipAcode(c.Request.Context())
 	var user system.AdminUser
-	if err := model.DB.WithContext(loginCtx).Where("username = ? AND status = 1", req.Username).First(&user).Error; err != nil {
+	if err := db.DB.WithContext(loginCtx).Where("username = ? AND status = 1", req.Username).First(&user).Error; err != nil {
 		recordLoginFailure(c)
 		apiFail(c, http.StatusUnauthorized, "用戶名或密碼錯誤")
 		return
@@ -58,7 +58,7 @@ func Login(c *gin.Context) {
 	// 自動升級舊版雙 MD5 密碼為 bcrypt
 	if needUpgrade {
 		if hashedPwd, err := common.HashPassword(req.Password); err == nil {
-			if err := model.DB.WithContext(loginCtx).Model(&user).Update("password", hashedPwd).Error; err != nil {
+			if err := db.DB.WithContext(loginCtx).Model(&user).Update("password", hashedPwd).Error; err != nil {
 				slog.Error("API 密碼自動升級失敗", "uid", user.ID, "error", err)
 			}
 		}

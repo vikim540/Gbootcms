@@ -1,6 +1,7 @@
 package middleware
 
-import (
+import (	"gbootcms/core/db"
+
 	"bytes"
 	"compress/gzip"
 	"crypto/md5"
@@ -14,7 +15,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 
 	"github.com/gin-gonic/gin"
@@ -189,7 +189,7 @@ func HTMLCache() gin.HandlerFunc {
 		}
 
 		cacheTTL := 900 * time.Second
-		if v := model.GetConfigValue("tpl_html_cache_time", "900"); v != "" {
+		if v := db.GetConfigValue("tpl_html_cache_time", "900"); v != "" {
 			if sec, err := time.ParseDuration(v + "s"); err == nil && sec > 0 {
 				cacheTTL = sec
 			}
@@ -224,7 +224,7 @@ func HTMLCache() gin.HandlerFunc {
 		}
 
 		// --- 第二層：檔案緩存 ---
-		fileCacheEnabled := model.GetConfigValue("tpl_html_cache", "0") == "1"
+		fileCacheEnabled := db.GetConfigValue("tpl_html_cache", "0") == "1"
 		cacheFile := filepath.Join("runtime", "cache", cacheKeyHash+".html")
 
 		if fileCacheEnabled {

@@ -1,7 +1,7 @@
 package content
 
 import (
-	"gbootcms/apps/admin/model/content"
+	contentModel "gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
 	"log/slog"
 	"strconv"
@@ -40,12 +40,12 @@ func (lb *LabelController) Index(c *gin.Context) {
 
 		slog.Info("標籤批量更新", "count", len(postForm), "admin", lb.GetAdminUsername(c))
 
-		updated := content.BatchUpdateLabelValues(postForm, lb.GetAdminUsername(c))
+		updated := contentModel.BatchUpdateLabelValues(postForm, lb.GetAdminUsername(c))
 		lb.JSONOKMsg(c, common.NoticeLabelSaved(updated))
 		return
 	}
 
-	labels := content.GetAllLabels()
+	labels := contentModel.GetAllLabels()
 	common.Render(c, "content/label.html", gin.H{"list": true, "labels": labels})
 }
 
@@ -57,7 +57,7 @@ func (lb *LabelController) Add(c *gin.Context) {
 				typ = v
 			}
 		}
-		err := content.AddLabelFull(
+		err := contentModel.AddLabelFull(
 		c.PostForm("name"),
 		c.PostForm("value"),
 		c.PostForm("description"),
@@ -82,7 +82,7 @@ func (lb *LabelController) Mod(c *gin.Context) {
 	id, _ := strconv.Atoi(idStr)
 
 	if c.Request.Method == "POST" {
-		err := content.UpdateLabel(
+		err := contentModel.UpdateLabel(
 			id,
 			c.PostForm("name"),
 			c.PostForm("value"),
@@ -96,14 +96,14 @@ func (lb *LabelController) Mod(c *gin.Context) {
 		return
 	}
 
-	label := content.GetLabelById(id)
+	label := contentModel.GetLabelById(id)
 	common.Render(c, "content/label.html", gin.H{"label": label, "action": "mod"})
 }
 
 func (lb *LabelController) Del(c *gin.Context) {
 	idStr := c.Query("id")
 	id, _ := strconv.Atoi(idStr)
-	err := content.DeleteLabel(id)
+	err := contentModel.DeleteLabel(id)
 	if err != nil {
 		lb.JSONFail(c, "刪除失敗")
 		return

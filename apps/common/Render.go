@@ -1,6 +1,9 @@
 package common
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -10,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"gbootcms/apps/admin/model"
 	"gbootcms/core/acodeplugin"
 	"gbootcms/core/basic"
 	"gbootcms/core/version"
@@ -42,7 +44,7 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 	injectFormcheck(c, data)
 
 	// Inject CMS constants
-	data["CmsName"] = model.GetConfigValue("cmsname", "Gbootcms")
+	data["CmsName"] = db.GetConfigValue("cmsname", "Gbootcms")
 	data["CoreVersion"] = version.Version
 	data["AppVersion"] = version.Version
 	data["ReleaseTime"] = version.BuildTime
@@ -115,7 +117,7 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 	ps := 15
 	if v, err := strconv.Atoi(c.Query("pagesize")); err == nil && v > 0 {
 		ps = v
-	} else if cfgVal := model.GetConfigValue("pagesize", ""); cfgVal != "" {
+	} else if cfgVal := db.GetConfigValue("pagesize", ""); cfgVal != "" {
 		if v, err := strconv.Atoi(cfgVal); err == nil && v > 0 {
 			ps = v
 		}
@@ -151,8 +153,8 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 		// Inject area switcher data (對齊 PHP AdminController::__construct 全局注入)
 		// 所有後台頁面的公共頭部 head.html 需要 Areas/CurrentAcode/OneArea
 		if _, exists := data["Areas"]; !exists {
-			var allAreas []model.Area
-			model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Order("pcode, acode").Find(&allAreas)
+			var allAreas []system.Area
+			db.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Order("pcode, acode").Find(&allAreas)
 			currentAcode := GetSessionString(c, "area_code")
 			if currentAcode == "" {
 				currentAcode = GetSessionString(c, "acode")
@@ -216,8 +218,8 @@ func injectSessionData(c *gin.Context, data gin.H) {
 // Numeric string values are stored as int for correct == comparison in templates.
 func loadConfigToData(data gin.H) {
 	configMap := make(map[string]interface{})
-	var configs []model.Config
-	model.DB.Find(&configs)
+	var configs []system.Config
+	db.DB.Find(&configs)
 	for _, cfg := range configs {
 		val := cfg.Value
 		// 嘗試將純數字字串轉為 int，讓模板 {if(Config.Xxx==1)} 能正確比較
@@ -340,8 +342,8 @@ type ContentModelNode struct {
 //   - 超級管理員(uid=1)：載入全部啟用菜單
 //   - 普通用戶：只載入 URL 在用戶 session levels 中的菜單
 func buildMenuTree(uid int, levels []string) []MenuNode {
-	var menus []model.Menu
-	query := model.DB.Where("status = 1").Order("sorting ASC, id ASC")
+	var menus []system.Menu
+	query := db.DB.Where("status = 1").Order("sorting ASC, id ASC")
 
 	if uid != 1 && len(levels) > 0 {
 		// 非超級管理員：查詢全部後在記憶體中按權限過濾（不區分大小寫）
@@ -350,7 +352,7 @@ func buildMenuTree(uid int, levels []string) []MenuNode {
 		for _, l := range levels {
 			levelSet[strings.ToLower(strings.TrimSpace(l))] = true
 		}
-		filtered := make([]model.Menu, 0, len(menus))
+		filtered := make([]system.Menu, 0, len(menus))
 		for _, m := range menus {
 			if levelSet[strings.ToLower(m.URL)] {
 				filtered = append(filtered, m)
@@ -390,8 +392,8 @@ func buildMenuTree(uid int, levels []string) []MenuNode {
 
 // buildMenuModels returns all active content models for the sidebar.
 func buildMenuModels() []ContentModelNode {
-	var models []model.ContentModel
-	model.DB.Where("status = 1").Order("sorting ASC").Find(&models)
+	var models []content.Model
+	db.DB.Where("status = 1").Order("sorting ASC").Find(&models)
 	var result []ContentModelNode
 	for _, m := range models {
 		result = append(result, ContentModelNode{

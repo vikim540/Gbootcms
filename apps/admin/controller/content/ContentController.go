@@ -1,10 +1,11 @@
 package content
 
-import (
+import (	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"context"
 	"fmt"
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	svc "gbootcms/apps/admin/service/content"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/push"
@@ -23,8 +24,23 @@ type ContentController struct {
 }
 
 // contentTemplateData returns common template data for content views.
-func (cc *ContentController) contentTemplateData(ctx context.Context, mcode, scode string, sorts []model.ContentSort, contentMap map[string]interface{}) gin.H {
+func (cc *ContentController) contentTemplateData(ctx context.Context, mcode, scode string, sorts []contentModel.ContentSort, contentMap map[string]interface{}) gin.H {
+	type SimpleDoc struct {
+		ID    uint   `json:"id"`
+		Title string `json:"title"`
+		Acode string `json:"acode"`
+	}
+	var masterDocs []SimpleDoc
+	db.DB.WithContext(acodeplugin.SkipAcode(ctx)).
+		Table("ay_content").
+		Select("id, title, acode").
+		Where("status = 1").
+		Order("id DESC").
+		Limit(500).
+		Find(&masterDocs)
+
 	return gin.H{
+		"master_contents":   masterDocs,
 		"mcode":             mcode,
 		"model_name":        helper.GetModelNameByMcode(mcode),
 		"sorts":             sorts,
@@ -33,9 +49,9 @@ func (cc *ContentController) contentTemplateData(ctx context.Context, mcode, sco
 		"subsort_select":    helper.BuildSearchSelectHTML(sorts, mcode),
 		"extfield":          cc.svc.BuildExtFieldTemplateData(ctx, mcode, scode, contentMap),
 		"groups":            helper.BuildGroupsData(),
-		"baidu_zz_token":    model.GetConfigValue("baidu_zz_token", ""),
-		"baidu_ks_token":    model.GetConfigValue("baidu_ks_token", ""),
-		"bing_indexnow_key": model.GetConfigValue("bing_indexnow_key", ""),
+		"baidu_zz_token":    db.GetConfigValue("baidu_zz_token", ""),
+		"baidu_ks_token":    db.GetConfigValue("baidu_ks_token", ""),
+		"bing_indexnow_key": db.GetConfigValue("bing_indexnow_key", ""),
 	}
 }
 
@@ -110,7 +126,7 @@ func (cc *ContentController) Add(c *gin.Context) {
 
 		relID, _ := strconv.Atoi(c.DefaultPostForm("rel_id", "0"))
 
-		doc := model.Content{
+		doc := contentModel.Content{
 			Scode:       c.PostForm("scode"),
 			Subscode:    c.PostForm("subscode"),
 			Title:       c.PostForm("title"),
@@ -210,7 +226,7 @@ func (cc *ContentController) Mod(c *gin.Context) {
 
 	if cc.IsBatchSort(c) {
 		cc.LogAction(c, "修改內容排序成功")
-		cc.BatchSort(c, &model.Content{}, "sorting", 255)
+		cc.BatchSort(c, &contentModel.Content{}, "sorting", 255)
 		return
 	}
 
@@ -488,12 +504,12 @@ func (cc *ContentController) IndexCatchAll(c *gin.Context) {
 
 // resolveMcodeByContentID 從內容的欄目反推 mcode，確保 MOD GET/POST 都能獲取擴展字段定義
 func (cc *ContentController) resolveMcodeByContentID(ctx context.Context, id int) string {
-	var doc model.Content
-	if model.DB.WithContext(ctx).Select("scode").Where("id = ?", id).First(&doc).Error != nil {
+	var doc contentModel.Content
+	if db.DB.WithContext(ctx).Select("scode").Where("id = ?", id).First(&doc).Error != nil {
 		return ""
 	}
-	var sort model.ContentSort
-	if model.DB.WithContext(ctx).Select("mcode").Where("scode = ?", doc.Scode).First(&sort).Error != nil {
+	var sort contentModel.ContentSort
+	if db.DB.WithContext(ctx).Select("mcode").Where("scode = ?", doc.Scode).First(&sort).Error != nil {
 		return ""
 	}
 	return sort.Mcode
@@ -635,15 +651,15 @@ func (cc *ContentController) handlePush(c *gin.Context, pushType string) {
 	}
 
 	// 查詢內容
-	var contents []model.Content
-	model.DB.WithContext(c.Request.Context()).Where("id IN ?", ids).Find(&contents)
+	var contents []contentModel.Content
+	db.DB.WithContext(c.Request.Context()).Where("id IN ?", ids).Find(&contents)
 	if len(contents) == 0 {
 		cc.JSONFail(c, "未找到可推送的內容")
 		return
 	}
 
 	// 排除外鏈內容（對齊 PHP: 鏈接類型不允許推送）
-	var validContents []model.Content
+	var validContents []contentModel.Content
 	for _, ct := range contents {
 		if ct.Outlink == "" {
 			validContents = append(validContents, ct)
@@ -666,7 +682,7 @@ func (cc *ContentController) handlePush(c *gin.Context, pushType string) {
 
 	switch pushType {
 	case "baiduzz":
-		token := model.GetConfigValue("baidu_zz_token", "")
+		token := db.GetConfigValue("baidu_zz_token", "")
 		if token == "" {
 			cc.JSONFail(c, "請先到系統配置中填寫百度普通收錄推送 token")
 			return
@@ -684,7 +700,7 @@ func (cc *ContentController) handlePush(c *gin.Context, pushType string) {
 		}
 
 	case "baiduks":
-		token := model.GetConfigValue("baidu_ks_token", "")
+		token := db.GetConfigValue("baidu_ks_token", "")
 		if token == "" {
 			cc.JSONFail(c, "請先到系統配置中填寫百度快速收錄推送 token")
 			return
@@ -702,7 +718,7 @@ func (cc *ContentController) handlePush(c *gin.Context, pushType string) {
 		}
 
 	case "bingpush":
-		key := model.GetConfigValue("bing_indexnow_key", "")
+		key := db.GetConfigValue("bing_indexnow_key", "")
 		if key == "" {
 			cc.JSONFail(c, "請先到系統配置中填寫 Bing IndexNow 密鑰")
 			return
@@ -742,15 +758,15 @@ func (cc *ContentController) handlePush(c *gin.Context, pushType string) {
 //   2. 單段 slug（如 my-article）→ /{sortPath}/{slug}（欄目路徑 + slug）
 //   3. 無 slug，欄目有 pathname → /{sortPath}/{id}
 //   4. 無 slug，欄目無 pathname → /content/{id}（兜底）
-func buildContentPath(ctx context.Context, c *model.Content) string {
+func buildContentPath(ctx context.Context, c *contentModel.Content) string {
 	if c.Outlink != "" {
 		return c.Outlink
 	}
 	// 查詢欄目 pathname
 	var sortPath string
 	if c.Scode != "" {
-		var s model.ContentSort
-		if model.DB.WithContext(ctx).Where("scode = ?", c.Scode).First(&s).Error == nil {
+		var s contentModel.ContentSort
+		if db.DB.WithContext(ctx).Where("scode = ?", c.Scode).First(&s).Error == nil {
 			if s.Filename != "" {
 				sortPath = s.Filename
 			} else if s.URLName != "" {
@@ -801,14 +817,14 @@ func checkSlugConflict(slug, excludeID string) string {
 	// 檢查與欄目 filename/urlname 衝突
 	// checkSlugConflict 無 c 參數，slug 唯一性需跨區檢查，用 SkipAcode 跳過區域隔離
 	var count int64
-	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Model(&model.ContentSort{}).Where("filename = ? OR urlname = ?", firstSeg, firstSeg).Count(&count)
+	db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Model(&contentModel.ContentSort{}).Where("filename = ? OR urlname = ?", firstSeg, firstSeg).Count(&count)
 	if count > 0 {
 		return "slug 「" + firstSeg + "」與欄目路徑衝突，請使用其他名稱"
 	}
 	// 單段 slug：檢查與其他內容的 filename 衝突
 	if !strings.Contains(slug, "/") {
 		// 同樣用 SkipAcode 跨區檢查 slug 唯一性
-		q := model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Model(&model.Content{}).Where("filename = ?", slug)
+		q := db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Model(&contentModel.Content{}).Where("filename = ?", slug)
 		if excludeID != "" {
 			q = q.Where("id != ?", excludeID)
 		}

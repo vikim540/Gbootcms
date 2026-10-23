@@ -1,8 +1,9 @@
 package content
 
-import (
+import (	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"strconv"
 	"time"
@@ -29,8 +30,8 @@ func (tg *TagsController) Index(c *gin.Context) {
 	idStr := c.Query("id")
 	if idStr != "" {
 		id, _ := strconv.Atoi(idStr)
-		var tag model.Tags
-		if err := model.DB.WithContext(c.Request.Context()).First(&tag, id).Error; err == nil {
+		var tag contentModel.Tags
+		if err := db.DB.WithContext(c.Request.Context()).First(&tag, id).Error; err == nil {
 			common.Render(c, "content/tags.html", gin.H{"more": true, "tags": tag, "C": "content/tags"})
 			return
 		}
@@ -39,8 +40,8 @@ func (tg *TagsController) Index(c *gin.Context) {
 	field := c.Query("field")
 	keyword := c.Query("keyword")
 
-	var tags []model.Tags
-	query := model.DB.WithContext(c.Request.Context()).Model(&model.Tags{})
+	var tags []contentModel.Tags
+	query := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Tags{})
 	if field != "" && keyword != "" && tagsSearchFields[field] {
 		query = query.Where(field+" LIKE ?", "%"+keyword+"%")
 	}
@@ -81,7 +82,7 @@ func (tg *TagsController) Add(c *gin.Context) {
 
 		now := time.Now().Format("2006-01-02 15:04:05")
 		username := tg.GetAdminUsername(c)
-		if err := model.DB.WithContext(c.Request.Context()).Create(&model.Tags{
+		if err := db.DB.WithContext(c.Request.Context()).Create(&contentModel.Tags{
 			Name:       name,
 			Link:       link,
 			CreateUser: username,
@@ -116,7 +117,7 @@ func (tg *TagsController) Del(c *gin.Context) {
 		tg.JSONFail(c, "參數錯誤")
 		return
 	}
-	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Tags{}, idStr).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Delete(&contentModel.Tags{}, idStr).Error; err != nil {
 		tg.LogAction(c, "刪除文章內鏈失敗")
 		tg.JSONFail(c, "刪除失敗："+err.Error())
 		return
@@ -149,7 +150,7 @@ func (tg *TagsController) Mod(c *gin.Context) {
 	if field != "" && value != "" {
 		// 白名單驗證：Tags 只有 sorting 欄位允許單欄位更新
 		if field == "sorting" {
-			if err := model.DB.WithContext(c.Request.Context()).Model(&model.Tags{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+			if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Tags{}).Where("id = ?", id).Update(field, value).Error; err != nil {
 				tg.JSONFail(c, "修改失敗："+err.Error())
 				return
 			}
@@ -176,7 +177,7 @@ func (tg *TagsController) Mod(c *gin.Context) {
 			"update_user": tg.GetAdminUsername(c),
 			"update_time": now,
 		}
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Tags{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Tags{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			tg.JSONFail(c, "修改失敗："+err.Error())
 			return
 		}
@@ -185,8 +186,8 @@ func (tg *TagsController) Mod(c *gin.Context) {
 		return
 	}
 
-	var tag model.Tags
-	if err := model.DB.WithContext(c.Request.Context()).First(&tag, id).Error; err != nil {
+	var tag contentModel.Tags
+	if err := db.DB.WithContext(c.Request.Context()).First(&tag, id).Error; err != nil {
 		tg.JSONFail(c, "內容不存在")
 		return
 	}

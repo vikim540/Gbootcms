@@ -320,9 +320,15 @@
 			                 </div>
 			                 
 			                 <div class="layui-form-item">
-			                     <label class="layui-form-label">跨語言關聯ID</label>
+			                     <label class="layui-form-label">關聯主文章 ID</label>
 			                     <div class="layui-input-block">
-			                     	<input type="number" name="rel_id" value="0" placeholder="跨語言關聯ID（相同文章在不同語言版本中填寫相同的正整數ID，用於生成hreflang與語系切換）" class="layui-input">
+			                     	<select name="rel_id" lay-search>
+			                     		<option value="0">0 - 留空或不關聯（首發默認語言文章選0）</option>
+			                     		{foreach $master_contents(key,value)}
+			                     		<option value="[value->id]">[ID: [value->id]] [value->title] ([value->acode])</option>
+			                     		{/foreach}
+			                     	</select>
+			                     	<div class="layui-form-mid layui-word-aux">填寫對應默認語言文章的 ID，用於自動生成多語言 hreflang 標籤與跨語言精準跳轉</div>
 			                     </div>
 			                 </div>
 			                 
@@ -555,9 +561,15 @@
 			                 </div>
 			                 
 			                 <div class="layui-form-item">
-			                     <label class="layui-form-label">跨語言關聯ID</label>
+			                     <label class="layui-form-label">關聯主文章 ID</label>
 			                     <div class="layui-input-block">
-			                     	<input type="number" name="rel_id" value="{$content->rel_id}" placeholder="跨語言關聯ID（相同文章在不同語言版本中填寫相同的正整數ID，用於生成hreflang與語系切換）" class="layui-input">
+			                     	<select name="rel_id" lay-search>
+			                     		<option value="0">0 - 留空或不關聯（首發默認語言文章選0）</option>
+			                     		{foreach $master_contents(key,value)}
+			                     		<option value="[value->id]" {if([value->id]==$content->rel_id)}selected{/if}>[ID: [value->id]] [value->title] ([value->acode])</option>
+			                     		{/foreach}
+			                     	</select>
+			                     	<div class="layui-form-mid layui-word-aux">填寫對應默認語言文章的 ID，用於自動生成多語言 hreflang 標籤與跨語言精準跳轉</div>
 			                     </div>
 			                 </div>
 			                 

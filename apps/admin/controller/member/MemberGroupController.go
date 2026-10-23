@@ -1,8 +1,9 @@
 package member
 
-import (
+import (	"gbootcms/apps/admin/model/member"
+	"gbootcms/core/db"
+
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"strconv"
 	"time"
@@ -24,10 +25,10 @@ func (mg *MemberGroupController) Index(c *gin.Context) {
 
 	// 統計總記錄數
 	var total int64
-	model.DB.WithContext(c.Request.Context()).Model(&model.MemberGroup{}).Count(&total)
+	db.DB.WithContext(c.Request.Context()).Model(&member.MemberGroup{}).Count(&total)
 
-	var groups []model.MemberGroup
-	model.DB.WithContext(c.Request.Context()).Order("gcode ASC, id ASC").Offset(offset).Limit(pageSize).Find(&groups)
+	var groups []member.MemberGroup
+	db.DB.WithContext(c.Request.Context()).Order("gcode ASC, id ASC").Offset(offset).Limit(pageSize).Find(&groups)
 	common.Render(c, "member/group.html", gin.H{
 		"list":     true,
 		"groups":   groups,
@@ -54,7 +55,7 @@ func (mg *MemberGroupController) Add(c *gin.Context) {
 
 		// 檢查編號是否重複
 		var count int64
-		model.DB.WithContext(c.Request.Context()).Model(&model.MemberGroup{}).Where("gcode = ?", gcode).Count(&count)
+		db.DB.WithContext(c.Request.Context()).Model(&member.MemberGroup{}).Where("gcode = ?", gcode).Count(&count)
 		if count > 0 {
 			mg.JSONFail(c, "等級編號不能重複")
 			return
@@ -66,7 +67,7 @@ func (mg *MemberGroupController) Add(c *gin.Context) {
 
 		now := time.Now().Format("2006-01-02 15:04:05")
 		username := mg.GetAdminUsername(c)
-		if err := model.DB.WithContext(c.Request.Context()).Create(&model.MemberGroup{
+		if err := db.DB.WithContext(c.Request.Context()).Create(&member.MemberGroup{
 			Gcode:       gcode,
 			Gname:       gname,
 			Description: c.PostForm("description"),
@@ -112,7 +113,7 @@ func (mg *MemberGroupController) Mod(c *gin.Context) {
 
 	if field != "" && value != "" {
 		// 執行單欄位更新
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberGroup{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Model(&member.MemberGroup{}).Where("id = ?", id).Update(field, value).Error; err != nil {
 			mg.JSONFail(c, "修改失敗："+err.Error())
 			return
 		}
@@ -135,7 +136,7 @@ func (mg *MemberGroupController) Mod(c *gin.Context) {
 
 		// 檢查編號是否重複（排除自身）
 		var count int64
-		model.DB.WithContext(c.Request.Context()).Model(&model.MemberGroup{}).Where("gcode = ? AND id <> ?", gcode, id).Count(&count)
+		db.DB.WithContext(c.Request.Context()).Model(&member.MemberGroup{}).Where("gcode = ? AND id <> ?", gcode, id).Count(&count)
 		if count > 0 {
 			mg.JSONFail(c, "等級編號不能重複")
 			return
@@ -146,7 +147,7 @@ func (mg *MemberGroupController) Mod(c *gin.Context) {
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 
 		now := time.Now().Format("2006-01-02 15:04:05")
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberGroup{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := db.DB.WithContext(c.Request.Context()).Model(&member.MemberGroup{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"gcode":       gcode,
 			"gname":       gname,
 			"description": c.PostForm("description"),
@@ -164,8 +165,8 @@ func (mg *MemberGroupController) Mod(c *gin.Context) {
 	}
 
 	// GET 載入修改頁面
-	var group model.MemberGroup
-	model.DB.WithContext(c.Request.Context()).First(&group, id)
+	var group member.MemberGroup
+	db.DB.WithContext(c.Request.Context()).First(&group, id)
 	common.Render(c, "member/group.html", gin.H{
 		"mod":   true,
 		"group": group,
@@ -192,13 +193,13 @@ func (mg *MemberGroupController) Del(c *gin.Context) {
 
 	// 檢查等級下是否有會員
 	var memberCount int64
-	model.DB.WithContext(c.Request.Context()).Model(&model.Member{}).Where("gid = ?", strconv.Itoa(id)).Count(&memberCount)
+	db.DB.WithContext(c.Request.Context()).Model(&member.Member{}).Where("gid = ?", strconv.Itoa(id)).Count(&memberCount)
 	if memberCount > 0 {
 		mg.JSONFail(c, "會員等級下存在用戶，無法直接刪除")
 		return
 	}
 
-	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.MemberGroup{}, id).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Delete(&member.MemberGroup{}, id).Error; err != nil {
 		mg.JSONFail(c, "刪除失敗："+err.Error())
 		return
 	}

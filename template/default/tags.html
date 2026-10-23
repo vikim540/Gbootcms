@@ -17,13 +17,13 @@
                 	<span class="d-none d-md-inline">[list:title lencn=30]</span><!-- PC端 -->
                 	<span class="d-inline d-md-none">[list:title lencn=11]</span><!-- 移動端 -->
                 	{gboot:if([list:istop]==1)}
-                		<span class="badge badge-danger">置頂</span>
+                		<span class="badge badge-danger">{i18n:Top}</span>
                 	{/gboot:if}
                 	{gboot:if([list:isrecommend]==1)}
-                		<span class="badge badge-warning">推薦</span>
+                		<span class="badge badge-warning">{i18n:Recommend}</span>
                 	{/gboot:if}
                 	{gboot:if([list:isheadline]==1)}
-                		<span class="badge badge-info">頭條</span>
+                		<span class="badge badge-info">{i18n:Headline}</span>
                 	{/gboot:if}
                 	<span class="float-right">[list:date style=Y-m-d]</span>
                 </a>

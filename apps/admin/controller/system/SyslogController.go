@@ -1,8 +1,9 @@
 package system
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+	"gbootcms/core/db"
+
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"strconv"
 
@@ -21,11 +22,11 @@ func (sl *SyslogController) Index(c *gin.Context) {
 	sysPage, pageSize, sysOffset := sl.Paginate(c)
 
 	var sysTotal int64
-	model.DB.Model(&model.Syslog{}).
+	db.DB.Model(&system.Syslog{}).
 		Where("level NOT IN ('spider') AND level NOT LIKE 'mail_%' AND level NOT LIKE 'webhook_%'").
 		Count(&sysTotal)
-	var syslogs []model.Syslog
-	model.DB.Where("level NOT IN ('spider') AND level NOT LIKE 'mail_%' AND level NOT LIKE 'webhook_%'").
+	var syslogs []system.Syslog
+	db.DB.Where("level NOT IN ('spider') AND level NOT LIKE 'mail_%' AND level NOT LIKE 'webhook_%'").
 		Order("id DESC").Offset(sysOffset).Limit(pageSize).Find(&syslogs)
 	sysPagebar := helper.BuildPagebarHTML(sysTotal, sysPage, pageSize, "/admin/system/syslog/index")
 
@@ -35,9 +36,9 @@ func (sl *SyslogController) Index(c *gin.Context) {
 		spiderPage = 1
 	}
 	var spiderTotal int64
-	model.DB.Model(&model.Syslog{}).Where("level = 'spider'").Count(&spiderTotal)
-	var spiderLogs []model.Syslog
-	model.DB.Where("level = 'spider'").
+	db.DB.Model(&system.Syslog{}).Where("level = 'spider'").Count(&spiderTotal)
+	var spiderLogs []system.Syslog
+	db.DB.Where("level = 'spider'").
 		Order("id DESC").Offset((spiderPage - 1) * pageSize).Limit(pageSize).Find(&spiderLogs)
 	spiderPagebar := helper.BuildPagebarHTMLEx(spiderTotal, spiderPage, pageSize, "/admin/system/syslog/index", "spage")
 
@@ -47,9 +48,9 @@ func (sl *SyslogController) Index(c *gin.Context) {
 		notifyPage = 1
 	}
 	var notifyTotal int64
-	model.DB.Model(&model.NotifyLog{}).
+	db.DB.Model(&system.NotifyLog{}).
 		Where("level LIKE 'mail_%' OR level LIKE 'webhook_%'").Count(&notifyTotal)
-	notifyLogs := model.GetNotifyLogsPaged(pageSize, (notifyPage-1)*pageSize)
+	notifyLogs := system.GetNotifyLogsPaged(pageSize, (notifyPage-1)*pageSize)
 	notifyPagebar := helper.BuildPagebarHTMLEx(notifyTotal, notifyPage, pageSize, "/admin/system/syslog/index", "npage")
 
 	common.Render(c, "system/syslog.html", gin.H{
@@ -85,8 +86,8 @@ func (sl *SyslogController) IndexCatchAll(c *gin.Context) {
 
 // Clear - Clear system logs (non-spider, non-notify)
 func (sl *SyslogController) Clear(c *gin.Context) {
-	if err := model.DB.WithContext(c.Request.Context()).Where("level NOT IN ('spider') AND level NOT LIKE 'mail_%' AND level NOT LIKE 'webhook_%'").
-		Delete(&model.Syslog{}).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Where("level NOT IN ('spider') AND level NOT LIKE 'mail_%' AND level NOT LIKE 'webhook_%'").
+		Delete(&system.Syslog{}).Error; err != nil {
 		sl.JSONFail(c, "刪除失敗："+err.Error())
 		return
 	}
@@ -96,7 +97,7 @@ func (sl *SyslogController) Clear(c *gin.Context) {
 
 // ClearSpider - Clear spider logs only
 func (sl *SyslogController) ClearSpider(c *gin.Context) {
-	if err := model.DB.WithContext(c.Request.Context()).Where("level = 'spider'").Delete(&model.Syslog{}).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Where("level = 'spider'").Delete(&system.Syslog{}).Error; err != nil {
 		sl.JSONFail(c, "刪除失敗："+err.Error())
 		return
 	}
@@ -106,7 +107,7 @@ func (sl *SyslogController) ClearSpider(c *gin.Context) {
 
 // ClearNotify - Clear notification logs only
 func (sl *SyslogController) ClearNotify(c *gin.Context) {
-	model.ClearNotifyLogs()
+	system.ClearNotifyLogs()
 	sl.LogAction(c, "清空通知日誌")
 	sl.JSONOKMsg(c, common.NoticeClean)
 }

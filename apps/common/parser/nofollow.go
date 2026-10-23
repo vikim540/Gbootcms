@@ -1,11 +1,12 @@
 package parser
 
-import (
+import (	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"regexp"
 	"strings"
 	"sync"
 
-	"gbootcms/apps/admin/model"
 )
 
 // externalLinkRe 匹配帶有外部 href 的 <a> 標籤
@@ -32,7 +33,7 @@ func addNofollowToExternalLinks(htmlContent string) string {
 	}
 
 	// 檢查是否啟用 nofollow（預設啟用）
-	if model.GetConfigValue("nofollow_external", "1") == "0" {
+	if db.GetConfigValue("nofollow_external", "1") == "0" {
 		return htmlContent
 	}
 
@@ -110,8 +111,8 @@ func getSiteDomainsForNofollow() []string {
 	if siteDomainsCached {
 		return siteDomainsCache
 	}
-	var sites []model.Site
-	model.DB.Find(&sites)
+	var sites []content.Site
+	db.DB.Find(&sites)
 	var domains []string
 	for _, s := range sites {
 		if s.Domain != "" {

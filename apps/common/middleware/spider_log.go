@@ -1,13 +1,13 @@
 package middleware
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+
 	"context"
 	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
-	"gbootcms/apps/admin/model"
 	"gbootcms/core/db"
 )
 
@@ -134,9 +134,9 @@ func batchInsertSpiderLogs(entries []spiderLogEntry) {
 
 	now := time.Now()
 	nowStr := now.Format("2006-01-02 15:04:05")
-	logs := make([]model.Syslog, len(entries))
+	logs := make([]system.Syslog, len(entries))
 	for i, e := range entries {
-		logs[i] = model.Syslog{
+		logs[i] = system.Syslog{
 			Level:      "spider",
 			Event:      fmt.Sprintf("%s 爬行 %s", e.spider, e.url),
 			UserIP:     e.ip,

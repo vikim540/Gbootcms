@@ -1,13 +1,15 @@
 package controller
 
-import (
+import (	"gbootcms/apps/admin/model/member"
+	"gbootcms/apps/admin/model/system"
+	"gbootcms/core/db"
+
 	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/mail"
@@ -29,29 +31,29 @@ import (
 // ──────────────────────────────────────────────
 // 公共數據快取 — site/company 極少變化，用記憶體快取避免每個請求重複查詢
 // 由 GORM 回調 ClearDataCache() 連帶清除（在 main.go 中組合）
-// areas 快取統一放在 model.GetCachedAreas()，此處不再重複
+// areas 快取統一放在 system.GetCachedAreas()，此處不再重複
 // ──────────────────────────────────────────────
 
 type dataCacheEntry struct {
-	site    *model.Site
-	company *model.Company
+	site    *content.Site
+	company *content.Company
 }
 
 var dataCache sync.Map // key: acode(string), value: dataCacheEntry
 
 // getCachedSite 從記憶體快取取得 Site（未命中則查 DB 並快取）
-func getCachedSite(c *gin.Context) *model.Site {
+func getCachedSite(c *gin.Context) *content.Site {
 	acode := acodeplugin.GetAcode(c.Request.Context())
 	if v, ok := dataCache.Load(acode); ok {
 		if s := v.(dataCacheEntry).site; s != nil {
 			return s
 		}
 	}
-	var site model.Site
-	if model.DB.WithContext(c.Request.Context()).First(&site).Error == nil {
+	var site content.Site
+	if db.DB.WithContext(c.Request.Context()).First(&site).Error == nil {
 		// 更新快取（保留可能已存在的 company）
 		entry, _ := dataCache.Load(acode)
-		comp := (*model.Company)(nil)
+		comp := (*content.Company)(nil)
 		if entry != nil {
 			comp = entry.(dataCacheEntry).company
 		}
@@ -62,18 +64,18 @@ func getCachedSite(c *gin.Context) *model.Site {
 }
 
 // getCachedCompany 從記憶體快取取得 Company（未命中則查 DB 並快取）
-func getCachedCompany(c *gin.Context) *model.Company {
+func getCachedCompany(c *gin.Context) *content.Company {
 	acode := acodeplugin.GetAcode(c.Request.Context())
 	if v, ok := dataCache.Load(acode); ok {
 		if comp := v.(dataCacheEntry).company; comp != nil {
 			return comp
 		}
 	}
-	var company model.Company
-	if model.DB.WithContext(c.Request.Context()).First(&company).Error == nil {
+	var company content.Company
+	if db.DB.WithContext(c.Request.Context()).First(&company).Error == nil {
 		// 更新快取（保留可能已存在的 site）
 		entry, _ := dataCache.Load(acode)
-		s := (*model.Site)(nil)
+		s := (*content.Site)(nil)
 		if entry != nil {
 			s = entry.(dataCacheEntry).site
 		}
@@ -207,7 +209,7 @@ func (fc *FrontController) Index(c *gin.Context) {
 	// 當訪問 /index、/index.php 等首頁變體時，根據配置決定 404 或 301 重定向
 	reqPath := c.Request.URL.Path
 	if reqPath != "/" && (reqPath == "/index" || reqPath == "/index.php" || reqPath == "/home") {
-		if model.GetConfigValue("url_index_404", "0") == "1" {
+		if db.GetConfigValue("url_index_404", "0") == "1" {
 			c.String(http.StatusNotFound, "404 Page Not Found")
 			return
 		}
@@ -238,12 +240,12 @@ func (fc *FrontController) ListPage(c *gin.Context) {
 	// 手動添加 acode 過濾（AcodePlugin 對 .First() 不可靠）
 	acode := acodeplugin.GetAcode(c.Request.Context())
 	var sort content.ContentSort
-	sortQuery := model.DB.WithContext(c.Request.Context()).Where("filename = ?", path)
+	sortQuery := db.DB.WithContext(c.Request.Context()).Where("filename = ?", path)
 	if acode != "" {
 		sortQuery = sortQuery.Where("acode = ?", acode)
 	}
 	if err := sortQuery.First(&sort).Error; err != nil {
-		urlnameQuery := model.DB.WithContext(c.Request.Context()).Where("urlname = ?", path)
+		urlnameQuery := db.DB.WithContext(c.Request.Context()).Where("urlname = ?", path)
 		if acode != "" {
 			urlnameQuery = urlnameQuery.Where("acode = ?", acode)
 		}
@@ -308,7 +310,7 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 
 	// 1. 優先查 content filename（支援多段 slug，如 "test/a"）
 	var ct content.Content
-	ctQuery := model.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1 AND date <= ?", path, time.Now())
+	ctQuery := db.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1 AND date <= ?", path, time.Now())
 	if ctAcode != "" {
 		ctQuery = ctQuery.Where("acode = ?", ctAcode)
 	}
@@ -318,7 +320,7 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 	}
 
 	// 2. 查 content urlname
-	ctFallback := model.DB.WithContext(c.Request.Context()).Where("urlname = ? AND status = 1 AND date <= ?", path, time.Now())
+	ctFallback := db.DB.WithContext(c.Request.Context()).Where("urlname = ? AND status = 1 AND date <= ?", path, time.Now())
 	if ctAcode != "" {
 		ctFallback = ctFallback.Where("acode = ?", ctAcode)
 	}
@@ -329,7 +331,7 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 
 	// 3. 查欄目 filename
 	var sort content.ContentSort
-	sortQuery := model.DB.WithContext(c.Request.Context()).Where("filename = ?", path)
+	sortQuery := db.DB.WithContext(c.Request.Context()).Where("filename = ?", path)
 	if ctAcode != "" {
 		sortQuery = sortQuery.Where("acode = ?", ctAcode)
 	}
@@ -339,7 +341,7 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 	}
 
 	// 4. 查欄目 urlname
-	sortFallback := model.DB.WithContext(c.Request.Context()).Where("urlname = ?", path)
+	sortFallback := db.DB.WithContext(c.Request.Context()).Where("urlname = ?", path)
 	if ctAcode != "" {
 		sortFallback = sortFallback.Where("acode = ?", ctAcode)
 	}
@@ -357,7 +359,7 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 		// 5a. 最後一段為數字 → 按 ID 查詢
 		if id, err := strconv.Atoi(lastSegment); err == nil && id > 0 {
 			var ctByID content.Content
-			idQ := model.DB.WithContext(c.Request.Context()).Where("id = ? AND status = 1 AND date <= ?", id, time.Now())
+			idQ := db.DB.WithContext(c.Request.Context()).Where("id = ? AND status = 1 AND date <= ?", id, time.Now())
 			if ctAcode != "" {
 				idQ = idQ.Where("acode = ?", ctAcode)
 			}
@@ -371,7 +373,7 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 
 		// 5b. 最後一段為 content filename
 		var ctByFn content.Content
-		fnQ := model.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1 AND date <= ?", lastSegment, time.Now())
+		fnQ := db.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1 AND date <= ?", lastSegment, time.Now())
 		if ctAcode != "" {
 			fnQ = fnQ.Where("acode = ?", ctAcode)
 		}
@@ -384,7 +386,7 @@ func (fc *FrontController) ContentPage(c *gin.Context) {
 
 		// 5c. 最後一段為 content urlname
 		var ctByUn content.Content
-		unQ := model.DB.WithContext(c.Request.Context()).Where("urlname = ? AND status = 1 AND date <= ?", lastSegment, time.Now())
+		unQ := db.DB.WithContext(c.Request.Context()).Where("urlname = ? AND status = 1 AND date <= ?", lastSegment, time.Now())
 		if ctAcode != "" {
 			unQ = unQ.Where("acode = ?", ctAcode)
 		}
@@ -405,7 +407,7 @@ func (fc *FrontController) renderContentDetail(c *gin.Context, ct *content.Conte
 
 	// 查欄目並做欄目權限檢查
 	var sort content.ContentSort
-	sortQ := model.DB.WithContext(c.Request.Context()).Where("scode = ?", ct.Scode)
+	sortQ := db.DB.WithContext(c.Request.Context()).Where("scode = ?", ct.Scode)
 	if ctAcode != "" {
 		sortQ = sortQ.Where("acode = ?", ctAcode)
 	}
@@ -457,7 +459,7 @@ func (fc *FrontController) verifySortPath(ctx context.Context, scode, prefix, ac
 		return false
 	}
 	var sort content.ContentSort
-	q := model.DB.WithContext(ctx).Where("scode = ?", scode)
+	q := db.DB.WithContext(ctx).Where("scode = ?", scode)
 	if acode != "" {
 		q = q.Where("acode = ?", acode)
 	}
@@ -502,7 +504,7 @@ func (fc *FrontController) Tags(c *gin.Context) {
 func (fc *FrontController) Message(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		// 留言開關檢查
-		if model.GetConfigValue("message_status", "1") == "0" {
+		if db.GetConfigValue("message_status", "1") == "0" {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "留言功能已關閉", "tourl": ""})
 			return
 		}
@@ -536,7 +538,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 		}
 
 		// 留言需登錄檢查（message_rqlogin 配置啟用時，未登錄會員不可留言）
-		if model.GetConfigValue("message_rqlogin", "0") == "1" {
+		if db.GetConfigValue("message_rqlogin", "0") == "1" {
 			uid := common.GetSessionInt(c, "pboot_uid")
 			if uid == 0 {
 				c.JSON(http.StatusOK, gin.H{"code": 0, "data": "請先註冊登錄後再留言！", "tourl": ""})
@@ -559,7 +561,7 @@ func (fc *FrontController) Message(c *gin.Context) {
 	osName, bsName := common.ParseUserAgent(ua, chPlatformVer)
 
 	attr := common.GetLeadAttribution(c)
-	msg := model.Message{
+	msg := content.Message{
 		Acode:       acodeplugin.GetAcode(c.Request.Context()),
 		Contacts:    common.FilterSensitiveWords(filterGbootIf(c.PostForm("contacts"))),
 		Mobile:      filterGbootIf(c.PostForm("mobile")),
@@ -581,17 +583,17 @@ func (fc *FrontController) Message(c *gin.Context) {
 		UpdateUser:  "guest",
 	}
 		// 審核狀態：message_verify='0' 時直接通過
-		if model.GetConfigValue("message_verify", "1") == "0" {
+		if db.GetConfigValue("message_verify", "1") == "0" {
 			msg.Status = 1
 		}
 
-		if err := model.DB.WithContext(c.Request.Context()).Create(&msg).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Create(&msg).Error; err != nil {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "提交失敗", "tourl": ""})
 			return
 		}
 
 		// 郵件通知（message_send_mail=1 時啟用，與 webhook 獨立判斷）
-		if model.GetConfigValue("message_send_mail", "0") == "1" {
+		if db.GetConfigValue("message_send_mail", "0") == "1" {
 			mailFields := []map[string]string{
 				{"label": "聯繫人", "value": msg.Contacts},
 				{"label": "手機", "value": msg.Mobile},
@@ -620,9 +622,9 @@ func (fc *FrontController) Message(c *gin.Context) {
 					}
 				}()
 				if err := mail.SendNotifyMail("在線留言", mailFields); err != nil {
-					model.LogNotify("mail", "error", "留言通知："+err.Error())
+					system.LogNotify("mail", "error", "留言通知："+err.Error())
 				} else {
-					model.LogNotify("mail", "success", "留言通知郵件已發送")
+					system.LogNotify("mail", "success", "留言通知郵件已發送")
 				}
 			}()
 		}
@@ -756,13 +758,13 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 	}
 	sql := fmt.Sprintf("INSERT INTO `%s` (%s) VALUES (%s)",
 		tableName, "`"+strings.Join(cols, "`,`")+"`", strings.Join(placeholders, ","))
-	if err := model.DB.Exec(sql, vals...).Error; err != nil {
+	if err := db.DB.Exec(sql, vals...).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "提交失敗", "tourl": ""})
 		return
 	}
 
 	// 郵件通知（form_send_mail=1 時啟用，與 webhook 獨立判斷）
-	if model.GetConfigValue("form_send_mail", "0") == "1" {
+	if db.GetConfigValue("form_send_mail", "0") == "1" {
 		notifyFieldsCopy := make([]map[string]string, len(notifyFields))
 		copy(notifyFieldsCopy, notifyFields)
 		go func() {
@@ -772,9 +774,9 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 				}
 			}()
 			if err := mail.SendNotifyMail(form.FormName, notifyFieldsCopy); err != nil {
-				model.LogNotify("mail", "error", "表單通知("+form.FormName+")："+err.Error())
+				system.LogNotify("mail", "error", "表單通知("+form.FormName+")："+err.Error())
 			} else {
-				model.LogNotify("mail", "success", "表單通知郵件已發送："+form.FormName)
+				system.LogNotify("mail", "success", "表單通知郵件已發送："+form.FormName)
 			}
 		}()
 	}
@@ -789,7 +791,7 @@ func (fc *FrontController) handleFormSubmit(c *gin.Context, fcode, clientIP stri
 
 func (fc *FrontController) Visits(c *gin.Context) {
 	// 後台開關：visits_count=0 時關閉訪問量統計
-	if model.GetConfigValue("visits_count", "1") == "0" {
+	if db.GetConfigValue("visits_count", "1") == "0" {
 		c.String(http.StatusOK, "ok")
 		return
 	}
@@ -803,7 +805,7 @@ func (fc *FrontController) Visits(c *gin.Context) {
 			return
 		}
 		// 使用 .Exec() 原始 SQL 繞過 GORM 回調
-		if err := model.DB.WithContext(c.Request.Context()).
+		if err := db.DB.WithContext(c.Request.Context()).
 			Exec("UPDATE ay_content SET visits = visits + 1 WHERE id = ?", id).Error; err != nil {
 			slog.Warn("訪問量更新失敗", "content_id", id, "error", err)
 		}
@@ -819,7 +821,7 @@ func (fc *FrontController) addVisits(c *gin.Context, id int) {
 		return
 	}
 	// 後台開關：visits_count=0 時關閉訪問量統計
-	if model.GetConfigValue("visits_count", "1") == "0" {
+	if db.GetConfigValue("visits_count", "1") == "0" {
 		return
 	}
 	// 記憶體快取永遠開啟，訪問量由前端異步請求 /api/visits 處理，不自增
@@ -875,7 +877,7 @@ func (fc *FrontController) CheckCode(c *gin.Context) {
 func (fc *FrontController) SortByScode(c *gin.Context) {
 	scode := c.Param("scode")
 	var sort content.ContentSort
-	if err := model.DB.WithContext(c.Request.Context()).Where("scode = ?", scode).First(&sort).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Where("scode = ?", scode).First(&sort).Error; err != nil {
 		c.String(http.StatusNotFound, "404")
 		return
 	}
@@ -903,14 +905,14 @@ func (fc *FrontController) ContentByID(c *gin.Context) {
 		return
 	}
 	var ct content.Content
-	if err := model.DB.WithContext(c.Request.Context()).Where("id = ? AND status = 1 AND date <= ?", id, time.Now()).First(&ct).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Where("id = ? AND status = 1 AND date <= ?", id, time.Now()).First(&ct).Error; err != nil {
 		// 當前語言找不到：嘗試跨語言查詢原始內容，重定向到當前語言的對應頁面
 		fc.redirectCrossLangContent(c, id)
 		return
 	}
 	// SEO：若內容有 slug，301 重定向到規範 URL
 	var sort content.ContentSort
-	_ = model.DB.WithContext(c.Request.Context()).Where("scode = ?", ct.Scode).First(&sort).Error
+	_ = db.DB.WithContext(c.Request.Context()).Where("scode = ?", ct.Scode).First(&sort).Error
 	sortPath := sort.Filename
 	if sortPath == "" {
 		sortPath = sort.URLName
@@ -956,7 +958,7 @@ func (fc *FrontController) redirectCrossLangContent(c *gin.Context, id int) {
 	// 跨語言查詢原始內容
 	var origContent content.Content
 	skipCtx := acodeplugin.SkipAcode(c.Request.Context())
-	if err := model.DB.WithContext(skipCtx).Where("id = ?", id).First(&origContent).Error; err != nil {
+	if err := db.DB.WithContext(skipCtx).Where("id = ?", id).First(&origContent).Error; err != nil {
 		c.String(http.StatusNotFound, "404")
 		return
 	}
@@ -964,7 +966,7 @@ func (fc *FrontController) redirectCrossLangContent(c *gin.Context, id int) {
 	// 嘗試按 filename 在當前語言中查找對應內容
 	if origContent.Filename != "" {
 		var target content.Content
-		if err := model.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1 AND date <= ?", origContent.Filename, time.Now()).First(&target).Error; err == nil {
+		if err := db.DB.WithContext(c.Request.Context()).Where("filename = ? AND status = 1 AND date <= ?", origContent.Filename, time.Now()).First(&target).Error; err == nil {
 			// 找到對應內容，重定向到其 URL
 			targetURL := "/" + target.Filename
 			if targetURL == "/" {
@@ -978,7 +980,7 @@ func (fc *FrontController) redirectCrossLangContent(c *gin.Context, id int) {
 	// filename 找不到，按 scode 查找當前語言的欄目，重定向到欄目列表頁
 	if origContent.Scode != "" {
 		var sort content.ContentSort
-		if err := model.DB.WithContext(c.Request.Context()).Where("scode = ?", origContent.Scode).First(&sort).Error; err == nil {
+		if err := db.DB.WithContext(c.Request.Context()).Where("scode = ?", origContent.Scode).First(&sort).Error; err == nil {
 			// 優先使用欄目的 filename/urlname 作為重定向目標
 			sortURL := "/" + sort.Filename
 			if sortURL == "/" {
@@ -1015,14 +1017,14 @@ func (fc *FrontController) renderSortPage(c *gin.Context, sort *content.ContentS
 
 	// 通過 mcode 查 ay_model 獲取 type
 	var tpl string
-	var contentModel model.ContentModel
-	if sort.Mcode != "" && model.DB.WithContext(c.Request.Context()).Where("mcode = ?", sort.Mcode).First(&contentModel).Error == nil {
+	var contentModel content.Model
+	if sort.Mcode != "" && db.DB.WithContext(c.Request.Context()).Where("mcode = ?", sort.Mcode).First(&contentModel).Error == nil {
 		if contentModel.Type == 1 {
 			// 單頁模型 → 用 ContentTpl (如 about.html)
 			tpl = sort.ContentTpl
 			// 單頁需要加載內容數據
 			var ct content.Content
-			if model.DB.WithContext(c.Request.Context()).Where("scode = ? AND status = 1", sort.Scode).Order("id DESC").First(&ct).Error == nil {
+			if db.DB.WithContext(c.Request.Context()).Where("scode = ? AND status = 1", sort.Scode).Order("id DESC").First(&ct).Error == nil {
 				// 單頁內容權限檢查
 				if !fc.checkContentPermission(c, &ct) {
 					return
@@ -1076,7 +1078,7 @@ func loadGcode(gid string) string {
 	}
 	var gcode string
 	// loadGcode 無 c 參數，等級編號查詢需跨區，用 SkipAcode 跳過區域隔離
-	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_member_group").Where("id = ?", gid).Select("gcode").Row().Scan(&gcode)
+	db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_member_group").Where("id = ?", gid).Select("gcode").Row().Scan(&gcode)
 	return gcode
 }
 
@@ -1200,13 +1202,13 @@ func (fc *FrontController) buildContext(c *gin.Context) *parser.Context {
 		}
 	}
 
-	var site model.Site
+	var site content.Site
 	if s := getCachedSite(c); s != nil {
 		site = *s
 		ctx.Site = &site
 	}
 
-	var company model.Company
+	var company content.Company
 	if comp := getCachedCompany(c); comp != nil {
 		company = *comp
 		ctx.Company = &company
@@ -1214,8 +1216,8 @@ func (fc *FrontController) buildContext(c *gin.Context) *parser.Context {
 
 	// 載入已登錄會員資訊
 	if uid := common.GetSessionInt(c, "pboot_uid"); uid > 0 {
-		var member model.Member
-		if model.DB.First(&member, uid).Error == nil {
+		var member member.Member
+		if db.DB.First(&member, uid).Error == nil {
 			ctx.Member = &member
 			ctx.Gcode = common.GetSessionInt(c, "pboot_gcode")
 			ctx.Ucode = common.GetSessionString(c, "pboot_ucode")
@@ -1234,7 +1236,7 @@ func trimSuffix(s string) string {
 // 2. 語言前綴連結重寫（非默認語言下，所有內部連結自動加 /{acode} 前綴）
 func postRender(html string, ctx context.Context) string {
 	// 敏感詞過濾（對齊 PHP parserReplaceKeyword）
-	keywordReplace := model.GetConfigValue("content_keyword_replace", "")
+	keywordReplace := db.GetConfigValue("content_keyword_replace", "")
 	if keywordReplace != "" {
 		keywords := strings.Split(keywordReplace, ",")
 		for _, kw := range keywords {
@@ -1262,7 +1264,7 @@ func injectHreflangTags(html string, ctx context.Context) string {
 		return html
 	}
 
-	areas := model.GetCachedAreas()
+	areas := system.GetCachedAreas()
 	if len(areas) <= 1 {
 		return html
 	}
@@ -1283,10 +1285,10 @@ func injectHreflangTags(html string, ctx context.Context) string {
 		"default": "zh-Hant",
 	}
 
-	baseURL := model.GetConfigValue("httpurl", "")
+	baseURL := db.GetConfigValue("httpurl", "")
 	if baseURL == "" {
-		var site model.Site
-		if model.DB.WithContext(ctx).First(&site).Error == nil && site.Domain != "" {
+		var site content.Site
+		if db.DB.WithContext(ctx).First(&site).Error == nil && site.Domain != "" {
 			baseURL = site.Domain
 			if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 				baseURL = "https://" + baseURL
@@ -1347,7 +1349,7 @@ func rewriteLangLinks(htmlContent string, ctx context.Context) string {
 	}
 
 	// 查默認區域：默認語言不需要重寫
-	areas := model.GetCachedAreas()
+	areas := system.GetCachedAreas()
 	isDefault := false
 	for _, a := range areas {
 		if a.Acode == acode && a.IsDefault == "1" {

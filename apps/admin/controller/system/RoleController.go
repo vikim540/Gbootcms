@@ -1,13 +1,13 @@
 package system
 
-import (
+import (	"gbootcms/core/db"
+
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	sysModel "gbootcms/apps/admin/model/system"
 	"gbootcms/apps/common"
 	"github.com/gin-gonic/gin"
@@ -22,7 +22,7 @@ type RoleController struct {
 // Index 角色列表
 func (rc *RoleController) Index(c *gin.Context) {
 	var roles []sysModel.Role
-	model.DB.Order("id ASC").Find(&roles)
+	db.DB.Order("id ASC").Find(&roles)
 
 	// 預格式化時間
 	for i := range roles {
@@ -69,7 +69,7 @@ func (rc *RoleController) Add(c *gin.Context) {
 			CreateTime:  now,
 			UpdateTime:  now,
 		}
-		if err := model.DB.Create(role).Error; err != nil {
+		if err := db.DB.Create(role).Error; err != nil {
 			rc.JSONFail(c, "新增失敗！")
 			return
 		}
@@ -132,7 +132,7 @@ func (rc *RoleController) Mod(c *gin.Context) {
 			"update_user": rc.GetAdminUsername(c),
 			"update_time": time.Now().Format("2006-01-02 15:04:05"),
 		}
-		if err := model.DB.Model(&sysModel.Role{}).Where("rcode = ?", rcode).Updates(updates).Error; err != nil {
+		if err := db.DB.Model(&sysModel.Role{}).Where("rcode = ?", rcode).Updates(updates).Error; err != nil {
 			rc.JSONFail(c, "修改失敗！")
 			return
 		}
@@ -236,11 +236,11 @@ func buildMenuList(checkedLevels []string) string {
 
 	// 查詢所有啟用的菜單（一次查詢）
 	var menus []sysModel.Menu
-	model.DB.Where("status = ?", 1).Order("sorting ASC, id ASC").Find(&menus)
+	db.DB.Where("status = ?", 1).Order("sorting ASC, id ASC").Find(&menus)
 
 	// 查詢所有菜單操作按鈕（一次查詢）
 	var actions []sysModel.MenuAction
-	model.DB.Order("sorting ASC, id ASC").Find(&actions)
+	db.DB.Order("sorting ASC, id ASC").Find(&actions)
 
 	// 查詢 ay_type 表獲取操作按鈕中文名稱（對齊 PHP 的三表 JOIN）
 	type actionName struct {
@@ -248,7 +248,7 @@ func buildMenuList(checkedLevels []string) string {
 		Item  string `gorm:"column:item"`
 	}
 	var typeActions []actionName
-	model.DB.Table("ay_type").Where("tcode = ?", "T101").Scan(&typeActions)
+	db.DB.Table("ay_type").Where("tcode = ?", "T101").Scan(&typeActions)
 	actionTextMap := make(map[string]string)
 	for _, t := range typeActions {
 		actionTextMap[t.Value] = t.Item

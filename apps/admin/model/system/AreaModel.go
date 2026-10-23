@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"gbootcms/core/acodeplugin"
@@ -144,4 +145,29 @@ func DelArea(acode string) error {
 // UnsetDefault 取消指定 acode 以外所有區域的默認狀態
 func UnsetDefault(acode string) {
 	db.DB.WithContext(skipCtx).Model(&Area{}).Where("acode <> ?", acode).Update("is_default", "0")
+}
+
+
+// ──────────────────────────────────────────────
+// Areas cache — 無鎖讀取（atomic.Pointer，區域列表極少變化）
+// ──────────────────────────────────────────────
+
+var areasCachePtr atomic.Pointer[[]Area]
+
+// GetCachedAreas 返回快取的區域列表（未命中則查 DB 並快取）
+func GetCachedAreas() []Area {
+	p := areasCachePtr.Load()
+	if p != nil {
+		return *p
+	}
+
+	var areas []Area
+	db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Order("pcode, acode").Find(&areas)
+	areasCachePtr.Store(&areas)
+	return areas
+}
+
+// ClearAreasCache 清除區域快取（由 GORM 回調觸發）
+func ClearAreasCache() {
+	areasCachePtr.Store(nil)
 }

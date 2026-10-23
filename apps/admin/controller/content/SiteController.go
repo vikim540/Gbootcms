@@ -1,11 +1,11 @@
 package content
 
-import (
+import (	"gbootcms/core/db"
+
 	"os"
 	"path/filepath"
 
-	"gbootcms/apps/admin/model"
-	"gbootcms/apps/admin/model/content"
+	contentModel "gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
 	"gbootcms/core/version"
 
@@ -20,9 +20,9 @@ type SiteController struct {
 
 // Index - Site information page
 func (si *SiteController) Index(c *gin.Context) {
-	var site model.Site
+	var site contentModel.Site
 	// AcodePlugin 自動按當前區域過濾，取該區域的站點記錄
-	if err := model.DB.WithContext(c.Request.Context()).FirstOrCreate(&site).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).FirstOrCreate(&site).Error; err != nil {
 		si.JSONFail(c, "載入站點信息失敗")
 		return
 	}
@@ -50,16 +50,16 @@ func (si *SiteController) Index(c *gin.Context) {
 
 	common.Render(c, "content/site.html", gin.H{
 		"sites":  site,
-		"labels": content.GetAllLabels(),
+		"labels": contentModel.GetAllLabels(),
 		"themes": themes,
 	})
 }
 
 // Mod - Modify site information
 func (si *SiteController) Mod(c *gin.Context) {
-	var site model.Site
+	var site contentModel.Site
 	// AcodePlugin 自動按當前區域過濾，取該區域的站點記錄
-	if err := model.DB.WithContext(c.Request.Context()).FirstOrCreate(&site).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).FirstOrCreate(&site).Error; err != nil {
 		si.JSONFail(c, "載入站點信息失敗")
 		return
 	}
@@ -84,7 +84,7 @@ func (si *SiteController) Mod(c *gin.Context) {
 		return
 	}
 
-	result := model.DB.WithContext(c.Request.Context()).Model(&site).Updates(map[string]interface{}{
+	result := db.DB.WithContext(c.Request.Context()).Model(&site).Updates(map[string]interface{}{
 		"title":       newTitle,
 		"subtitle":    newSubtitle,
 		"domain":      newDomain,

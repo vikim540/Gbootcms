@@ -1,9 +1,10 @@
 package system
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+	"gbootcms/core/db"
+
 	"fmt"
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/mail"
 	"regexp"
@@ -31,7 +32,7 @@ func (cf *ConfigController) Index(c *gin.Context) {
 	if action := c.Query("action"); action == "sendemail" {
 		to := c.Query("to")
 		if to == "" {
-			to = model.GetConfigValue("smtp_username_test", "")
+			to = db.GetConfigValue("smtp_username_test", "")
 		}
 		if to == "" {
 			cf.JSONFail(c, "請先填寫測試收件郵箱")
@@ -43,7 +44,7 @@ func (cf *ConfigController) Index(c *gin.Context) {
 			return
 		}
 		// 檢查 SMTP 配置是否完整
-		if model.GetConfigValue("smtp_server", "") == "" || model.GetConfigValue("smtp_username", "") == "" {
+		if db.GetConfigValue("smtp_server", "") == "" || db.GetConfigValue("smtp_username", "") == "" {
 			cf.JSONFail(c, "SMTP 配置不完整，請先填寫伺服器地址和發件帳號")
 			return
 		}
@@ -129,15 +130,15 @@ func (cf *ConfigController) Index(c *gin.Context) {
 					}
 				}
 			}
-			var config model.Config
-			result := model.DB.Where("name = ?", name).First(&config)
+			var config system.Config
+			result := db.DB.Where("name = ?", name).First(&config)
 			if result.Error != nil {
-				if err := model.DB.WithContext(c.Request.Context()).Create(&model.Config{Name: name, Value: val}).Error; err != nil {
+				if err := db.DB.WithContext(c.Request.Context()).Create(&system.Config{Name: name, Value: val}).Error; err != nil {
 					cf.JSONFail(c, "新增失敗："+err.Error())
 					return
 				}
 			} else {
-				if err := model.DB.WithContext(c.Request.Context()).Model(&config).Update("value", val).Error; err != nil {
+				if err := db.DB.WithContext(c.Request.Context()).Model(&config).Update("value", val).Error; err != nil {
 					cf.JSONFail(c, "修改失敗："+err.Error())
 					return
 				}
@@ -149,8 +150,8 @@ func (cf *ConfigController) Index(c *gin.Context) {
 		return
 	}
 
-	var configs []model.Config
-	model.DB.Find(&configs)
+	var configs []system.Config
+	db.DB.Find(&configs)
 	configMap := make(gin.H)
 	for _, cfg := range configs {
 		configMap[cfg.Name] = cfg.Value

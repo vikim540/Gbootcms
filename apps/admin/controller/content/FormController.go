@@ -1,12 +1,12 @@
 package content
 
-import (
+import (	"gbootcms/core/db"
+
 	"fmt"
 	"strconv"
 	"time"
 
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	contentModel "gbootcms/apps/admin/model/content"
 	"gbootcms/apps/admin/model/system"
 	"gbootcms/apps/common"
@@ -61,7 +61,7 @@ func (fm *FormController) Index(c *gin.Context) {
 			tableName := form.TableName
 			var rawData []map[string]interface{}
 			// 動態表（ay_diy_*）無 acode 欄位，不需 WithContext
-			model.DB.Raw("SELECT * FROM `" + tableName + "` ORDER BY id DESC").Scan(&rawData)
+			db.DB.Raw("SELECT * FROM `" + tableName + "` ORDER BY id DESC").Scan(&rawData)
 
 			// 將 map 鍵名轉為 PascalCase，讓模板引擎 [value->field] 能正確訪問
 			dataList := make([]map[string]interface{}, len(rawData))
@@ -110,7 +110,7 @@ func (fm *FormController) Index(c *gin.Context) {
 			// 編輯字段
 			page, pageSize, _ := fm.Paginate(c)
 			var total int64
-			model.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("fcode = ?", fcode).Count(&total)
+			db.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("fcode = ?", fcode).Count(&total)
 			baseURL := fmt.Sprintf("/admin/content/form/index/fcode/%s/action/showfield", fcode)
 			data := gin.H{
 				"showfield": true,
@@ -132,7 +132,7 @@ func (fm *FormController) Index(c *gin.Context) {
 	keyword := c.Query("keyword")
 
 	var forms []contentModel.Form
-	query := model.DB.WithContext(c.Request.Context()).Model(&contentModel.Form{})
+	query := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Form{})
 	if field != "" && keyword != "" {
 		query = query.Where(field+" LIKE ?", "%"+keyword+"%")
 	}
@@ -183,7 +183,7 @@ func (fm *FormController) Add(c *gin.Context) {
 		// 生成 fcode（取最大值+1）
 		var maxFcode int
 		var existingForms []contentModel.Form
-		model.DB.WithContext(c.Request.Context()).Order("id ASC").Find(&existingForms)
+		db.DB.WithContext(c.Request.Context()).Order("id ASC").Find(&existingForms)
 		for _, f := range existingForms {
 			code, _ := strconv.Atoi(f.Fcode)
 			if code > maxFcode {
@@ -198,12 +198,12 @@ func (fm *FormController) Add(c *gin.Context) {
 		// 創建物理表（DDL 操作，無需 WithContext）
 		cfg := config.Get()
 		if cfg.Database.Type == "mysql" {
-			if err := model.DB.Exec("CREATE TABLE `" + tableName + "` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`create_time` datetime NOT NULL,PRIMARY KEY (`id`)) ENGINE=MyISam DEFAULT CHARSET=utf8").Error; err != nil {
+			if err := db.DB.Exec("CREATE TABLE `" + tableName + "` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`create_time` datetime NOT NULL,PRIMARY KEY (`id`)) ENGINE=MyISam DEFAULT CHARSET=utf8").Error; err != nil {
 				fm.JSONFail(c, "操作失敗: "+err.Error())
 				return
 			}
 		} else {
-			if err := model.DB.Exec("CREATE TABLE `" + tableName + "` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,`create_time` TEXT NOT NULL)").Error; err != nil {
+			if err := db.DB.Exec("CREATE TABLE `" + tableName + "` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,`create_time` TEXT NOT NULL)").Error; err != nil {
 				fm.JSONFail(c, "操作失敗: "+err.Error())
 				return
 			}
@@ -220,7 +220,7 @@ func (fm *FormController) Add(c *gin.Context) {
 			CreateTime: now,
 			UpdateTime: now,
 		}
-		if err := model.DB.WithContext(c.Request.Context()).Create(&form).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Create(&form).Error; err != nil {
 			fm.JSONFail(c, "新增失敗")
 			return
 		}
@@ -269,7 +269,7 @@ func (fm *FormController) Add(c *gin.Context) {
 	} else {
 		columnType = fmt.Sprintf("TEXT(%d)", length)
 	}
-	if err := model.DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s NULL", tableName, name, columnType)).Error; err != nil {
+	if err := db.DB.Exec(fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s NULL", tableName, name, columnType)).Error; err != nil {
 		fm.JSONFail(c, "操作失敗: "+err.Error())
 		return
 	}
@@ -288,7 +288,7 @@ func (fm *FormController) Add(c *gin.Context) {
 		CreateTime:  now,
 		UpdateTime:  now,
 	}
-	if err := model.DB.WithContext(c.Request.Context()).Create(&formField).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Create(&formField).Error; err != nil {
 		fm.JSONFail(c, "新增字段失敗")
 		return
 	}
@@ -314,27 +314,27 @@ func (fm *FormController) Del(c *gin.Context) {
 			return
 		}
 		var form contentModel.Form
-		if err := model.DB.WithContext(c.Request.Context()).First(&form, id).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).First(&form, id).Error; err != nil {
 			fm.JSONFail(c, "表單不存在")
 			return
 		}
 		tableName := form.TableName
 		fcode := form.Fcode
-		if err := model.DB.WithContext(c.Request.Context()).Where("fcode = ?", fcode).Delete(&contentModel.FormField{}).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Where("fcode = ?", fcode).Delete(&contentModel.FormField{}).Error; err != nil {
 			fm.JSONFail(c, "刪除失敗："+err.Error())
 			return
 		}
 		// DDL 操作，無需 WithContext
-		if err := model.DB.Exec("DROP TABLE IF EXISTS `" + tableName + "`").Error; err != nil {
+		if err := db.DB.Exec("DROP TABLE IF EXISTS `" + tableName + "`").Error; err != nil {
 			fm.JSONFail(c, "操作失敗: "+err.Error())
 			return
 		}
-		if err := model.DB.WithContext(c.Request.Context()).Delete(&contentModel.Form{}, id).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Delete(&contentModel.Form{}, id).Error; err != nil {
 			fm.JSONFail(c, "刪除失敗："+err.Error())
 			return
 		}
 		// ay_menu 無 acode 欄位，無需 WithContext
-		if err := model.DB.Where("url LIKE ?", "%Form/index/fcode/"+fcode+"/action/showdata%").Delete(&system.Menu{}).Error; err != nil {
+		if err := db.DB.Where("url LIKE ?", "%Form/index/fcode/"+fcode+"/action/showdata%").Delete(&system.Menu{}).Error; err != nil {
 			fm.JSONFail(c, "刪除失敗："+err.Error())
 			return
 		}
@@ -353,7 +353,7 @@ func (fm *FormController) Del(c *gin.Context) {
 			return
 		}
 		// 動態表（ay_diy_*）無 acode 欄位，無需 WithContext
-		if err := model.DB.Exec("DELETE FROM `"+tableName+"` WHERE id = ?", id).Error; err != nil {
+		if err := db.DB.Exec("DELETE FROM `"+tableName+"` WHERE id = ?", id).Error; err != nil {
 			fm.JSONFail(c, "操作失敗: "+err.Error())
 			return
 		}
@@ -362,7 +362,7 @@ func (fm *FormController) Del(c *gin.Context) {
 
 	default:
 		var formField contentModel.FormField
-		if err := model.DB.WithContext(c.Request.Context()).First(&formField, id).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).First(&formField, id).Error; err != nil {
 			fm.JSONFail(c, "字段不存在")
 			return
 		}
@@ -371,12 +371,12 @@ func (fm *FormController) Del(c *gin.Context) {
 		// MySQL 刪列，SQLite 不支持（DDL 操作，無需 WithContext）
 		cfg := config.Get()
 		if cfg.Database.Type == "mysql" && tableName != "" {
-			if err := model.DB.Exec("ALTER TABLE `" + tableName + "` DROP COLUMN `" + formField.Name + "`").Error; err != nil {
+			if err := db.DB.Exec("ALTER TABLE `" + tableName + "` DROP COLUMN `" + formField.Name + "`").Error; err != nil {
 				fm.JSONFail(c, "操作失敗: "+err.Error())
 				return
 			}
 		}
-		if err := model.DB.WithContext(c.Request.Context()).Delete(&formField).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Delete(&formField).Error; err != nil {
 			fm.JSONFail(c, "刪除失敗："+err.Error())
 			return
 		}
@@ -399,7 +399,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 	fieldName := params["field"]
 	value := params["value"]
 	if fieldName != "" && value != "" {
-		if err := model.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("id = ?", id).
+		if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("id = ?", id).
 			Updates(map[string]interface{}{
 				fieldName:     value,
 				"update_time": time.Now(),
@@ -417,16 +417,16 @@ func (fm *FormController) Mod(c *gin.Context) {
 	// 添加到菜單
 	if action == "addmenu" {
 		var form contentModel.Form
-		if err := model.DB.WithContext(c.Request.Context()).First(&form, id).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).First(&form, id).Error; err != nil {
 			fm.JSONFail(c, "表單不存在")
 			return
 		}
 		menuURL := fmt.Sprintf("/admin/Form/index/fcode/%s/action/showdata", form.Fcode)
 		// ay_menu 無 acode 欄位，無需 WithContext
 		var existingMenu system.Menu
-		model.DB.Where("url LIKE ?", "%"+menuURL+"%").First(&existingMenu)
+		db.DB.Where("url LIKE ?", "%"+menuURL+"%").First(&existingMenu)
 		if existingMenu.ID > 0 {
-			if err := model.DB.Model(&system.Menu{}).Where("id = ?", existingMenu.ID).Update("name", form.FormName).Error; err != nil {
+			if err := db.DB.Model(&system.Menu{}).Where("id = ?", existingMenu.ID).Update("name", form.FormName).Error; err != nil {
 				fm.JSONFail(c, "修改失敗："+err.Error())
 				return
 			}
@@ -434,14 +434,14 @@ func (fm *FormController) Mod(c *gin.Context) {
 			return
 		}
 		var lastMcode string
-		model.DB.Model(&system.Menu{}).Order("mcode DESC").Limit(1).Pluck("mcode", &lastMcode)
+		db.DB.Model(&system.Menu{}).Order("mcode DESC").Limit(1).Pluck("mcode", &lastMcode)
 		newMcode := "MF" + form.Fcode
 		if lastMcode != "" {
 			if n, err := strconv.Atoi(lastMcode[1:]); err == nil {
 				newMcode = fmt.Sprintf("M%d", n+1)
 			}
 		}
-		if err := model.DB.Create(&system.Menu{
+		if err := db.DB.Create(&system.Menu{
 			Mcode:      newMcode,
 			Pcode:      "M157",
 			Name:       form.FormName,
@@ -469,7 +469,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 				fm.JSONFail(c, "表單名稱不能為空")
 				return
 			}
-			if err := model.DB.WithContext(c.Request.Context()).Model(&contentModel.Form{}).Where("id = ?", id).Updates(map[string]interface{}{
+			if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Form{}).Where("id = ?", id).Updates(map[string]interface{}{
 				"form_name":   formName,
 				"update_time": time.Now(),
 				"update_user": fm.GetAdminUsername(c),
@@ -488,7 +488,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 			fm.JSONFail(c, "字段描述不能為空")
 			return
 		}
-		if err := model.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.FormField{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"description": description,
 			"required":    required,
 			"sorting":     sorting,
@@ -506,7 +506,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 	// GET 顯示修改表單
 	if action == "modform" {
 		var form contentModel.Form
-		if err := model.DB.WithContext(c.Request.Context()).First(&form, id).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).First(&form, id).Error; err != nil {
 			fm.JSONFail(c, "編輯的內容已不存在")
 			return
 		}
@@ -522,7 +522,7 @@ func (fm *FormController) Mod(c *gin.Context) {
 
 	// 顯示字段修改表單
 	var field contentModel.FormField
-	if err := model.DB.WithContext(c.Request.Context()).First(&field, id).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).First(&field, id).Error; err != nil {
 		fm.JSONFail(c, "編輯的內容已不存在")
 		return
 	}
@@ -549,7 +549,7 @@ func (fm *FormController) Clear(c *gin.Context) {
 		return
 	}
 	// 動態表（ay_diy_*）無 acode 欄位，無需 WithContext
-	if err := model.DB.Exec("DELETE FROM `" + tableName + "`").Error; err != nil {
+	if err := db.DB.Exec("DELETE FROM `" + tableName + "`").Error; err != nil {
 		fm.JSONFail(c, "操作失敗: "+err.Error())
 		return
 	}

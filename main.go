@@ -1,6 +1,7 @@
 package main
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+
 	"context"
 	"fmt"
 	"log"
@@ -27,7 +28,7 @@ import (
 	"gbootcms/config"
 	"gbootcms/core/acodeplugin"
 	"gbootcms/core/basic"
-	gdb "gbootcms/core/db"
+	"gbootcms/core/db"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,8 +41,8 @@ var (
 
 func loadValidAcodes() {
 	skipCtx := acodeplugin.SkipAcode(context.Background())
-	var areas []model.Area
-	model.DB.WithContext(skipCtx).Find(&areas)
+	var areas []system.Area
+	db.DB.WithContext(skipCtx).Find(&areas)
 	m := make(map[string]bool, len(areas))
 	for _, a := range areas {
 		m[a.Acode] = true
@@ -71,17 +72,17 @@ func RefreshValidAcodes() {
 func main() {
 	cfg := config.Load("config/config.json")
 
-	if err := model.InitDB(cfg); err != nil {
+	if err := db.InitDB(cfg); err != nil {
 		log.Fatalf("Database init failed: %v", err)
 	}
-	// defer model.CloseDB() — 移至優雅關閉邏輯中呼叫，確保 WAL checkpoint 完成
+	// defer db.CloseDB() — 移至優雅關閉邏輯中呼叫，確保 WAL checkpoint 完成
 
 	// 註冊數據變更回調：基於 Cache Tag 精準失效
 	// 不同表的變更觸發不同層級的快取失效：
 	//   - content:{id}  → 僅失效該文章詳情頁
 	//   - content:list  → 失效所有列表頁 + 首頁
 	//   - global        → 失效全部頁面（配置/站點/導航等全局數據變更）
-	gdb.OnDataChange = func(tableName string, id int) {
+	db.OnDataChange = func(tableName string, id int) {
 		slog.Info("OnDataChange triggered", "table", tableName, "id", id)
 
 		// === HTML 頁面快取 tag 失效 ===
@@ -111,9 +112,9 @@ func main() {
 		// === 非 HTML 快取按表精準清除（避免不必要的快取失效） ===
 		switch tableName {
 		case "config":
-			model.ClearConfigCache()
+			db.ClearConfigCache()
 		case "area":
-			model.ClearAreasCache()
+			system.ClearAreasCache()
 			RefreshValidAcodes()
 		case "site":
 			home.ClearDataCache()
@@ -329,7 +330,7 @@ func main() {
 		if strings.HasSuffix(original, ".txt") {
 			keyfile := strings.TrimPrefix(original, "/")
 			keyfile = strings.TrimSuffix(keyfile, ".txt")
-			if key := model.GetConfigValue("bing_indexnow_key", ""); key != "" && keyfile == key {
+			if key := db.GetConfigValue("bing_indexnow_key", ""); key != "" && keyfile == key {
 				c.String(http.StatusOK, key)
 				return
 			}
@@ -414,6 +415,6 @@ func main() {
 	admincontent.StopMediaScanContext()
 
 	// 關閉資料庫連接（SQLite WAL checkpoint 確保數據落盤）
-	model.CloseDB()
+	db.CloseDB()
 	slog.Info("Gbootcms 已安全退出")
 }

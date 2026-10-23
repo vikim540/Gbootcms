@@ -1,10 +1,13 @@
 package controller
 
-import (
+import (	"gbootcms/apps/admin/model/member"
+	"gbootcms/apps/admin/model/system"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"fmt"
 	"net/http"
 	"net/url"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/mail"
 	"gbootcms/apps/common/middleware"
@@ -24,7 +27,7 @@ type CommentController struct {
 // Add 提交評論（AJAX POST）
 func (cc *CommentController) Add(c *gin.Context) {
 	// 檢查評論功能是否開啟
-	if model.GetConfigValue("comment_status", "1") == "0" {
+	if db.GetConfigValue("comment_status", "1") == "0" {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "評論功能已關閉"})
 		return
 	}
@@ -40,7 +43,7 @@ func (cc *CommentController) Add(c *gin.Context) {
 	uid := common.GetSessionInt(c, "pboot_uid")
 
 	// 登入檢查（未開啟匿名評論時必須登入）
-	if uid == 0 && model.GetConfigValue("comment_anonymous", "0") == "0" {
+	if uid == 0 && db.GetConfigValue("comment_anonymous", "0") == "0" {
 		// 帶 backurl 讓登入後返回來源頁面
 		referer := c.Request.Referer()
 		loginURL := langPath(c, "/login")
@@ -77,7 +80,7 @@ func (cc *CommentController) Add(c *gin.Context) {
 
 	// 狀態判定：comment_verify=0 表示免審核
 	status := 0
-	if model.GetConfigValue("comment_verify", "1") == "0" {
+	if db.GetConfigValue("comment_verify", "1") == "0" {
 		status = 1
 	}
 
@@ -89,7 +92,7 @@ func (cc *CommentController) Add(c *gin.Context) {
 	}
 	commentUA := c.Request.UserAgent()
 	commentOS, commentBS := common.ParseUserAgent(commentUA, c.GetHeader("Sec-CH-UA-Platform-Version"))
-	mc := model.MemberComment{
+	mc := member.MemberComment{
 		Pid:        uint(pid),
 		Contentid:  uint(atoiSafe(contentid)),
 		Comment:    comment,
@@ -103,7 +106,7 @@ func (cc *CommentController) Add(c *gin.Context) {
 		UpdateUser: username,
 		UpdateTime: nowTime,
 	}
-	if err := model.DB.WithContext(c.Request.Context()).Create(&mc).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Create(&mc).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "評論失敗，請稍後再試"})
 		return
 	}
@@ -122,8 +125,8 @@ func (cc *CommentController) Add(c *gin.Context) {
 	// 查詢文章標題
 	var contentTitle string
 	if cid, err := strconv.Atoi(contentid); err == nil && cid > 0 {
-		var ct model.Content
-		if err := model.DB.WithContext(c.Request.Context()).Select("title").First(&ct, cid).Error; err == nil {
+		var ct content.Content
+		if err := db.DB.WithContext(c.Request.Context()).Select("title").First(&ct, cid).Error; err == nil {
 			contentTitle = ct.Title
 		}
 	}
@@ -135,7 +138,7 @@ func (cc *CommentController) Add(c *gin.Context) {
 		{"label": "作業系統", "value": commentOS},
 		{"label": "瀏覽器", "value": commentBS},
 	}
-	if model.GetConfigValue("comment_send_mail", "0") == "1" {
+	if db.GetConfigValue("comment_send_mail", "0") == "1" {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -143,9 +146,9 @@ func (cc *CommentController) Add(c *gin.Context) {
 				}
 			}()
 			if err := mail.SendNotifyMail("新評論通知", mailFields); err != nil {
-				model.LogNotify("mail", "error", "評論通知："+err.Error())
+				system.LogNotify("mail", "error", "評論通知："+err.Error())
 			} else {
-				model.LogNotify("mail", "success", "評論通知郵件已發送")
+				system.LogNotify("mail", "success", "評論通知郵件已發送")
 			}
 		}()
 	}
@@ -194,11 +197,11 @@ func (cc *CommentController) Del(c *gin.Context) {
 	}
 
 	// 查詢評論的 contentid（刪除後用於精準快取失效）
-	var mc model.MemberComment
-	model.DB.WithContext(c.Request.Context()).Select("contentid").Where("id = ? AND uid = ?", idStr, uid).First(&mc)
+	var mc member.MemberComment
+	db.DB.WithContext(c.Request.Context()).Select("contentid").Where("id = ? AND uid = ?", idStr, uid).First(&mc)
 
 	// 安全刪除：只能刪除自己的評論
-	result := model.DB.WithContext(c.Request.Context()).Where("id = ? AND uid = ?", idStr, uid).Delete(&model.MemberComment{})
+	result := db.DB.WithContext(c.Request.Context()).Where("id = ? AND uid = ?", idStr, uid).Delete(&member.MemberComment{})
 	if result.Error != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "刪除失敗，請稍後再試"})
 		return

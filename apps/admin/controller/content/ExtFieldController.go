@@ -3,7 +3,7 @@ package content
 import (
 	"fmt"
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model/content"
+	contentModel "gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
 	"strconv"
 	"strings"
@@ -17,12 +17,12 @@ type ExtFieldController struct {
 
 func (ef *ExtFieldController) Index(c *gin.Context) {
 	// 確保 scode 列存在並遷移舊數據
-	content.EnsureExtFieldScodeColumn()
-	content.MigrateScodeFromValue()
+	contentModel.EnsureExtFieldScodeColumn()
+	contentModel.MigrateScodeFromValue()
 
 	page, pageSize, offset := ef.Paginate(c)
 
-	allFields := content.GetAllExtFields()
+	allFields := contentModel.GetAllExtFields()
 	total := int64(len(allFields))
 	fields := allFields
 	if offset >= len(fields) {
@@ -36,7 +36,7 @@ func (ef *ExtFieldController) Index(c *gin.Context) {
 	}
 	// 為列表預處理：將 scode 字串解析為欄目名稱顯示字串
 	listFields := make([]map[string]interface{}, len(fields))
-	sorts := content.GetAllContentSorts(c.Request.Context())
+	sorts := contentModel.GetAllContentSorts(c.Request.Context())
 	// 建立 scode → name 查詢表
 	scodeNameMap := make(map[string]string)
 	for _, s := range sorts {
@@ -74,7 +74,7 @@ func (ef *ExtFieldController) Index(c *gin.Context) {
 			"Status":       f.Status,
 		}
 	}
-	models := content.GetAllModels()
+	models := contentModel.GetAllModels()
 	baseURL := "/admin/content/extField/index"
 	common.Render(c, "content/extfield.html", gin.H{
 		"extfields": listFields,
@@ -101,7 +101,7 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 			field = "ext_" + field
 		}
 		typ := c.PostForm("type")
-		options := content.NormalizeOptions(c.PostForm("value"))
+		options := contentModel.NormalizeOptions(c.PostForm("value"))
 		// 接收多選 scode（陣列），用逗號 join
 		// layui getValue() 可能將 scode[] 重命名為 scode[0]、scode[1] 等，需兼容
 		scodeList := c.PostFormArray("scode[]")
@@ -114,11 +114,11 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 		}
 		scode := strings.Join(scodeList, ",")
 		// 檢查 field 名稱在同行模型下是否唯一
-		if content.CheckFieldUnique(c.PostForm("mcode"), field, 0) {
+		if contentModel.CheckFieldUnique(c.PostForm("mcode"), field, 0) {
 			ef.JSONFail(c, "字段名稱「"+field+"」在該模型下已存在，同一模型下不允許重複的欄位名稱")
 			return
 		}
-		err := content.AddExtField(
+		err := contentModel.AddExtField(
 			c.PostForm("mcode"),
 			description,
 			field,
@@ -133,16 +133,16 @@ func (ef *ExtFieldController) Add(c *gin.Context) {
 			return
 		}
 		if field != "" {
-			content.EnsureExtColumnExists(field, typ)
+			contentModel.EnsureExtColumnExists(field, typ)
 		}
 		ef.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
-	content.EnsureExtFieldScodeColumn()
+	contentModel.EnsureExtFieldScodeColumn()
 	common.Render(c, "content/extfield.html", gin.H{
 		"action": "add",
-		"models": content.GetAllModels(),
-		"sorts":  content.GetAllContentSorts(c.Request.Context()),
+		"models": contentModel.GetAllModels(),
+		"sorts":  contentModel.GetAllContentSorts(c.Request.Context()),
 		"list":   true,
 		"C":      "content/extField",
 	})
@@ -168,7 +168,7 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 	}
 	if c.Request.Method == "GET" && fieldName != "" && fieldValue != "" {
 		if fieldName == "status" {
-			content.UpdateExtFieldSingleField(id, fieldName, fieldValue)
+			contentModel.UpdateExtFieldSingleField(id, fieldName, fieldValue)
 			ef.JSONOKMsg(c, common.NoticeModify)
 			return
 		}
@@ -181,7 +181,7 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "0"))
 		required, _ := strconv.Atoi(c.DefaultPostForm("required", "0"))
 		description := c.PostForm("description")
-		options := content.NormalizeOptions(c.PostForm("value"))
+		options := contentModel.NormalizeOptions(c.PostForm("value"))
 		// layui getValue() 可能將 scode[] 重命名為 scode[0]、scode[1] 等，需兼容
 		scodeList := c.PostFormArray("scode[]")
 		if len(scodeList) == 0 {
@@ -194,11 +194,11 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 		scode := strings.Join(scodeList, ",")
 		// 檢查 field 名稱在同行模型下是否唯一（排除自身）
 		modField := c.PostForm("field")
-		if content.CheckFieldUnique(c.PostForm("mcode"), modField, id) {
+		if contentModel.CheckFieldUnique(c.PostForm("mcode"), modField, id) {
 			ef.JSONFail(c, "字段名稱「"+modField+"」在該模型下已存在，同一模型下不允許重複的欄位名稱")
 			return
 		}
-		err := content.UpdateExtField(
+		err := contentModel.UpdateExtField(
 			id,
 			c.PostForm("mcode"),
 			description,
@@ -218,10 +218,10 @@ func (ef *ExtFieldController) Mod(c *gin.Context) {
 	}
 
 	// GET 顯示修改表單
-	content.EnsureExtFieldScodeColumn()
-	field := content.GetExtFieldById(id)
-	models := content.GetAllModels()
-	sorts := content.GetAllContentSorts(c.Request.Context())
+	contentModel.EnsureExtFieldScodeColumn()
+	field := contentModel.GetExtFieldById(id)
+	models := contentModel.GetAllModels()
+	sorts := contentModel.GetAllContentSorts(c.Request.Context())
 	// 將 scode 字串拆成陣列供模板多選回顯
 	var scodeArr []string
 	if field.Scode != "" {
@@ -253,7 +253,7 @@ func (ef *ExtFieldController) Del(c *gin.Context) {
 		return
 	}
 	id, _ := strconv.Atoi(idStr)
-	err := content.DeleteExtField(id)
+	err := contentModel.DeleteExtField(id)
 	if err != nil {
 		ef.JSONFail(c, "刪除失敗: "+err.Error())
 		return

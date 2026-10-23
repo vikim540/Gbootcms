@@ -1,9 +1,10 @@
 package member
 
-import (
+import (	memberModel "gbootcms/apps/admin/model/member"
+	"gbootcms/core/db"
+
 	"fmt"
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"regexp"
 	"strconv"
@@ -33,13 +34,13 @@ func (mb *MemberController) Index(c *gin.Context) {
 
 	// 統計總記錄數
 	var total int64
-	model.DB.Model(&model.Member{}).Count(&total)
+	db.DB.Model(&memberModel.Member{}).Count(&total)
 
-	var members []model.Member
-	model.DB.Order("register_time DESC, id DESC").Offset(offset).Limit(pageSize).Find(&members)
-	var groups []model.MemberGroup
+	var members []memberModel.Member
+	db.DB.Order("register_time DESC, id DESC").Offset(offset).Limit(pageSize).Find(&members)
+	var groups []memberModel.MemberGroup
 	// 加 WithContext 使 AcodePlugin 自動注入區域過濾
-	model.DB.WithContext(c.Request.Context()).Where("status = 1").Find(&groups)
+	db.DB.WithContext(c.Request.Context()).Where("status = 1").Find(&groups)
 	// 填充等級名稱
 	groupMap := make(map[string]string)
 	for _, g := range groups {
@@ -102,7 +103,7 @@ func (mb *MemberController) Add(c *gin.Context) {
 
 		// 檢查用戶名是否重複
 		var count int64
-		model.DB.Model(&model.Member{}).Where("username = ? OR useremail = ? OR usermobile = ?", username, username, username).Count(&count)
+		db.DB.Model(&memberModel.Member{}).Where("username = ? OR useremail = ? OR usermobile = ?", username, username, username).Count(&count)
 		if count > 0 {
 			mb.LogAction(c, "新增會員失敗")
 			mb.JSONFail(c, "用戶名已經存在")
@@ -126,7 +127,7 @@ func (mb *MemberController) Add(c *gin.Context) {
 		score, _ := strconv.Atoi(c.DefaultPostForm("score", "0"))
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 
-		if err := model.DB.Create(&model.Member{
+		if err := db.DB.Create(&memberModel.Member{
 			Ucode:        ucode,
 			Username:     username,
 			Nickname:     common.FilterUserInput(c.PostForm("nickname")),
@@ -169,7 +170,7 @@ func (mb *MemberController) Mod(c *gin.Context) {
 			if submit == "verify0" {
 				status = 0
 			}
-			if err := model.DB.WithContext(c.Request.Context()).Model(&model.Member{}).Where("id IN ?", list).Update("status", status).Error; err != nil {
+			if err := db.DB.WithContext(c.Request.Context()).Model(&memberModel.Member{}).Where("id IN ?", list).Update("status", status).Error; err != nil {
 				mb.JSONFail(c, "操作失敗："+err.Error())
 				return
 			}
@@ -199,7 +200,7 @@ func (mb *MemberController) Mod(c *gin.Context) {
 	field := c.Query("field")
 	value := c.Query("value")
 	if field != "" && value != "" {
-		if err := model.DB.Model(&model.Member{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+		if err := db.DB.Model(&memberModel.Member{}).Where("id = ?", id).Update(field, value).Error; err != nil {
 			mb.JSONFail(c, "操作失敗")
 			return
 		}
@@ -237,7 +238,7 @@ func (mb *MemberController) Mod(c *gin.Context) {
 
 		// 檢查用戶名是否重複（排除自身）
 		var count int64
-		model.DB.Model(&model.Member{}).Where("(username = ? OR useremail = ? OR usermobile = ?) AND id <> ?", username, username, username, id).Count(&count)
+		db.DB.Model(&memberModel.Member{}).Where("(username = ? OR useremail = ? OR usermobile = ?) AND id <> ?", username, username, username, id).Count(&count)
 		if count > 0 {
 			mb.LogAction(c, "修改會員失敗")
 			mb.JSONFail(c, "用戶名已經存在")
@@ -266,7 +267,7 @@ func (mb *MemberController) Mod(c *gin.Context) {
 			}
 			updates["password"] = hashedPwd
 		}
-		if err := model.DB.Model(&model.Member{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		if err := db.DB.Model(&memberModel.Member{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			mb.LogAction(c, "修改會員失敗")
 			mb.JSONFail(c, "修改失敗："+err.Error())
 			return
@@ -277,11 +278,11 @@ func (mb *MemberController) Mod(c *gin.Context) {
 	}
 
 	// GET 載入修改頁面
-	var member model.Member
-	model.DB.First(&member, id)
-	var groups []model.MemberGroup
+	var member memberModel.Member
+	db.DB.First(&member, id)
+	var groups []memberModel.MemberGroup
 	// 加 WithContext 使 AcodePlugin 自動注入區域過濾
-	model.DB.WithContext(c.Request.Context()).Where("status = 1").Find(&groups)
+	db.DB.WithContext(c.Request.Context()).Where("status = 1").Find(&groups)
 	// 填充等級名稱
 	for _, g := range groups {
 		if fmt.Sprintf("%d", g.ID) == member.GID {
@@ -303,7 +304,7 @@ func (mb *MemberController) Del(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		list := c.PostFormArray("list[]")
 		if len(list) > 0 {
-			if err := model.DB.WithContext(c.Request.Context()).Where("id IN ?", list).Delete(&model.Member{}).Error; err != nil {
+			if err := db.DB.WithContext(c.Request.Context()).Where("id IN ?", list).Delete(&memberModel.Member{}).Error; err != nil {
 				mb.JSONFail(c, "刪除失敗："+err.Error())
 				return
 			}
@@ -327,7 +328,7 @@ func (mb *MemberController) Del(c *gin.Context) {
 		mb.JSONFail(c, "缺少刪除目標ID")
 		return
 	}
-	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Member{}, idStr).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Delete(&memberModel.Member{}, idStr).Error; err != nil {
 		mb.LogAction(c, "刪除會員失敗")
 		mb.JSONFail(c, "刪除失敗："+err.Error())
 		return

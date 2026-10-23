@@ -1,6 +1,7 @@
 package helper
 
-import (
+import (	"gbootcms/core/db"
+
 	"fmt"
 	"os"
 	"reflect"
@@ -8,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"gbootcms/apps/admin/model"
 	contentModel "gbootcms/apps/admin/model/content"
 	memberModel "gbootcms/apps/admin/model/member"
 	"gbootcms/core/basic"
@@ -90,7 +90,7 @@ func GetTemplateFiles() []string {
 // Templates use [value->gname] / [value->gcode] matching the model fields.
 func BuildGroupsData() []map[string]interface{} {
 	var groups []memberModel.MemberGroup
-	model.DB.Where("status = 1").Order("id ASC").Find(&groups)
+	db.DB.Where("status = 1").Order("id ASC").Find(&groups)
 	result := make([]map[string]interface{}, len(groups))
 	for i, g := range groups {
 		result[i] = map[string]interface{}{
@@ -107,13 +107,13 @@ func BuildGroupsData() []map[string]interface{} {
 
 // BuildSortSelectHTML generates <option> HTML for parent sort selection dropdowns.
 // Builds hierarchical options based on pcode/scode tree structure.
-func BuildSortSelectHTML(sorts []model.ContentSort, selected string) *pongo2.Value {
+func BuildSortSelectHTML(sorts []contentModel.ContentSort, selected string) *pongo2.Value {
 	var sb strings.Builder
 	buildSortOptions(&sb, sorts, "0", "", selected, 0)
 	return pongo2.AsSafeValue(sb.String())
 }
 
-func buildSortOptions(sb *strings.Builder, sorts []model.ContentSort, parentCode, prefix, selected string, depth int) {
+func buildSortOptions(sb *strings.Builder, sorts []contentModel.ContentSort, parentCode, prefix, selected string, depth int) {
 	indent := strings.Repeat("&nbsp;&nbsp;", depth)
 	if depth > 0 {
 		indent = strings.Repeat("&nbsp;&nbsp;", depth-1) + "├─"
@@ -133,7 +133,7 @@ func buildSortOptions(sb *strings.Builder, sorts []model.ContentSort, parentCode
 
 // BuildSearchSelectHTML generates <option> HTML for search/filter dropdowns.
 // Optionally filters by model code (mcode).
-func BuildSearchSelectHTML(sorts []model.ContentSort, mcode string) *pongo2.Value {
+func BuildSearchSelectHTML(sorts []contentModel.ContentSort, mcode string) *pongo2.Value {
 	var sb strings.Builder
 	for _, s := range sorts {
 		if mcode != "" && s.Mcode != mcode {
@@ -146,7 +146,7 @@ func BuildSearchSelectHTML(sorts []model.ContentSort, mcode string) *pongo2.Valu
 
 // BuildSubsortSelectHTML generates <option> HTML for sub-sort selection.
 // Excludes the given scode (current sort) from the options.
-func BuildSubsortSelectHTML(sorts []model.ContentSort, excludeScode string) *pongo2.Value {
+func BuildSubsortSelectHTML(sorts []contentModel.ContentSort, excludeScode string) *pongo2.Value {
 	var sb strings.Builder
 	for _, s := range sorts {
 		if s.Scode == excludeScode {
@@ -159,7 +159,7 @@ func BuildSubsortSelectHTML(sorts []model.ContentSort, excludeScode string) *pon
 
 // BuildSubsortSelectWithSelected generates <option> HTML for sub-sort selection with selected value.
 // Used in content mod forms where the content's subscode should be selected.
-func BuildSubsortSelectWithSelected(sorts []model.ContentSort, selectedSubscode string) *pongo2.Value {
+func BuildSubsortSelectWithSelected(sorts []contentModel.ContentSort, selectedSubscode string) *pongo2.Value {
 	var sb strings.Builder
 	for _, s := range sorts {
 		sel := ""
@@ -173,7 +173,7 @@ func BuildSubsortSelectWithSelected(sorts []model.ContentSort, selectedSubscode 
 
 // AddSonField adds a computed "Son" boolean field to each sort entry.
 // Son=true means the sort has child sorts (used for folder icon display).
-func AddSonField(sorts []model.ContentSort) []map[string]interface{} {
+func AddSonField(sorts []contentModel.ContentSort) []map[string]interface{} {
 	// Build set of all pcodes to check if a scode is a parent
 	pcodeSet := make(map[string]bool)
 	for _, s := range sorts {
@@ -194,9 +194,9 @@ func AddSonField(sorts []model.ContentSort) []map[string]interface{} {
 // (parent rows always before their children) AND adds the Son field.
 // This is critical for jQuery treetable which requires parent-before-child
 // ordering in the DOM. The DB ORDER BY sorting,id does NOT guarantee this.
-func BuildSortTreeData(sorts []model.ContentSort) []map[string]interface{} {
+func BuildSortTreeData(sorts []contentModel.ContentSort) []map[string]interface{} {
 	// 1. Build children map: pcode → []ContentSort
-	children := make(map[string][]model.ContentSort)
+	children := make(map[string][]contentModel.ContentSort)
 	for _, s := range sorts {
 		pcode := s.Pcode
 		if pcode == "" {
@@ -206,7 +206,7 @@ func BuildSortTreeData(sorts []model.ContentSort) []map[string]interface{} {
 	}
 
 	// 2. Recursively flatten: parent before children
-	var ordered []model.ContentSort
+	var ordered []contentModel.ContentSort
 	var walk func(pcode string)
 	walk = func(pcode string) {
 		for _, s := range children[pcode] {
@@ -236,7 +236,7 @@ func BuildSortTreeData(sorts []model.ContentSort) []map[string]interface{} {
 }
 
 // buildSortFrontURL 生成欄目前台連結（對齊 PHP parserLink for list type）
-func buildSortFrontURL(s model.ContentSort) string {
+func buildSortFrontURL(s contentModel.ContentSort) string {
 	if s.Outlink != "" {
 		return s.Outlink
 	}
@@ -251,7 +251,7 @@ func buildSortFrontURL(s model.ContentSort) string {
 
 // AddSortName adds a computed "SortName" field to each content entry.
 // Uses a scode→name mapping from the sorts list.
-func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[string]interface{} {
+func AddSortName(contents []contentModel.Content, sorts []contentModel.ContentSort) []map[string]interface{} {
 	sortMap := make(map[string]string)
 	sortURLMap := make(map[string]string)
 	sortFilenameMap := make(map[string]string)
@@ -262,7 +262,7 @@ func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[stri
 	}
 
 	// 讀取 URL 規則配置
-	contentPathMode := model.GetConfigValue("url_rule_content_path", "0")
+	contentPathMode := db.GetConfigValue("url_rule_content_path", "0")
 
 	result := make([]map[string]interface{}, len(contents))
 	for i, c := range contents {
@@ -300,7 +300,7 @@ func AddSortName(contents []model.Content, sorts []model.ContentSort) []map[stri
 //   2. 單段 slug（如 my-article）→ /{sortPath}/{slug}（欄目路徑 + slug）
 //   3. 無 slug，欄目有 pathname → /{sortPath}/{id}
 //   4. 無 slug，欄目無 pathname → /content/{id}（兜底）
-func buildFrontURL(c model.Content, sortFilename, sortURLName, contentPathMode string) string {
+func buildFrontURL(c contentModel.Content, sortFilename, sortURLName, contentPathMode string) string {
 	if c.Outlink != "" {
 		return c.Outlink
 	}
@@ -476,7 +476,7 @@ func GetModelNameByMcode(mcode string) string {
 
 // BuildSortSelectWithSelected generates sort select HTML with the current sort pre-selected.
 // Used in content mod forms where the content's scode should be selected.
-func BuildSortSelectWithSelected(sorts []model.ContentSort, mcode string, selectedScode string) *pongo2.Value {
+func BuildSortSelectWithSelected(sorts []contentModel.ContentSort, mcode string, selectedScode string) *pongo2.Value {
 	var sb strings.Builder
 	for _, s := range sorts {
 		if mcode != "" && s.Mcode != mcode {

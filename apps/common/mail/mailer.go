@@ -1,12 +1,13 @@
 package mail
 
-import (
+import (	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"net"
 	"net/smtp"
-	"gbootcms/apps/admin/model"
 	"strconv"
 	"strings"
 	"time"
@@ -21,11 +22,11 @@ const smtpOverallTimeout = 30 * time.Second
 // SendMail 發送郵件（使用標準庫 net/smtp + crypto/tls）
 // 自動根據 smtp_ssl 配置選擇隱式 SSL（465）或 STARTTLS（587/25）
 func SendMail(to, subject, body string) error {
-	smtpServer := model.GetConfigValue("smtp_server", "")
-	smtpPortStr := model.GetConfigValue("smtp_port", "25")
-	smtpUsername := model.GetConfigValue("smtp_username", "")
-	smtpPassword := model.GetConfigValue("smtp_password", "")
-	smtpSSL := model.GetConfigValue("smtp_ssl", "0")
+	smtpServer := db.GetConfigValue("smtp_server", "")
+	smtpPortStr := db.GetConfigValue("smtp_port", "25")
+	smtpUsername := db.GetConfigValue("smtp_username", "")
+	smtpPassword := db.GetConfigValue("smtp_password", "")
+	smtpSSL := db.GetConfigValue("smtp_ssl", "0")
 
 	if smtpServer == "" || smtpUsername == "" {
 		return fmt.Errorf("SMTP 配置不完整")
@@ -44,7 +45,7 @@ func SendMail(to, subject, body string) error {
 
 	from := smtpUsername
 	headers := map[string]string{
-		"From":         fmt.Sprintf("%s <%s>", model.GetConfigValue("cmsname", "Gbootcms"), from),
+		"From":         fmt.Sprintf("%s <%s>", db.GetConfigValue("cmsname", "Gbootcms"), from),
 		"To":           to,
 		"Subject":      fmt.Sprintf("=?UTF-8?B?%s?=", encodeBase64(subject)),
 		"Content-Type": "text/html; charset=UTF-8",
@@ -186,18 +187,18 @@ func sendMailSTARTTLS(addr, host string, port int, auth smtp.Auth, from string, 
 
 // SendNotifyMail 發送通知郵件（留言/表單/評論）
 func SendNotifyMail(formName string, fields []map[string]string) error {
-	sendTo := model.GetConfigValue("message_send_to", "")
+	sendTo := db.GetConfigValue("message_send_to", "")
 	if sendTo == "" {
 		return nil
 	}
 
-	// 從 ay_site 表讀取站點信息（復用 model.Site 類型，含 Domain 欄位可替代 main_domain 查詢）
-	var site model.Site
-	model.DB.Limit(1).Find(&site)
+	// 從 ay_site 表讀取站點信息（復用 content.Site 類型，含 Domain 欄位可替代 main_domain 查詢）
+	var site content.Site
+	db.DB.Limit(1).Find(&site)
 
 	siteTitle := site.Title
 	if siteTitle == "" {
-		siteTitle = model.GetConfigValue("cmsname", "Gbootcms")
+		siteTitle = db.GetConfigValue("cmsname", "Gbootcms")
 	}
 	siteSubtitle := site.Subtitle
 
@@ -206,7 +207,7 @@ func SendNotifyMail(formName string, fields []map[string]string) error {
 	if site.Logo != "" {
 		domain := site.Domain
 		if domain == "" {
-			domain = model.GetConfigValue("main_domain", "")
+			domain = db.GetConfigValue("main_domain", "")
 		}
 		if domain != "" {
 			domain = strings.TrimRight(domain, "/")
@@ -290,7 +291,7 @@ func SendNotifyMail(formName string, fields []map[string]string) error {
 
 // SendTestMail 發送測試郵件（美觀 HTML 模板）
 func SendTestMail(to string) error {
-	siteName := model.GetConfigValue("cmsname", "Gbootcms")
+	siteName := db.GetConfigValue("cmsname", "Gbootcms")
 	now := time.Now().Format("2006-01-02 15:04:05")
 	subject := "【" + siteName + "】測試郵件"
 	body := fmt.Sprintf(`<html><body style="margin:0;padding:0;background:#f4f6f9;">

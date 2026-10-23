@@ -1,13 +1,14 @@
 package system
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+	"gbootcms/core/db"
+
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"github.com/gin-gonic/gin"
 )
@@ -29,13 +30,13 @@ type roleOption struct {
 func (uc *UserController) Index(c *gin.Context) {
 	page, pageSize, offset := uc.Paginate(c)
 	var total int64
-	model.DB.Model(&model.AdminUser{}).Count(&total)
-	var users []model.AdminUser
-	model.DB.Order("id ASC").Offset(offset).Limit(pageSize).Find(&users)
+	db.DB.Model(&system.AdminUser{}).Count(&total)
+	var users []system.AdminUser
+	db.DB.Order("id ASC").Offset(offset).Limit(pageSize).Find(&users)
 
 	// 查詢所有角色，構建 rcode → name 映射
-	var roles []model.Role
-	model.DB.Find(&roles)
+	var roles []system.Role
+	db.DB.Find(&roles)
 	roleMap := make(map[string]string)
 	for _, r := range roles {
 		roleMap[r.Rcode] = r.Name
@@ -94,7 +95,7 @@ func (uc *UserController) Add(c *gin.Context) {
 
 		// 檢查用戶名是否已存在
 		var count int64
-		model.DB.Model(&model.AdminUser{}).Where("username = ?", username).Count(&count)
+		db.DB.Model(&system.AdminUser{}).Where("username = ?", username).Count(&count)
 		if count > 0 {
 			uc.JSONFail(c, "用戶名已存在！")
 			return
@@ -118,12 +119,12 @@ func (uc *UserController) Add(c *gin.Context) {
 		rcodesStr := strings.Join(rcodes, ",")
 
 		// 生成 ucode
-		var lastUser model.AdminUser
-		model.DB.Order("id DESC").First(&lastUser)
+		var lastUser system.AdminUser
+		db.DB.Order("id DESC").First(&lastUser)
 		newUcode := autoUcode(lastUser.Ucode)
 
 		now := time.Now()
-		user := &model.AdminUser{
+		user := &system.AdminUser{
 			Ucode:      newUcode,
 			Username:   username,
 			Password:   encPwd,
@@ -135,7 +136,7 @@ func (uc *UserController) Add(c *gin.Context) {
 			CreateTime: now,
 			UpdateTime: now,
 		}
-		if err := model.DB.Create(user).Error; err != nil {
+		if err := db.DB.Create(user).Error; err != nil {
 			uc.JSONFail(c, "新增失敗！")
 			return
 		}
@@ -146,8 +147,8 @@ func (uc *UserController) Add(c *gin.Context) {
 	}
 
 	// GET: 顯示新增表單
-	var roles []model.Role
-	model.DB.Find(&roles)
+	var roles []system.Role
+	db.DB.Find(&roles)
 	opts := make([]roleOption, 0, len(roles))
 	for _, r := range roles {
 		opts = append(opts, roleOption{Rcode: r.Rcode, Name: r.Name})
@@ -192,7 +193,7 @@ func (uc *UserController) Mod(c *gin.Context) {
 			"update_user": uc.GetAdminUsername(c),
 			"update_time": time.Now().Format("2006-01-02 15:04:05"),
 		}
-		if err := model.DB.Model(&model.AdminUser{}).Where("ucode = ?", ucode).Updates(updates).Error; err != nil {
+		if err := db.DB.Model(&system.AdminUser{}).Where("ucode = ?", ucode).Updates(updates).Error; err != nil {
 			uc.JSONFail(c, "修改失敗！")
 			return
 		}
@@ -230,7 +231,7 @@ func (uc *UserController) Mod(c *gin.Context) {
 			updates["password"] = encPwd
 		}
 
-		if err := model.DB.Model(&model.AdminUser{}).Where("ucode = ?", ucode).Updates(updates).Error; err != nil {
+		if err := db.DB.Model(&system.AdminUser{}).Where("ucode = ?", ucode).Updates(updates).Error; err != nil {
 			uc.JSONFail(c, "修改失敗！")
 			return
 		}
@@ -241,8 +242,8 @@ func (uc *UserController) Mod(c *gin.Context) {
 	}
 
 	// GET: 顯示修改表單
-	var user model.AdminUser
-	model.DB.Where("ucode = ?", ucode).First(&user)
+	var user system.AdminUser
+	db.DB.Where("ucode = ?", ucode).First(&user)
 	if user.ID == 0 {
 		uc.JSONFail(c, "編輯的內容已經不存在！")
 		return
@@ -260,8 +261,8 @@ func (uc *UserController) Mod(c *gin.Context) {
 	}
 
 	// 構建角色選項（含選中狀態）
-	var roles []model.Role
-	model.DB.Find(&roles)
+	var roles []system.Role
+	db.DB.Find(&roles)
 	userRcodes := make(map[string]bool)
 	for _, rc := range strings.Split(user.Rcodes, ",") {
 		rc = strings.TrimSpace(rc)
@@ -307,7 +308,7 @@ func (uc *UserController) Del(c *gin.Context) {
 		return
 	}
 
-	result := model.DB.WithContext(c.Request.Context()).Where("ucode = ?", ucode).Delete(&model.AdminUser{})
+	result := db.DB.WithContext(c.Request.Context()).Where("ucode = ?", ucode).Delete(&system.AdminUser{})
 	if result.Error != nil {
 		uc.JSONFail(c, "刪除失敗："+result.Error.Error())
 		return

@@ -1,11 +1,12 @@
 package controller
 
-import (
+import (	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"fmt"
 	"net/http"
 	"strings"
 
-	"gbootcms/apps/admin/model"
 	"gbootcms/core/acodeplugin"
 
 	"github.com/gin-gonic/gin"
@@ -20,8 +21,8 @@ func (fc *FrontController) LLMS(c *gin.Context) {
 	var sb strings.Builder
 
 	// 標題：站點名稱
-	var site model.Site
-	model.DB.WithContext(skipCtx).First(&site)
+	var site content.Site
+	db.DB.WithContext(skipCtx).First(&site)
 	title := site.Title
 	if title == "" {
 		title = "Gbootcms"
@@ -46,12 +47,12 @@ func (fc *FrontController) LLMS(c *gin.Context) {
 
 	// 主要欄目
 	sb.WriteString("## 主要欄目\n\n")
-	var sorts []model.ContentSort
-	model.DB.WithContext(skipCtx).Where("status = 1 AND (pcode = ? OR pcode = '')", "0").
+	var sorts []content.ContentSort
+	db.DB.WithContext(skipCtx).Where("status = 1 AND (pcode = ? OR pcode = '')", "0").
 		Order("sorting ASC, id ASC").Find(&sorts)
 	if len(sorts) == 0 {
 		// 回退：查詢所有啟用的欄目
-		model.DB.WithContext(skipCtx).Where("status = 1").
+		db.DB.WithContext(skipCtx).Where("status = 1").
 			Order("sorting ASC, id ASC").Find(&sorts)
 	}
 	for _, s := range sorts {
@@ -71,8 +72,8 @@ func (fc *FrontController) LLMS(c *gin.Context) {
 
 	// 最新內容（取前 20 條）
 	sb.WriteString("## 最新內容\n\n")
-	var contents []model.Content
-	model.DB.WithContext(skipCtx).Where("status = 1").
+	var contents []content.Content
+	db.DB.WithContext(skipCtx).Where("status = 1").
 		Order("date DESC").Limit(20).Find(&contents)
 	for _, ct := range contents {
 		if ct.Title == "" {
@@ -95,8 +96,8 @@ func (fc *FrontController) LLMS(c *gin.Context) {
 	sb.WriteString("\n")
 
 	// 公司聯繫資訊
-	var company model.Company
-	model.DB.WithContext(skipCtx).First(&company)
+	var company content.Company
+	db.DB.WithContext(skipCtx).First(&company)
 	if company.Name != "" {
 		sb.WriteString("## 聯繫資訊\n\n")
 		sb.WriteString(fmt.Sprintf("- 公司名稱: %s\n", company.Name))

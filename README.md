@@ -1,6 +1,6 @@
 # Gbootcms
 
-> 基於 PbootCMS 3.2.12 的現代化 Go 語言原生移植版 — 保留原版數據庫結構（`ay_` 前綴）、相容模板語法與 URL 路由，採用純 Go 高並發技術棧全面取代傳統 PHP 後端。
+> 現代化 Go 語言企業級內容管理系統 — 採用純 Go 高並發技術棧，具備單一二進制分發、SQLite WAL 併發讀寫、多語言與營銷歸因追蹤。
 
 [![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8)](https://go.dev/)
 [![Gin](https://img.shields.io/badge/Gin-v1.12-00ADD8)](https://gin-gonic.com/)
@@ -83,7 +83,7 @@ go build -trimpath -ldflags="-s -w" -o bin/gbootcms.exe .
 ## 目錄結構
 
 ```
-pbootcms-go/
+gbootcms/
 ├── main.go                          # 服務入口、優雅關閉與路由分發
 ├── config/                          # 系統配置（Viper，支援環境變數覆蓋）
 ├── core/                            # 核心底層引擎
@@ -123,4 +123,4 @@ pbootcms-go/
 
 ## License
 
-基於 PbootCMS 3.2.12 開源協議移植，保留原作者版權聲明。
+採用 MIT 開源協議分發。

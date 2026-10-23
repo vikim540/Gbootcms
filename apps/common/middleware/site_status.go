@@ -1,8 +1,8 @@
 package middleware
 
-import (
+import (	"gbootcms/core/db"
+
 	"net/http"
-	"gbootcms/apps/admin/model"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -20,8 +20,8 @@ func SiteStatus() gin.HandlerFunc {
 		}
 
 		// 關站檢查（對齊 PHP: if (!!$close_site = Config::get('close_site'))）
-		if model.GetConfigValue("close_site", "0") != "0" {
-			closeSiteNote := model.GetConfigValue("close_site_note", "")
+		if db.GetConfigValue("close_site", "0") != "0" {
+			closeSiteNote := db.GetConfigValue("close_site_note", "")
 			if closeSiteNote == "" {
 				closeSiteNote = "本站維護中，請稍後再訪問，帶來不便，敬請諒解！"
 			}
@@ -60,13 +60,13 @@ func MobileSwitch() gin.HandlerFunc {
 			return
 		}
 
-		openWap := model.GetConfigValue("open_wap", "0")
+		openWap := db.GetConfigValue("open_wap", "0")
 		if openWap == "0" {
 			c.Next()
 			return
 		}
 
-		wapDomain := model.GetConfigValue("wap_domain", "")
+		wapDomain := db.GetConfigValue("wap_domain", "")
 		host := c.Request.Host
 		// 去掉端口號
 		if idx := strings.LastIndex(host, ":"); idx != -1 {
@@ -109,7 +109,7 @@ func SpiderLog() gin.HandlerFunc {
 		}
 
 		// 檢查是否開啟蜘蛛記錄（對齊 PHP: spiderlog !== '0'）
-		if model.GetConfigValue("spiderlog", "0") != "0" {
+		if db.GetConfigValue("spiderlog", "0") != "0" {
 			ua := strings.ToLower(c.Request.UserAgent())
 			spider := identifySpider(ua)
 			if spider != "" {

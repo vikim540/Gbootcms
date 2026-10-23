@@ -1,12 +1,13 @@
-package model
+package system
 
 import (
+	"gbootcms/core/db"
 	"log/slog"
 	"time"
 )
 
 // NotifyLog 通知日誌（複用 ay_syslog 表，透過 level 欄位區分類型）
-// 沿用 PbootCMS 原始表結構的 NOT NULL 欄位：level, event, user_ip, user_os, user_bs, create_user, create_time
+// 沿用原始表結構的 NOT NULL 欄位：level, event, user_ip, user_os, user_bs, create_user, create_time
 type NotifyLog struct {
 	ID         uint   `gorm:"primaryKey" json:"id"`
 	Level      string `gorm:"column:level" json:"level"`
@@ -31,7 +32,7 @@ func LogNotify(category, status, message string) {
 	// event 欄位按位元組截斷（VARCHAR(200)），避免超長導致寫入失敗
 	truncated := truncateEventBytes(message, 200)
 	now := time.Now().Format("2006-01-02 15:04:05")
-	if err := DB.Create(&NotifyLog{
+	if err := db.DB.Create(&NotifyLog{
 		Level:      category + "_" + status,
 		Event:      truncated,
 		UserIP:     "system",
@@ -48,7 +49,7 @@ func LogNotify(category, status, message string) {
 // GetNotifyLogs 取得通知日誌（level 以 mail_ 或 webhook_ 開頭）
 func GetNotifyLogs(limit int) []NotifyLog {
 	var logs []NotifyLog
-	if err := DB.Where("level LIKE 'mail_%' OR level LIKE 'webhook_%'").
+	if err := db.DB.Where("level LIKE 'mail_%' OR level LIKE 'webhook_%'").
 		Order("id DESC").Limit(limit).Find(&logs).Error; err != nil {
 		slog.Error("[NotifyLog] 查詢失敗", "err", err)
 	}
@@ -58,7 +59,7 @@ func GetNotifyLogs(limit int) []NotifyLog {
 // GetNotifyLogsPaged 取得通知日誌（分頁）
 func GetNotifyLogsPaged(limit, offset int) []NotifyLog {
 	var logs []NotifyLog
-	if err := DB.Where("level LIKE 'mail_%' OR level LIKE 'webhook_%'").
+	if err := db.DB.Where("level LIKE 'mail_%' OR level LIKE 'webhook_%'").
 		Order("id DESC").Offset(offset).Limit(limit).Find(&logs).Error; err != nil {
 		slog.Error("[NotifyLog] 查詢失敗", "err", err)
 	}
@@ -67,7 +68,7 @@ func GetNotifyLogsPaged(limit, offset int) []NotifyLog {
 
 // ClearNotifyLogs 清空通知日誌（僅刪除 mail_/webhook_ 記錄，不影響系統日誌）
 func ClearNotifyLogs() {
-	if err := DB.Where("level LIKE 'mail_%' OR level LIKE 'webhook_%'").
+	if err := db.DB.Where("level LIKE 'mail_%' OR level LIKE 'webhook_%'").
 		Delete(&NotifyLog{}).Error; err != nil {
 		slog.Error("[NotifyLog] 清理失敗", "err", err)
 	}

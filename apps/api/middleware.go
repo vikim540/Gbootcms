@@ -1,6 +1,7 @@
 package api
 
-import (
+import (	"gbootcms/core/db"
+
 	"crypto/subtle"
 	"net/http"
 	"strconv"
@@ -8,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"gbootcms/apps/admin/model"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -24,13 +24,13 @@ type JWTClaims struct {
 // getJWTSecret 從配置取得 JWT 密鑰
 // 配置項 api_jwt_secret 為空時返回 nil，呼叫方應在啟動時拒絕 API 服務
 func getJWTSecret() []byte {
-	secret := model.GetConfigValue("api_jwt_secret", "")
+	secret := db.GetConfigValue("api_jwt_secret", "")
 	return []byte(secret)
 }
 
 // IsJWTConfigured 檢查 JWT 密鑰是否已配置
 func IsJWTConfigured() bool {
-	return model.GetConfigValue("api_jwt_secret", "") != ""
+	return db.GetConfigValue("api_jwt_secret", "") != ""
 }
 
 // GenerateToken 生成 JWT Token
@@ -76,12 +76,12 @@ var (
 func getLockConfig() (lockCount, lockTime int) {
 	lockCount = 5
 	lockTime = 900
-	if v := model.GetConfigValue("lock_count", "5"); v != "" {
+	if v := db.GetConfigValue("lock_count", "5"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			lockCount = n
 		}
 	}
-	if v := model.GetConfigValue("lock_time", "900"); v != "" {
+	if v := db.GetConfigValue("lock_time", "900"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			lockTime = n
 		}
@@ -218,7 +218,7 @@ func APIAuth() gin.HandlerFunc {
 			apiKey = c.Query("api_key")
 		}
 		if apiKey != "" {
-			configuredKey := model.GetConfigValue("api_key", "")
+			configuredKey := db.GetConfigValue("api_key", "")
 			if configuredKey != "" && subtle.ConstantTimeCompare([]byte(apiKey), []byte(configuredKey)) == 1 {
 				c.Set("api_uid", 0)
 				c.Set("api_username", "api_key")
@@ -251,7 +251,7 @@ func CORS() gin.HandlerFunc {
 			return
 		}
 
-		allowedOrigins := model.GetConfigValue("api_cors_origins", "*")
+		allowedOrigins := db.GetConfigValue("api_cors_origins", "*")
 		allowed := false
 		if allowedOrigins == "*" {
 			allowed = true

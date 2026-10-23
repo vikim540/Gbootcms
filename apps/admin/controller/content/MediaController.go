@@ -1,10 +1,10 @@
 package content
 
-import (
+import (	"gbootcms/core/db"
+
 	"context"
 	"fmt"
-	"gbootcms/apps/admin/model"
-	"gbootcms/apps/admin/model/content"
+	contentModel "gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
 	"gbootcms/core/acodeplugin"
 	"image"
@@ -230,7 +230,7 @@ func validateFileRefs() {
 				Name string `gorm:"column:name"`
 			}
 			var actualCols []colInfo
-			if err := model.DB.Raw(fmt.Sprintf("PRAGMA table_info(`%s`)", rt.table)).Scan(&actualCols).Error; err != nil {
+			if err := db.DB.Raw(fmt.Sprintf("PRAGMA table_info(`%s`)", rt.table)).Scan(&actualCols).Error; err != nil {
 				slog.Warn("[MediaController] 無法查詢表結構", "table", rt.table, "err", err)
 				continue
 			}
@@ -408,15 +408,15 @@ func (c *MediaController) Mark(ctx *gin.Context) {
 		return
 	}
 
-	var mark content.MediaMark
-	if err := model.DB.WithContext(ctx.Request.Context()).Where("path = ?", np).First(&mark).Error; err == nil {
-		if err := model.DB.WithContext(ctx.Request.Context()).Delete(&mark).Error; err != nil {
+	var mark contentModel.MediaMark
+	if err := db.DB.WithContext(ctx.Request.Context()).Where("path = ?", np).First(&mark).Error; err == nil {
+		if err := db.DB.WithContext(ctx.Request.Context()).Delete(&mark).Error; err != nil {
 			c.JSONFail(ctx, "取消標記失敗："+err.Error())
 			return
 		}
 		c.JSONOKMsg(ctx, "已取消標記")
 	} else {
-		if err := model.DB.WithContext(ctx.Request.Context()).Create(&content.MediaMark{Path: np}).Error; err != nil {
+		if err := db.DB.WithContext(ctx.Request.Context()).Create(&contentModel.MediaMark{Path: np}).Error; err != nil {
 			c.JSONFail(ctx, "標記失敗："+err.Error())
 			return
 		}
@@ -728,7 +728,7 @@ func findUsages(filePath string) []UsageInfo {
 		selectStr := strings.Join(colNames, ", ")
 
 		// 媒體庫掃描需跨區查找所有文件引用，用 SkipAcode 跳過區域隔離
-		rows, err := model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table(rt.table).Select(selectStr).Rows()
+		rows, err := db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table(rt.table).Select(selectStr).Rows()
 		if err != nil {
 			continue
 		}
@@ -764,7 +764,7 @@ func findUsages(filePath string) []UsageInfo {
 	}
 	var contents []ContentRow
 	// 媒體庫掃描需跨區查找所有文件引用，用 SkipAcode 跳過區域隔離
-	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content").Select("id, title, content").Find(&contents)
+	db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content").Select("id, title, content").Find(&contents)
 	for _, row := range contents {
 		if containsImgSrc(row.Content, np, base) {
 			usages = append(usages, UsageInfo{"ay_content", row.ID, row.Title, "content(正文)"})
@@ -778,7 +778,7 @@ func findUsages(filePath string) []UsageInfo {
 		Value string
 	}
 	var labels []LabelRow
-	model.DB.Table("ay_label").Select("id, name, value").Find(&labels)
+	db.DB.Table("ay_label").Select("id, name, value").Find(&labels)
 	for _, row := range labels {
 		decoded := strings.ReplaceAll(row.Value, "&quot;", "\"")
 		if containsImgSrc(decoded, np, base) {
@@ -788,7 +788,7 @@ func findUsages(filePath string) []UsageInfo {
 
 	// 特殊處理：ay_content_ext 擴展欄位中的自定義圖片/附件引用
 	var extRows []map[string]interface{}
-	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content_ext").Find(&extRows)
+	db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content_ext").Find(&extRows)
 	for _, row := range extRows {
 		contentID := 0
 		if cid, ok := row["contentid"]; ok {
@@ -891,7 +891,7 @@ func getUsedPaths() map[string]bool {
 		selectStr := strings.Join(cols, ", ")
 
 		// 媒體庫掃描需跨區查找所有文件引用，用 SkipAcode 跳過區域隔離
-		rows, err := model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table(rt.table).Select(selectStr).Rows()
+		rows, err := db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table(rt.table).Select(selectStr).Rows()
 		if err != nil {
 			continue
 		}
@@ -915,7 +915,7 @@ func getUsedPaths() map[string]bool {
 	type ContentHTML struct{ Content string }
 	var htmls []ContentHTML
 	// 媒體庫掃描需跨區查找所有文件引用，用 SkipAcode 跳過區域隔離
-	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content").Select("content").Find(&htmls)
+	db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content").Select("content").Find(&htmls)
 	for _, row := range htmls {
 		extractSrcPaths(row.Content, used)
 	}
@@ -923,7 +923,7 @@ func getUsedPaths() map[string]bool {
 	// ay_label.value HTML 中的 img src 引用（自定義標籤可能含圖片）
 	type LabelHTML struct{ Value string }
 	var labels []LabelHTML
-	model.DB.Table("ay_label").Select("value").Find(&labels)
+	db.DB.Table("ay_label").Select("value").Find(&labels)
 	for _, row := range labels {
 		// 標籤值可能含 HTML 實體編碼的 &quot;，先解碼再提取
 		decoded := strings.ReplaceAll(row.Value, "&quot;", "\"")
@@ -932,7 +932,7 @@ func getUsedPaths() map[string]bool {
 
 	// ay_content_ext 擴展欄位中的圖片/附件引用
 	var extRows []map[string]interface{}
-	model.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content_ext").Find(&extRows)
+	db.DB.WithContext(acodeplugin.SkipAcode(context.Background())).Table("ay_content_ext").Find(&extRows)
 	for _, row := range extRows {
 		for _, val := range row {
 			if s, ok := val.(string); ok && strings.Contains(s, "upload/") {
@@ -976,8 +976,8 @@ func extractSrcPaths(html string, used map[string]bool) {
 // getMarkedPaths 獲取已標記保護的文件（GORM model）
 func getMarkedPaths() map[string]bool {
 	marked := make(map[string]bool)
-	var marks []content.MediaMark
-	model.DB.Find(&marks)
+	var marks []contentModel.MediaMark
+	db.DB.Find(&marks)
 	for _, m := range marks {
 		np := normalizePath(m.Path)
 		base := strings.TrimPrefix(np, "static/")

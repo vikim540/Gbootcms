@@ -1,12 +1,13 @@
 package parser
 
-import (
+import (	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"gbootcms/apps/admin/model"
 	"gbootcms/core/acodeplugin"
 )
 
@@ -81,7 +82,7 @@ func getLogoURL(ctx *Context) string {
 }
 
 // getContentURL 構建內容頁 URL
-func getContentURL(ct *model.Content) string {
+func getContentURL(ct *content.Content) string {
 	if ct.Outlink != "" {
 		return ct.Outlink
 	}
@@ -95,7 +96,7 @@ func getContentURL(ct *model.Content) string {
 }
 
 // getSortURL 構建欄目 URL
-func getSortURL(s *model.ContentSort) string {
+func getSortURL(s *content.ContentSort) string {
 	if s.Filename != "" {
 		return "/" + s.Filename
 	}
@@ -106,12 +107,12 @@ func getSortURL(s *model.ContentSort) string {
 }
 
 // buildSortChainForJSONLD 從當前欄目向上遞歸到根欄目
-func buildSortChainForJSONLD(ctx *Context, scode string) []model.ContentSort {
-	var chain []model.ContentSort
+func buildSortChainForJSONLD(ctx *Context, scode string) []content.ContentSort {
+	var chain []content.ContentSort
 	current := scode
 	for current != "" && current != "0" {
-		var s model.ContentSort
-		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ?", current).First(&s).Error; err != nil {
+		var s content.ContentSort
+		if err := db.DB.WithContext(ctx.Ctx).Where("scode = ?", current).First(&s).Error; err != nil {
 			break
 		}
 		chain = append(chain, s)
@@ -187,8 +188,8 @@ func buildArticleJSONLD(ctx *Context) interface{} {
 	if ctx.Sort != nil && ctx.Sort.Name != "" {
 		sortSection = ctx.Sort.Name
 	} else if ct.Scode != "" {
-		var s model.ContentSort
-		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ?", ct.Scode).First(&s).Error; err == nil && s.Name != "" {
+		var s content.ContentSort
+		if err := db.DB.WithContext(ctx.Ctx).Where("scode = ?", ct.Scode).First(&s).Error; err == nil && s.Name != "" {
 			sortSection = s.Name
 		}
 	}
@@ -401,14 +402,14 @@ func buildLocalBusinessJSONLD(ctx *Context) interface{} {
 	}
 
 	// 營業時間（可從配置讀取）
-	openingHours := model.GetConfigValue("opening_hours", "")
+	openingHours := db.GetConfigValue("opening_hours", "")
 	if openingHours != "" {
 		biz["openingHours"] = openingHours
 	}
 
 	// 地理座標（可從配置讀取）
-	geoLat := model.GetConfigValue("geo_latitude", "")
-	geoLng := model.GetConfigValue("geo_longitude", "")
+	geoLat := db.GetConfigValue("geo_latitude", "")
+	geoLng := db.GetConfigValue("geo_longitude", "")
 	if geoLat != "" && geoLng != "" {
 		biz["geo"] = map[string]interface{}{
 			"@type":     "GeoCoordinates",
@@ -545,7 +546,7 @@ func buildProductJSONLD(ctx *Context) interface{} {
 			product["offers"] = map[string]interface{}{
 				"@type":         "Offer",
 				"price":         price,
-				"priceCurrency": model.GetConfigValue("price_currency", "CNY"),
+				"priceCurrency": db.GetConfigValue("price_currency", "CNY"),
 				"availability":  "https://schema.org/InStock",
 			}
 		}

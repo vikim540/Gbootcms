@@ -1,8 +1,9 @@
 package middleware
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+	"gbootcms/core/db"
+
 	"context"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"gbootcms/core/acodeplugin"
 	"strings"
@@ -29,9 +30,9 @@ func GetDefaultAcode() string {
 	}
 	// 首次或快取被刷新後重新載入
 	skipCtx := acodeplugin.SkipAcode(context.Background())
-	var area model.Area
+	var area system.Area
 	result := ""
-	if err := model.DB.WithContext(skipCtx).Where("is_default = '1'").First(&area).Error; err == nil {
+	if err := db.DB.WithContext(skipCtx).Where("is_default = '1'").First(&area).Error; err == nil {
 		result = area.Acode
 	}
 	if result == "" {
@@ -133,8 +134,8 @@ func matchDomainToAcode(ctx context.Context, host string) string {
 
 	// 查詢匹配的區域（使用 SkipAcode 跨區查詢，ay_area 本身有 acode 欄位）
 	skipCtx := acodeplugin.SkipAcode(ctx)
-	var area model.Area
-	if err := model.DB.WithContext(skipCtx).Where("domain = ? AND domain != ''", domain).First(&area).Error; err != nil {
+	var area system.Area
+	if err := db.DB.WithContext(skipCtx).Where("domain = ? AND domain != ''", domain).First(&area).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return ""
 		}

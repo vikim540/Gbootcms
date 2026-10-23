@@ -2,7 +2,7 @@ package content
 
 import (
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model/content"
+	contentModel "gbootcms/apps/admin/model/content"
 	"gbootcms/apps/common"
 	"regexp"
 	"strconv"
@@ -18,7 +18,7 @@ type ModelController struct {
 func (md *ModelController) Index(c *gin.Context) {
 	page, pageSize, offset := md.Paginate(c)
 
-	allModels := content.GetAllModels()
+	allModels := contentModel.GetAllModels()
 	total := int64(len(allModels))
 	// 記憶體內分頁（保留 GetAllModels 的 COALESCE 處理邏輯）
 	models := allModels
@@ -66,9 +66,9 @@ func (md *ModelController) Add(c *gin.Context) {
 		}
 
 		// 自動生成 mcode
-		mcode := content.GetNextMcode()
+		mcode := contentModel.GetNextMcode()
 
-		if err := content.AddModel(mcode, name, urlname, listtpl, contenttpl, md.GetAdminUsername(c), typ, status); err != nil {
+		if err := contentModel.AddModel(mcode, name, urlname, listtpl, contenttpl, md.GetAdminUsername(c), typ, status); err != nil {
 			md.LogAction(c, "新增內容模型失敗")
 			md.JSONFail(c, "新增失敗: "+err.Error())
 			return
@@ -79,7 +79,7 @@ func (md *ModelController) Add(c *gin.Context) {
 	}
 
 	// GET: 渲染新增表單（與列表同頁）
-	models := content.GetAllModels()
+	models := contentModel.GetAllModels()
 	common.Render(c, "content/model.html", gin.H{
 		"list":   true,
 		"models": models,
@@ -108,7 +108,7 @@ func (md *ModelController) Mod(c *gin.Context) {
 	// === 單字段快速切換（如狀態切換） ===
 	if field != "" && value != "" {
 		if field == "status" {
-			content.UpdateModelSingleField(id, field, value, md.GetAdminUsername(c))
+			contentModel.UpdateModelSingleField(id, field, value, md.GetAdminUsername(c))
 			md.LogAction(c, "修改內容模型成功")
 			md.JSONOKMsg(c, common.NoticeModify)
 			return
@@ -140,12 +140,12 @@ func (md *ModelController) Mod(c *gin.Context) {
 		}
 
 		// 檢查 urlname 衝突
-		if conflict := content.CheckUrlnameConflict(urlname, id); conflict != "" {
+		if conflict := contentModel.CheckUrlnameConflict(urlname, id); conflict != "" {
 			md.JSONFail(c, conflict)
 			return
 		}
 
-		if err := content.UpdateModel(id, name, urlname, listtpl, contenttpl, md.GetAdminUsername(c), typ, status); err != nil {
+		if err := contentModel.UpdateModel(id, name, urlname, listtpl, contenttpl, md.GetAdminUsername(c), typ, status); err != nil {
 			md.JSONFail(c, "修改失敗: "+err.Error())
 			return
 		}
@@ -155,8 +155,8 @@ func (md *ModelController) Mod(c *gin.Context) {
 	}
 
 	// === GET: 渲染修改表單 ===
-	cm := content.GetModelById(id)
-	models := content.GetAllModels()
+	cm := contentModel.GetModelById(id)
+	models := contentModel.GetAllModels()
 	common.Render(c, "content/model.html", gin.H{
 		"list":   true,
 		"models": models,
@@ -178,7 +178,7 @@ func (md *ModelController) Del(c *gin.Context) {
 		md.JSONFail(c, "缺少模型 ID")
 		return
 	}
-	if err := content.DeleteModel(id); err != nil {
+	if err := contentModel.DeleteModel(id); err != nil {
 		md.LogAction(c, "刪除內容模型失敗")
 		md.JSONFail(c, err.Error())
 		return

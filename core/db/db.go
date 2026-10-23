@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -390,4 +391,71 @@ func CloseDB() {
 		sqlDB, _ := DB.DB()
 		sqlDB.Close()
 	}
+}
+
+
+// ──────────────────────────────────────────────
+// Config cache — 無鎖讀取（atomic.Pointer，對標 Swoole 6 原子操作）
+// 每個頁面渲染呼叫 GetConfigValue 8+ 次，RWMutex 在高並發下產生鎖競爭
+// atomic.Pointer.Load 是單條 CPU 指令，完全無鎖
+// ──────────────────────────────────────────────
+
+var configCachePtr atomic.Pointer[map[string]string]
+
+type sysConfigItem struct {
+	Name  string `gorm:"column:name"`
+	Value string `gorm:"column:value"`
+}
+
+// preloadConfigCache 一次性載入所有配置到記憶體
+func preloadConfigCache() {
+	if DB == nil {
+		m := make(map[string]string)
+		configCachePtr.Store(&m)
+		return
+	}
+	var configs []sysConfigItem
+	DB.Table("ay_config").Find(&configs)
+	m := make(map[string]string, len(configs))
+	for _, c := range configs {
+		if c.Value != "" {
+			m[c.Name] = c.Value
+		}
+	}
+	configCachePtr.Store(&m)
+}
+
+// ClearConfigCache 清除配置快取（由 GORM 回調觸發）
+func ClearConfigCache() {
+	configCachePtr.Store(nil)
+}
+
+// GetConfigValue reads a config value by name, returning defaultVal if not found or empty.
+// 使用 atomic.Pointer 無鎖讀取，避免高並發下的 RWMutex 鎖競爭
+func GetConfigValue(name, defaultVal string) string {
+	p := configCachePtr.Load()
+	if p == nil {
+		preloadConfigCache()
+		p = configCachePtr.Load()
+	}
+	if p != nil {
+		if v, ok := (*p)[name]; ok {
+			return v
+		}
+	}
+	return defaultVal
+}
+
+// GetDBName returns the current database file name from config.
+func GetDBName() string {
+	cfg := config.Get()
+	if cfg != nil {
+		return cfg.Database.DBName
+	}
+	return ""
+}
+
+// TableName adds the ay_ prefix to a table name.
+func TableName(name string) string {
+	return "ay_" + name
 }

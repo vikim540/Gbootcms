@@ -1,10 +1,11 @@
 package common
 
-import (
+import (	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"os"
 	"strings"
 
-	"gbootcms/apps/admin/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,11 +49,11 @@ func IsStagingHost(c *gin.Context) bool {
 
 // GetProductionDomain 取得配置的生產域名（純主機名，不含協議和路徑）
 func GetProductionDomain(c *gin.Context) string {
-	domain := model.GetConfigValue("httpurl", "")
+	domain := db.GetConfigValue("httpurl", "")
 	if domain == "" {
-		var site model.Site
+		var site content.Site
 		ctx := c.Request.Context()
-		if model.DB.WithContext(ctx).First(&site).Error == nil && site.Domain != "" {
+		if db.DB.WithContext(ctx).First(&site).Error == nil && site.Domain != "" {
 			domain = site.Domain
 		}
 	}

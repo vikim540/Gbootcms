@@ -1,9 +1,10 @@
 package member
 
-import (
+import (	"gbootcms/apps/admin/model/member"
+	"gbootcms/core/db"
+
 	"fmt"
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/middleware"
 	"strconv"
@@ -32,7 +33,7 @@ func invalidateCommentsCache(ids []string) {
 		return
 	}
 	var contentIDs []uint
-	model.DB.Model(&model.MemberComment{}).Where("id IN ?", ids).
+	db.DB.Model(&member.MemberComment{}).Where("id IN ?", ids).
 		Distinct("contentid").Pluck("contentid", &contentIDs)
 	for _, cid := range contentIDs {
 		if cid > 0 {
@@ -46,8 +47,8 @@ func (mc *MemberCommentController) Index(c *gin.Context) {
 	// 詳情模式：帶 id 參數時顯示單條評論詳情
 	if idStr := c.Query("id"); idStr != "" {
 		id, _ := strconv.Atoi(idStr)
-		var comment model.CommentView
-		model.DB.Table("ay_member_comment a").
+		var comment member.CommentView
+		db.DB.Table("ay_member_comment a").
 			Select("a.*, b.title, c.username, c.nickname, c.headpic, d.username as pusername, d.nickname as pnickname").
 			Joins("LEFT JOIN ay_content b ON a.contentid=b.id").
 			Joins("LEFT JOIN ay_member c ON a.uid=c.id").
@@ -72,7 +73,7 @@ func (mc *MemberCommentController) Index(c *gin.Context) {
 		baseURL += "?field=" + field + "&keyword=" + keyword
 	}
 
-	query := model.DB.Table("ay_member_comment a").
+	query := db.DB.Table("ay_member_comment a").
 		Select("a.*, b.title, c.username, c.nickname, c.headpic").
 		Joins("LEFT JOIN ay_content b ON a.contentid=b.id").
 		Joins("LEFT JOIN ay_member c ON a.uid=c.id").
@@ -85,7 +86,7 @@ func (mc *MemberCommentController) Index(c *gin.Context) {
 
 	// 統計總記錄數（獨立查詢，避免與含 Select 的查詢重用 Statement 造成污染）
 	var total int64
-	countQuery := model.DB.Table("ay_member_comment a").
+	countQuery := db.DB.Table("ay_member_comment a").
 		Joins("LEFT JOIN ay_content b ON a.contentid=b.id").
 		Joins("LEFT JOIN ay_member c ON a.uid=c.id")
 	if field != "" && keyword != "" && allowedSearchFields[field] {
@@ -93,7 +94,7 @@ func (mc *MemberCommentController) Index(c *gin.Context) {
 	}
 	countQuery.Count(&total)
 
-	var comments []model.CommentView
+	var comments []member.CommentView
 	query.Offset(offset).Limit(pageSize).Find(&comments)
 	// 格式化時間
 	for i := range comments {
@@ -120,7 +121,7 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 		switch submit {
 		case "verify1":
 			if len(list) > 0 {
-				if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberComment{}).Where("id IN ?", list).Update("status", 1).Error; err != nil {
+				if err := db.DB.WithContext(c.Request.Context()).Model(&member.MemberComment{}).Where("id IN ?", list).Update("status", 1).Error; err != nil {
 					mc.JSONFail(c, "修改失敗："+err.Error())
 					return
 				}
@@ -130,7 +131,7 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 			return
 		case "verify0":
 			if len(list) > 0 {
-				if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberComment{}).Where("id IN ?", list).Update("status", 0).Error; err != nil {
+				if err := db.DB.WithContext(c.Request.Context()).Model(&member.MemberComment{}).Where("id IN ?", list).Update("status", 0).Error; err != nil {
 					mc.JSONFail(c, "修改失敗："+err.Error())
 					return
 				}
@@ -159,7 +160,7 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 	// GET：單字段修改（狀態切換）
 	if field != "" && value != "" {
 		id, _ := strconv.Atoi(idStr)
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.MemberComment{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Model(&member.MemberComment{}).Where("id = ?", id).Update(field, value).Error; err != nil {
 			mc.JSONFail(c, "修改失敗："+err.Error())
 			return
 		}
@@ -169,8 +170,8 @@ func (mc *MemberCommentController) Mod(c *gin.Context) {
 	}
 
 	// 無參數時返回列表
-	var comments []model.CommentView
-	model.DB.Table("ay_member_comment a").
+	var comments []member.CommentView
+	db.DB.Table("ay_member_comment a").
 		Select("a.*, b.title, c.username, c.nickname, c.headpic").
 		Joins("LEFT JOIN ay_content b ON a.contentid=b.id").
 		Joins("LEFT JOIN ay_member c ON a.uid=c.id").
@@ -192,7 +193,7 @@ func (mc *MemberCommentController) Del(c *gin.Context) {
 		if len(list) > 0 {
 			// 刪除前先查詢涉及的 contentid（刪除後無法再查詢）
 			invalidateCommentsCache(list)
-			if err := model.DB.WithContext(c.Request.Context()).Where("id IN ?", list).Delete(&model.MemberComment{}).Error; err != nil {
+			if err := db.DB.WithContext(c.Request.Context()).Where("id IN ?", list).Delete(&member.MemberComment{}).Error; err != nil {
 				mc.JSONFail(c, "刪除失敗："+err.Error())
 				return
 			}
@@ -213,7 +214,7 @@ func (mc *MemberCommentController) Del(c *gin.Context) {
 	}
 	// 刪除前先查詢涉及的 contentid（刪除後無法再查詢）
 	invalidateCommentsCache([]string{idStr})
-	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.MemberComment{}, idStr).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Delete(&member.MemberComment{}, idStr).Error; err != nil {
 		mc.JSONFail(c, "刪除失敗："+err.Error())
 		return
 	}

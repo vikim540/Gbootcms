@@ -1,6 +1,7 @@
 package watermark
 
-import (
+import (	"gbootcms/core/db"
+
 	"fmt"
 	"image"
 	"image/color"
@@ -13,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	"gbootcms/apps/admin/model"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -34,13 +34,13 @@ const (
 // 如果水印功能未開啟或圖片格式不支援，直接返回 nil
 func ApplyWatermark(srcPath string) error {
 	// 檢查水印開關
-	if model.GetConfigValue("watermark_open", "0") != "1" {
+	if db.GetConfigValue("watermark_open", "0") != "1" {
 		return nil
 	}
 
 	// 讀取水印配置
-	watermarkText := model.GetConfigValue("watermark_text", "")
-	watermarkPic := model.GetConfigValue("watermark_pic", "")
+	watermarkText := db.GetConfigValue("watermark_text", "")
+	watermarkPic := db.GetConfigValue("watermark_pic", "")
 
 	// 如果沒有文字也沒有圖片水印，直接返回
 	if watermarkText == "" && watermarkPic == "" {
@@ -74,7 +74,7 @@ func ApplyWatermark(srcPath string) error {
 	}
 
 	// 計算水印位置（對齊 PHP 位置邏輯）
-	pos := parseInt(model.GetConfigValue("watermark_position", "4"), 4)
+	pos := parseInt(db.GetConfigValue("watermark_position", "4"), 4)
 	bounds := srcImg.Bounds()
 	wmBounds := wmImg.Bounds()
 	wmW := wmBounds.Dx()
@@ -111,9 +111,9 @@ func createTextWatermark(text string) (image.Image, error) {
 	}
 
 	// 讀取字體配置
-	fontSize := parseInt(model.GetConfigValue("watermark_text_size", "16"), 16)
-	fontColorStr := model.GetConfigValue("watermark_text_color", "100,100,100")
-	fontPath := model.GetConfigValue("watermark_text_font", "")
+	fontSize := parseInt(db.GetConfigValue("watermark_text_size", "16"), 16)
+	fontColorStr := db.GetConfigValue("watermark_text_color", "100,100,100")
+	fontPath := db.GetConfigValue("watermark_text_font", "")
 
 	if fontPath == "" {
 		return nil, fmt.Errorf("未配置水印字體文件")

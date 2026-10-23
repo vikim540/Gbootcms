@@ -1,7 +1,8 @@
 package content
 
-import (
-	"gbootcms/apps/admin/model"
+import (	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"gbootcms/apps/common"
 
 	"github.com/gin-gonic/gin"
@@ -15,9 +16,9 @@ type CompanyController struct {
 
 // Index - Company information page
 func (co *CompanyController) Index(c *gin.Context) {
-	var company model.Company
+	var company contentModel.Company
 	// AcodePlugin 自動按當前區域過濾，取該區域的公司記錄
-	if err := model.DB.WithContext(c.Request.Context()).FirstOrCreate(&company).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).FirstOrCreate(&company).Error; err != nil {
 		co.JSONFail(c, "載入公司信息失敗")
 		return
 	}
@@ -26,9 +27,9 @@ func (co *CompanyController) Index(c *gin.Context) {
 
 // Mod - Modify company information
 func (co *CompanyController) Mod(c *gin.Context) {
-	var company model.Company
+	var company contentModel.Company
 	// AcodePlugin 自動按當前區域過濾，取該區域的公司記錄
-	if err := model.DB.WithContext(c.Request.Context()).FirstOrCreate(&company).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).FirstOrCreate(&company).Error; err != nil {
 		co.JSONFail(c, "載入公司信息失敗")
 		return
 	}
@@ -57,7 +58,7 @@ func (co *CompanyController) Mod(c *gin.Context) {
 		return
 	}
 
-	result := model.DB.WithContext(c.Request.Context()).Model(&company).Updates(map[string]interface{}{
+	result := db.DB.WithContext(c.Request.Context()).Model(&company).Updates(map[string]interface{}{
 		"name":     newName,
 		"address":  newAddress,
 		"postcode": newPostcode,

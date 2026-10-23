@@ -1,9 +1,10 @@
 package middleware
 
-import (
+import (	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"strings"
 
-	"gbootcms/apps/admin/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -52,10 +53,10 @@ func isStagingOrDevHost(c *gin.Context) bool {
 		strings.HasSuffix(host, ".test") || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".nip.io") {
 		return true
 	}
-	domain := model.GetConfigValue("httpurl", "")
+	domain := db.GetConfigValue("httpurl", "")
 	if domain == "" {
-		var site model.Site
-		if model.DB.WithContext(c.Request.Context()).First(&site).Error == nil && site.Domain != "" {
+		var site content.Site
+		if db.DB.WithContext(c.Request.Context()).First(&site).Error == nil && site.Domain != "" {
 			domain = site.Domain
 		}
 	}

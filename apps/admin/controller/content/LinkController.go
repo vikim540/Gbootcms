@@ -1,8 +1,9 @@
 package content
 
-import (
+import (	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"strconv"
 	"time"
@@ -19,7 +20,7 @@ type LinkController struct {
 // getGids 返回可用的分組 ID 列表供模板下拉選擇
 func (lk *LinkController) getGids(c *gin.Context) []int {
 	var gids []int
-	model.DB.WithContext(c.Request.Context()).Model(&model.Link{}).Distinct("gid").Pluck("gid", &gids)
+	db.DB.WithContext(c.Request.Context()).Model(&contentModel.Link{}).Distinct("gid").Pluck("gid", &gids)
 	found := false
 	for _, g := range gids {
 		if g == 1 {
@@ -37,8 +38,8 @@ func (lk *LinkController) getGids(c *gin.Context) []int {
 func (lk *LinkController) Index(c *gin.Context) {
 	page, pageSize, offset := lk.Paginate(c)
 
-	var links []model.Link
-	query := model.DB.WithContext(c.Request.Context()).Model(&model.Link{})
+	var links []contentModel.Link
+	query := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Link{})
 	var total int64
 	query.Count(&total)
 	query.Order("sorting ASC, id ASC").Offset(offset).Limit(pageSize).Find(&links)
@@ -61,12 +62,12 @@ func (lk *LinkController) Add(c *gin.Context) {
 		gid, _ := strconv.Atoi(c.DefaultPostForm("gid", "1"))
 		if gid == 0 {
 			var maxGID int
-			model.DB.WithContext(c.Request.Context()).Model(&model.Link{}).Select("COALESCE(MAX(gid),0)").Scan(&maxGID)
+			db.DB.WithContext(c.Request.Context()).Model(&contentModel.Link{}).Select("COALESCE(MAX(gid),0)").Scan(&maxGID)
 			gid = maxGID + 1
 		}
 		now := time.Now().Format("2006-01-02 15:04:05")
 		// acode 由 AcodePlugin 自動填充，無需手動設置
-		if err := model.DB.WithContext(c.Request.Context()).Create(&model.Link{
+		if err := db.DB.WithContext(c.Request.Context()).Create(&contentModel.Link{
 			GID:        gid,
 			Name:       c.PostForm("name"),
 			Link:       c.PostForm("link"),
@@ -103,7 +104,7 @@ func (lk *LinkController) Mod(c *gin.Context) {
 
 	// 批量排序
 	if lk.IsBatchSort(c) {
-		lk.BatchSort(c, &model.Link{}, "sorting", 255)
+		lk.BatchSort(c, &contentModel.Link{}, "sorting", 255)
 		return
 	}
 
@@ -111,7 +112,7 @@ func (lk *LinkController) Mod(c *gin.Context) {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		gid, _ := strconv.Atoi(c.DefaultPostForm("gid", "1"))
 		now := time.Now().Format("2006-01-02 15:04:05")
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Link{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Link{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"gid":         gid,
 			"name":        c.PostForm("name"),
 			"link":        c.PostForm("link"),
@@ -129,8 +130,8 @@ func (lk *LinkController) Mod(c *gin.Context) {
 	}
 
 	// GET: 顯示編輯表單
-	var link model.Link
-	model.DB.WithContext(c.Request.Context()).First(&link, id)
+	var link contentModel.Link
+	db.DB.WithContext(c.Request.Context()).First(&link, id)
 
 	data := gin.H{
 		"link":   link,
@@ -152,7 +153,7 @@ func (lk *LinkController) Del(c *gin.Context) {
 	if idStr != "" {
 		id, _ := strconv.Atoi(idStr)
 		if id > 0 {
-			if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Link{}, id).Error; err != nil {
+			if err := db.DB.WithContext(c.Request.Context()).Delete(&contentModel.Link{}, id).Error; err != nil {
 				lk.JSONFail(c, "刪除失敗："+err.Error())
 				return
 			}

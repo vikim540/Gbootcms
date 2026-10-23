@@ -2,17 +2,45 @@ package version
 
 import (
 	"fmt"
+	"gbootcms/core/db"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
-
-	"gbootcms/apps/admin/model"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-// GetServerTelemetry 統一收集系統運行時遙測數據（單一數據源，符合奧卡姆剃刀原則）
+var (
+	uploadSizeCache     string
+	uploadSizeCacheTime time.Time
+	uploadSizeMu        sync.Mutex
+)
+
+// getCachedUploadSize 統計 upload/ 目錄大小，帶 5 分鐘內存緩存（防止頻繁全量遍歷磁盤）
+func getCachedUploadSize() string {
+	uploadSizeMu.Lock()
+	defer uploadSizeMu.Unlock()
+
+	if uploadSizeCache != "" && time.Since(uploadSizeCacheTime) < 5*time.Minute {
+		return uploadSizeCache
+	}
+
+	var uploadSize int64
+	_ = filepath.Walk("static/upload", func(_ string, info os.FileInfo, err error) error {
+		if err == nil && info != nil && !info.IsDir() {
+			uploadSize += info.Size()
+		}
+		return nil
+	})
+	uploadSizeCache = fmt.Sprintf("%.2f MB", float64(uploadSize)/1024/1024)
+	uploadSizeCacheTime = time.Now()
+	return uploadSizeCache
+}
+
+// GetServerTelemetry 統一收集系統運行時狀態數據
 // 供 /admin/index/home 與 /admin/site/server 同時調用，杜絕重複計算與數據歧異。
 func GetServerTelemetry(c *gin.Context) gin.H {
 	var m runtime.MemStats
@@ -26,7 +54,7 @@ func GetServerTelemetry(c *gin.Context) gin.H {
 	uptime := Uptime()
 
 	// 資料庫檔案與 WAL 狀態
-	dbPath := model.GetDBName()
+	dbPath := db.GetDBName()
 	dbSizeStr := "未知"
 	walSizeStr := "無 / 未開啟"
 	if fi, err := os.Stat(dbPath); err == nil {
@@ -37,17 +65,9 @@ func GetServerTelemetry(c *gin.Context) gin.H {
 		walSizeStr = fmt.Sprintf("%.2f KB (活躍)", float64(fi.Size())/1024)
 	}
 
-	// 上傳資源體積（static/upload/）
-	var uploadSize int64
-	_ = filepath.Walk("static/upload", func(_ string, info os.FileInfo, err error) error {
-		if err == nil && info != nil && !info.IsDir() {
-			uploadSize += info.Size()
-		}
-		return nil
-	})
-	uploadSizeStr := fmt.Sprintf("%.2f MB", float64(uploadSize)/1024/1024)
+	uploadSizeStr := getCachedUploadSize()
 
-	dbType := model.GetConfigValue("database.type", "sqlite")
+	dbType := db.GetConfigValue("database.type", "sqlite")
 	serverSoftware := "Go " + runtime.Version() + " / Gin"
 	webSoftware := "Go " + runtime.Version() + " / Gin v" + gin.Version
 
@@ -94,8 +114,8 @@ func GetServerTelemetry(c *gin.Context) gin.H {
 		"DbDriver":          strings.ToUpper(dbType),
 		"DBDriver":          "SQLite 3 (GORM + glebarez/sqlite WAL)",
 		"db_driver":         "SQLite 3 (GORM + glebarez/sqlite WAL)",
-		"UploadMaxFilesize": model.GetConfigValue("upload_max_size", "50") + "M",
-		"PostMaxSize":       model.GetConfigValue("upload_max_size", "50") + "M",
+		"UploadMaxFilesize": db.GetConfigValue("upload_max_size", "50") + "M",
+		"PostMaxSize":       db.GetConfigValue("upload_max_size", "50") + "M",
 		"HttpHost":          host,
 		"ServerName":        host,
 		"ServerPort":        port,

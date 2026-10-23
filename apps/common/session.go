@@ -1,10 +1,10 @@
 package common
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"gbootcms/apps/admin/model"
 	"gbootcms/config"
 	"gbootcms/core/db"
 	"log/slog"
@@ -75,7 +75,7 @@ func persistSessionToDB(sid string, entry *sessionEntry) {
 		slog.Warn("Session DB 持久化序列化失敗", "sid", sid, "error", err)
 		return
 	}
-	sess := model.Session{
+	sess := system.Session{
 		SID:          sid,
 		Data:         string(dataBytes),
 		CreatedAt:    entry.createdAt,
@@ -91,7 +91,7 @@ func loadSessionFromDB(sid string) *sessionEntry {
 	if db.DB == nil || sid == "" {
 		return nil
 	}
-	var sess model.Session
+	var sess system.Session
 	if err := db.DB.Where("sid = ? AND last_activity > ?", sid, time.Now().Add(-sessionIdleTimeout)).First(&sess).Error; err != nil {
 		return nil
 	}
@@ -112,7 +112,7 @@ func deleteSessionFromDB(sid string) {
 	if db.DB == nil || sid == "" {
 		return
 	}
-	if err := db.DB.Where("sid = ?", sid).Delete(&model.Session{}).Error; err != nil {
+	if err := db.DB.Where("sid = ?", sid).Delete(&system.Session{}).Error; err != nil {
 		slog.Warn("Session DB 刪除失敗", "sid", sid, "error", err)
 	}
 }
@@ -123,7 +123,7 @@ func LoadSessionsFromDB() {
 	if db.DB == nil {
 		return
 	}
-	var sessions []model.Session
+	var sessions []system.Session
 	cutoff := time.Now().Add(-sessionIdleTimeout)
 	if err := db.DB.Where("last_activity > ?", cutoff).Find(&sessions).Error; err != nil {
 		slog.Warn("啟動時載入 session 失敗", "error", err)
@@ -152,7 +152,7 @@ func LoadSessionsFromDB() {
 	}
 
 	// 清理 DB 中的過期 session
-	db.DB.Where("last_activity < ? OR created_at < ?", cutoff, time.Now().Add(-sessionMaxLifetime)).Delete(&model.Session{})
+	db.DB.Where("last_activity < ? OR created_at < ?", cutoff, time.Now().Add(-sessionMaxLifetime)).Delete(&system.Session{})
 
 	slog.Info("Session 從 DB 載入完成", "loaded", loaded, "total_in_memory", len(sessionStore))
 }
@@ -193,7 +193,7 @@ func cleanupExpiredSessions() {
 		if db.DB != nil {
 			cutoff := now.Add(-sessionIdleTimeout)
 			maxCutoff := now.Add(-sessionMaxLifetime)
-			db.DB.Where("last_activity < ? OR created_at < ?", cutoff, maxCutoff).Delete(&model.Session{})
+			db.DB.Where("last_activity < ? OR created_at < ?", cutoff, maxCutoff).Delete(&system.Session{})
 		}
 	}
 }
@@ -352,7 +352,7 @@ func ClearAllSessions(c *gin.Context) int {
 
 	// 從 DB 刪除所有非當前 session
 	if db.DB != nil {
-		db.DB.Where("sid != ?", currentSID).Delete(&model.Session{})
+		db.DB.Where("sid != ?", currentSID).Delete(&system.Session{})
 	}
 	return count
 }

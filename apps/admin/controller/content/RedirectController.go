@@ -1,8 +1,9 @@
 package content
 
-import (
+import (	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/middleware"
 	"strconv"
@@ -22,7 +23,7 @@ func (rc *RedirectController) Index(c *gin.Context) {
 	page, pageSize, _ := rc.Paginate(c)
 	keyword := c.Query("keyword")
 
-	query := model.DB.Model(&model.Redirect{})
+	query := db.DB.Model(&contentModel.Redirect{})
 	if keyword != "" {
 		like := "%" + keyword + "%"
 		query = query.Where("old_url LIKE ? OR new_url LIKE ?", like, like)
@@ -31,7 +32,7 @@ func (rc *RedirectController) Index(c *gin.Context) {
 	var total int64
 	query.Count(&total)
 
-	var items []model.Redirect
+	var items []contentModel.Redirect
 	query.Order("sorting ASC, id DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
@@ -81,7 +82,7 @@ func (rc *RedirectController) Add(c *gin.Context) {
 
 	username := rc.GetAdminUsername(c)
 	now := time.Now()
-	rule := model.Redirect{
+	rule := contentModel.Redirect{
 		OldURL:     oldURL,
 		NewURL:     newURL,
 		MatchType:  matchType,
@@ -92,7 +93,7 @@ func (rc *RedirectController) Add(c *gin.Context) {
 		CreateTime: now,
 		UpdateTime: now,
 	}
-	if err := model.DB.Create(&rule).Error; err != nil {
+	if err := db.DB.Create(&rule).Error; err != nil {
 		rc.JSONFail(c, "新增失敗: "+err.Error())
 		return
 	}
@@ -112,7 +113,7 @@ func (rc *RedirectController) Mod(c *gin.Context) {
 	// 單欄位切換（狀態開關）
 	if idStr != "" && field != "" && value != "" {
 		id, _ := strconv.Atoi(idStr)
-		if err := model.DB.Model(&model.Redirect{}).Where("id = ?", id).Update(field, value).Error; err != nil {
+		if err := db.DB.Model(&contentModel.Redirect{}).Where("id = ?", id).Update(field, value).Error; err != nil {
 			rc.JSONFail(c, err.Error())
 			return
 		}
@@ -123,8 +124,8 @@ func (rc *RedirectController) Mod(c *gin.Context) {
 
 	if c.Request.Method == "GET" {
 		id, _ := strconv.Atoi(idStr)
-		var rule model.Redirect
-		if err := model.DB.First(&rule, id).Error; err != nil {
+		var rule contentModel.Redirect
+		if err := db.DB.First(&rule, id).Error; err != nil {
 			rc.JSONFail(c, "規則不存在")
 			return
 		}
@@ -138,8 +139,8 @@ func (rc *RedirectController) Mod(c *gin.Context) {
 
 	// POST 修改
 	id, _ := strconv.Atoi(idStr)
-	var rule model.Redirect
-	if err := model.DB.First(&rule, id).Error; err != nil {
+	var rule contentModel.Redirect
+	if err := db.DB.First(&rule, id).Error; err != nil {
 		rc.JSONFail(c, "規則不存在")
 		return
 	}
@@ -177,7 +178,7 @@ func (rc *RedirectController) Mod(c *gin.Context) {
 	rule.UpdateUser = rc.GetAdminUsername(c)
 	rule.UpdateTime = time.Now()
 
-	if err := model.DB.Save(&rule).Error; err != nil {
+	if err := db.DB.Save(&rule).Error; err != nil {
 		rc.JSONFail(c, "修改失敗: "+err.Error())
 		return
 	}
@@ -201,7 +202,7 @@ func (rc *RedirectController) Del(c *gin.Context) {
 			ids = c.PostFormArray("list")
 		}
 		if len(ids) > 0 {
-			if err := model.DB.Where("id IN ?", ids).Delete(&model.Redirect{}).Error; err != nil {
+			if err := db.DB.Where("id IN ?", ids).Delete(&contentModel.Redirect{}).Error; err != nil {
 				rc.JSONFail(c, err.Error())
 				return
 			}
@@ -214,7 +215,7 @@ func (rc *RedirectController) Del(c *gin.Context) {
 		return
 	}
 	ids := strings.Split(idStr, ",")
-	if err := model.DB.Where("id IN ?", ids).Delete(&model.Redirect{}).Error; err != nil {
+	if err := db.DB.Where("id IN ?", ids).Delete(&contentModel.Redirect{}).Error; err != nil {
 		rc.JSONFail(c, err.Error())
 		return
 	}

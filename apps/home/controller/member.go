@@ -1,12 +1,13 @@
 package controller
 
-import (
+import (	memberModel "gbootcms/apps/admin/model/member"
+	"gbootcms/core/db"
+
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"gbootcms/apps/common/mail"
 	"gbootcms/apps/common/parser"
@@ -33,8 +34,8 @@ func memberBlackFile() string {
 
 // checkMemberLoginBlack 檢查會員登錄是否被鎖定，返回剩餘秒數（0=未鎖定）
 func checkMemberLoginBlack(c *gin.Context) int {
-	lockCount, _ := strconv.Atoi(model.GetConfigValue("login_error_count", "5"))
-	lockTime, _ := strconv.Atoi(model.GetConfigValue("login_error_wait", "300"))
+	lockCount, _ := strconv.Atoi(db.GetConfigValue("login_error_count", "5"))
+	lockTime, _ := strconv.Atoi(db.GetConfigValue("login_error_wait", "300"))
 
 	data, err := os.ReadFile(memberBlackFile())
 	if err != nil {
@@ -68,8 +69,8 @@ func checkMemberLoginBlack(c *gin.Context) int {
 
 // setMemberLoginBlack 累計會員登錄失敗次數
 func setMemberLoginBlack(c *gin.Context) {
-	lockCount, _ := strconv.Atoi(model.GetConfigValue("login_error_count", "5"))
-	lockTime, _ := strconv.Atoi(model.GetConfigValue("login_error_wait", "300"))
+	lockCount, _ := strconv.Atoi(db.GetConfigValue("login_error_count", "5"))
+	lockTime, _ := strconv.Atoi(db.GetConfigValue("login_error_wait", "300"))
 
 	os.MkdirAll(filepath.Dir(memberBlackFile()), 0755)
 
@@ -157,8 +158,8 @@ func (fc *FrontController) Retrieve(c *gin.Context) {
 		}
 
 		// 查詢會員（對齊 PHP: $this->model->checkUsername(['username'=>$username])）
-		var member model.Member
-		if err := model.DB.WithContext(c.Request.Context()).Where("username = ?", username).First(&member).Error; err != nil {
+		var member memberModel.Member
+		if err := db.DB.WithContext(c.Request.Context()).Where("username = ?", username).First(&member).Error; err != nil {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "該用戶不存在", "tourl": ""})
 			return
 		}
@@ -179,7 +180,7 @@ func (fc *FrontController) Retrieve(c *gin.Context) {
 		"password":  hashedPwd,
 		"useremail": email,
 	}
-		if err := model.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "密碼重置失敗", "tourl": ""})
 		return
 	}
@@ -202,7 +203,7 @@ func (fc *FrontController) SendMemberEmail(c *gin.Context) {
 
 	// retrieve 存在時為找回密碼驗證，不進行驗證碼模式判斷（對齊 PHP）
 	if retrieve == "" {
-		if model.GetConfigValue("register_check_code", "0") != "2" {
+		if db.GetConfigValue("register_check_code", "0") != "2" {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "發送失敗，後台配置非郵箱驗證碼模式", "tourl": ""})
 			return
 		}
@@ -236,7 +237,7 @@ func (fc *FrontController) SendMemberEmail(c *gin.Context) {
 	common.SetSession(c, "email_checkcode", code)
 
 	// 發送郵件（對齊 PHP: $mail_subject / $mail_body）
-	subject := "【" + model.GetConfigValue("cmsname", "Gbootcms") + "】您有新的驗證碼信息，請注意查收！"
+	subject := "【" + db.GetConfigValue("cmsname", "Gbootcms") + "】您有新的驗證碼信息，請注意查收！"
 	body := "您的驗證碼為：" + code + "<br>來自網站 " + c.Request.Host + " （" + time.Now().Format("2006-01-02 15:04:05") + "）"
 
 	if err := mail.SendMail(email, subject, body); err != nil {
@@ -273,7 +274,7 @@ func (fc *FrontController) Login(c *gin.Context) {
 
 	if c.Request.Method == "POST" {
 		// 檢查登錄功能是否開啟
-		if model.GetConfigValue("login_status", "1") == "0" {
+		if db.GetConfigValue("login_status", "1") == "0" {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "系統已關閉登錄功能", "tourl": ""})
 			return
 		}
@@ -302,8 +303,8 @@ func (fc *FrontController) Login(c *gin.Context) {
 		}
 
 		// 三合一查詢：用戶名 / 郵箱 / 手機
-		var member model.Member
-		if err := model.DB.WithContext(c.Request.Context()).Where(
+		var member memberModel.Member
+		if err := db.DB.WithContext(c.Request.Context()).Where(
 			"username = ? OR useremail = ? OR usermobile = ?",
 			username, username, username,
 		).First(&member).Error; err != nil {
@@ -321,7 +322,7 @@ func (fc *FrontController) Login(c *gin.Context) {
 		// 自動升級舊版雙 MD5 密碼為 bcrypt
 		if needUpgrade {
 			if hashedPwd, err := common.HashPassword(password); err == nil {
-				if err := model.DB.WithContext(c.Request.Context()).Model(&member).Update("password", hashedPwd).Error; err != nil {
+				if err := db.DB.WithContext(c.Request.Context()).Model(&member).Update("password", hashedPwd).Error; err != nil {
 					slog.Error("會員密碼自動升級失敗", "uid", member.ID, "error", err)
 				}
 			}
@@ -348,9 +349,9 @@ func (fc *FrontController) Login(c *gin.Context) {
 		common.SetSession(c, "pboot_gid", member.GID)
 
 		// 查詢會員等級名稱
-		var group model.MemberGroup
+		var group memberModel.MemberGroup
 		if gidInt, _ := strconv.Atoi(member.GID); gidInt > 0 {
-			if err := model.DB.WithContext(c.Request.Context()).Where("id = ?", gidInt).First(&group).Error; err != nil {
+			if err := db.DB.WithContext(c.Request.Context()).Where("id = ?", gidInt).First(&group).Error; err != nil {
 				slog.Warn("查詢會員等級失敗", "gid", gidInt, "error", err)
 			}
 		}
@@ -366,11 +367,11 @@ func (fc *FrontController) Login(c *gin.Context) {
 			"last_login_time": time.Now().Format("2006-01-02 15:04:05"),
 		}
 		// 登錄積分：讀取 login_score 配置，大於 0 時累加
-		loginScore, _ := strconv.Atoi(model.GetConfigValue("login_score", "0"))
+		loginScore, _ := strconv.Atoi(db.GetConfigValue("login_score", "0"))
 		if loginScore > 0 {
 			updates["score"] = gorm.Expr("score + ?", loginScore)
 		}
-		if err := model.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Model(&member).Updates(updates).Error; err != nil {
 			slog.Error("更新會員登錄統計失敗", "uid", member.ID, "error", err)
 		}
 
@@ -397,7 +398,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 
 	if c.Request.Method == "POST" {
 		// 檢查註冊功能是否開啟
-		if model.GetConfigValue("register_status", "1") == "0" {
+		if db.GetConfigValue("register_status", "1") == "0" {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "系統已關閉註冊功能", "tourl": ""})
 			return
 		}
@@ -419,7 +420,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 		rpassword := c.PostForm("rpassword")
 		nickname := common.FilterUserInput(c.PostForm("nickname"))
 
-		registerType := model.GetConfigValue("register_type", "1")
+		registerType := db.GetConfigValue("register_type", "1")
 		var useremail, usermobile string
 
 		switch registerType {
@@ -477,19 +478,19 @@ func (fc *FrontController) Register(c *gin.Context) {
 
 		// 預設值
 		status := 1
-		if model.GetConfigValue("register_verify", "0") == "1" {
+		if db.GetConfigValue("register_verify", "0") == "1" {
 			status = 0
 		}
-		score, _ := strconv.Atoi(model.GetConfigValue("register_score", "0"))
+		score, _ := strconv.Atoi(db.GetConfigValue("register_score", "0"))
 
 		// 預設會員等級
-		var group model.MemberGroup
-		registerGcode := model.GetConfigValue("register_gcode", "")
+		var group memberModel.MemberGroup
+		registerGcode := db.GetConfigValue("register_gcode", "")
 		if registerGcode != "" {
-			model.DB.WithContext(c.Request.Context()).Where("gcode = ?", registerGcode).First(&group)
+			db.DB.WithContext(c.Request.Context()).Where("gcode = ?", registerGcode).First(&group)
 		}
 		if group.ID == 0 {
-			model.DB.WithContext(c.Request.Context()).Where("status = 1").Order("id ASC").First(&group)
+			db.DB.WithContext(c.Request.Context()).Where("status = 1").Order("id ASC").First(&group)
 		}
 		gid := fmt.Sprintf("%d", group.ID)
 
@@ -499,7 +500,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "密碼加密失敗，請重試", "tourl": ""})
 		return
 	}
-		newMember := model.Member{
+		newMember := memberModel.Member{
 			Ucode:        generateUcode(c),
 			Username:     username,
 			Useremail:    useremail,
@@ -514,7 +515,7 @@ func (fc *FrontController) Register(c *gin.Context) {
 			LoginCount:   0,
 		}
 
-		if err := model.DB.WithContext(c.Request.Context()).Create(&newMember).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Create(&newMember).Error; err != nil {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "data": "註冊失敗", "tourl": ""})
 			return
 		}
@@ -571,8 +572,8 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 			return
 		}
 
-		var member model.Member
-		model.DB.WithContext(c.Request.Context()).First(&member, uid)
+		var member memberModel.Member
+		db.DB.WithContext(c.Request.Context()).First(&member, uid)
 		// 驗證當前密碼（支援 bcrypt 和舊版雙 MD5）
 		matched, _ := common.VerifyPassword(opassword, member.Password)
 		if !matched {
@@ -608,7 +609,7 @@ func (fc *FrontController) Umodify(c *gin.Context) {
 			updates["password"] = hashedPwd
 		}
 
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Member{}).Where("id = ?", uid).Updates(updates).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Model(&memberModel.Member{}).Where("id = ?", uid).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": "修改失敗", "tourl": ""})
 		return
 	}
@@ -635,7 +636,7 @@ func regexpMatch(pattern, s string) bool {
 // memberExists 檢查會員是否已存在
 func memberExists(c *gin.Context, where string, args ...interface{}) bool {
 	var count int64
-	model.DB.WithContext(c.Request.Context()).Model(&model.Member{}).Where(where, args...).Count(&count)
+	db.DB.WithContext(c.Request.Context()).Model(&memberModel.Member{}).Where(where, args...).Count(&count)
 	return count > 0
 }
 

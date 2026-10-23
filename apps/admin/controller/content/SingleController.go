@@ -1,8 +1,8 @@
 package content
 
-import (
+import (	"gbootcms/core/db"
+
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	contentModel "gbootcms/apps/admin/model/content"
 	svc "gbootcms/apps/admin/service/content"
 	"gbootcms/apps/common"
@@ -33,8 +33,8 @@ func (sg *SingleController) Index(c *gin.Context) {
 	keyword := c.Query("keyword")
 
 	// 通過 mcode 查詢屬於單頁模型的欄目
-	var sorts []model.ContentSort
-	sortQuery := model.DB.WithContext(c.Request.Context()).Where("mcode = ? AND status = 1", mcode)
+	var sorts []contentModel.ContentSort
+	sortQuery := db.DB.WithContext(c.Request.Context()).Where("mcode = ? AND status = 1", mcode)
 	if keyword != "" && field == "b.name" {
 		sortQuery = sortQuery.Where("name LIKE ?", "%"+keyword+"%")
 	}
@@ -42,14 +42,14 @@ func (sg *SingleController) Index(c *gin.Context) {
 
 	// 查詢每個欄目下的最新一條內容(單頁每個欄目只有一條)
 	// 注意：子查詢是原始 SQL，AcodePlugin 無法自動注入 acode 條件，需手動添加
-	var contents []model.Content
+	var contents []contentModel.Content
 	if len(sorts) > 0 {
 		var scodes []string
 		for _, s := range sorts {
 			scodes = append(scodes, s.Scode)
 		}
 		acode := acodeplugin.GetAcode(c.Request.Context())
-		contentQuery := model.DB.WithContext(c.Request.Context()).Where("scode IN (?)", scodes).
+		contentQuery := db.DB.WithContext(c.Request.Context()).Where("scode IN (?)", scodes).
 			Where("id IN (SELECT MAX(id) FROM ay_content WHERE scode IN (?) AND acode = ? GROUP BY scode)", scodes, acode)
 		if keyword != "" && field == "a.title" {
 			contentQuery = contentQuery.Where("title LIKE ?", "%"+keyword+"%")
@@ -112,7 +112,7 @@ func (sg *SingleController) Mod(c *gin.Context) {
 			sg.JSONFail(c, "field not allowed: "+field)
 			return
 		}
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Content{}).Where("id = ?", id).
+		if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Content{}).Where("id = ?", id).
 			Updates(map[string]interface{}{
 				field:        value,
 				"update_time": time.Now(),
@@ -159,7 +159,7 @@ func (sg *SingleController) Mod(c *gin.Context) {
 			func(key string) string { return c.PostForm(key) },
 			func(key string) []string { return c.PostFormArray(key) },
 		)
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Content{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		if err := db.DB.WithContext(c.Request.Context()).Model(&contentModel.Content{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			sg.JSONFail(c, "修改失敗："+err.Error())
 			return
 		}
@@ -170,13 +170,13 @@ func (sg *SingleController) Mod(c *gin.Context) {
 		return
 	}
 
-	var doc model.Content
-	model.DB.WithContext(c.Request.Context()).First(&doc, id)
+	var doc contentModel.Content
+	db.DB.WithContext(c.Request.Context()).First(&doc, id)
 
 	// Get mcode from content's sort if not in query
 	if mcode == "" {
-		var sort model.ContentSort
-		if model.DB.WithContext(c.Request.Context()).Where("scode = ?", doc.Scode).First(&sort).Error == nil {
+		var sort contentModel.ContentSort
+		if db.DB.WithContext(c.Request.Context()).Where("scode = ?", doc.Scode).First(&sort).Error == nil {
 			mcode = sort.Mcode
 		}
 	}
@@ -205,7 +205,7 @@ func (sg *SingleController) Del(c *gin.Context) {
 		sg.JSONFail(c, "ID required")
 		return
 	}
-	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Content{}, idStr).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Delete(&contentModel.Content{}, idStr).Error; err != nil {
 		sg.JSONFail(c, "刪除失敗："+err.Error())
 		return
 	}

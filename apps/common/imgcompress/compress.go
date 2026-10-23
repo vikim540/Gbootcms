@@ -16,6 +16,9 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
+// sem 限制併發圖片解碼與壓縮任務（最多同時 2 個），防止高解析度圖片併發導致 OOM
+var sem = make(chan struct{}, 2)
+
 // Options 圖片壓縮與轉碼選項
 type Options struct {
 	Quality  int // 1-100 (預設 80)
@@ -34,6 +37,10 @@ func CompressToWebP(srcPath string, opts Options) (string, error) {
 		// 其他格式（GIF 動圖、SVG、PDF、已是 WebP/AVIF）不轉碼
 		return srcPath, nil
 	}
+
+	// 進入信號量限制併發
+	sem <- struct{}{}
+	defer func() { <-sem }()
 
 	if opts.Quality <= 0 || opts.Quality > 100 {
 		opts.Quality = 80

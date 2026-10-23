@@ -1,11 +1,11 @@
 package storage
 
-import (
+import (	"gbootcms/core/db"
+
 	"log/slog"
 	"sync"
 	"time"
 
-	"gbootcms/apps/admin/model"
 )
 
 // Storage 存儲抽象接口
@@ -44,7 +44,7 @@ var (
 
 func initCache() {
 	ttlSec := 300 // 預設 5 分鐘
-	if v := model.GetConfigValue("r2_cache_ttl", "300"); v != "" {
+	if v := db.GetConfigValue("r2_cache_ttl", "300"); v != "" {
 		if n := parseIntSafe(v); n > 0 {
 			ttlSec = n
 		}
@@ -71,7 +71,7 @@ func InitStorage() {
 	initOnce.Do(func() {
 		initCache()
 
-		if model.GetConfigValue("r2_enabled", "0") == "1" {
+		if db.GetConfigValue("r2_enabled", "0") == "1" {
 			r2, err := NewR2Storage()
 			if err != nil {
 				slog.Error("R2 存儲初始化失敗，降級為本地存儲", "error", err)
@@ -79,7 +79,7 @@ func InitStorage() {
 				return
 			}
 			defaultStorage = r2
-			slog.Info("Cloudflare R2 雲存儲已啟用", "bucket", model.GetConfigValue("r2_bucket", ""))
+			slog.Info("Cloudflare R2 雲存儲已啟用", "bucket", db.GetConfigValue("r2_bucket", ""))
 		} else {
 			defaultStorage = &LocalStorage{}
 		}

@@ -1,10 +1,10 @@
 package common
 
-import (
+import (	"gbootcms/core/db"
+
 	"strings"
 	"sync"
 
-	"gbootcms/apps/admin/model"
 )
 
 // 敏感詞快取
@@ -17,7 +17,7 @@ var (
 // LoadSensitiveWords 從資料庫載入敏感詞列表
 // 敏感詞存儲在 ay_config 表的 sensitive_words 欄位，每行一個詞
 func LoadSensitiveWords() {
-	words := model.GetConfigValue("sensitive_words", "")
+	words := db.GetConfigValue("sensitive_words", "")
 	if words == "" {
 		sensitiveWordsMu.Lock()
 		sensitiveWords = nil

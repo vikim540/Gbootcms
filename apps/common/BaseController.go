@@ -1,6 +1,7 @@
 package common
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+
 	"log/slog"
 	"net/http"
 	"sort"
@@ -8,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"gbootcms/apps/admin/model"
 	"gbootcms/core/db"
 	"gbootcms/core/mediaplugin"
 
@@ -27,7 +27,7 @@ type BaseController struct{}
 // Usage in any controller:
 //
 //	if bc.IsBatchSort(c) {
-//	    bc.BatchSort(c, &model.Slide{}, "sorting", 255)
+//	    bc.BatchSort(c, &content.Slide{}, "sorting", 255)
 //	    return
 //	}
 //
@@ -47,7 +47,7 @@ func (bc *BaseController) LogAction(c *gin.Context, msg string) {
 	chPlatformVer := c.GetHeader("Sec-CH-UA-Platform-Version")
 	osName, browser := ParseUserAgent(ua, chPlatformVer)
 	now := time.Now()
-	entry := model.Syslog{
+	entry := system.Syslog{
 		Level:      "admin",
 		Event:      msg,
 		UserIP:     c.ClientIP(),
@@ -61,7 +61,7 @@ func (bc *BaseController) LogAction(c *gin.Context, msg string) {
 		IP:         c.ClientIP(),
 		LogTime:    now,
 	}
-	if err := model.DB.Create(&entry).Error; err != nil {
+	if err := db.DB.Create(&entry).Error; err != nil {
 		slog.Error("[Syslog] 寫入失敗", "err", err, "msg", msg)
 	}
 }
@@ -87,7 +87,7 @@ func (bc *BaseController) Paginate(c *gin.Context) (page, pageSize, offset int) 
 			pageSize = v
 		}
 	} else {
-		if cfgVal := model.GetConfigValue("pagesize", ""); cfgVal != "" {
+		if cfgVal := db.GetConfigValue("pagesize", ""); cfgVal != "" {
 			if v, err := strconv.Atoi(cfgVal); err == nil && v > 0 {
 				pageSize = v
 			}

@@ -1,6 +1,9 @@
 package controller
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"context"
 	"encoding/xml"
 	"fmt"
@@ -8,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
 	"gbootcms/core/acodeplugin"
 
@@ -66,16 +68,16 @@ func (fc *FrontController) sitemapIndexHandler(c *gin.Context) {
 	skipCtx := acodeplugin.SkipAcode(c.Request.Context())
 
 	// 查所有區域
-	var areas []model.Area
-	model.DB.WithContext(skipCtx).Find(&areas)
+	var areas []system.Area
+	db.DB.WithContext(skipCtx).Find(&areas)
 
 	// 構建域名基礎
 	domain := fc.getDomain(c)
 
 	// 查最新內容更新時間作為 lastmod
-	var latestContent model.Content
+	var latestContent content.Content
 	latestTime := time.Now()
-	if err := model.DB.WithContext(skipCtx).Order("update_time DESC").First(&latestContent).Error; err == nil {
+	if err := db.DB.WithContext(skipCtx).Order("update_time DESC").First(&latestContent).Error; err == nil {
 		if !latestContent.UpdateTime.IsZero() {
 			latestTime = latestContent.UpdateTime
 		}
@@ -108,8 +110,8 @@ func (fc *FrontController) sitemapLangHandler(c *gin.Context, acode string) {
 	skipCtx := acodeplugin.SkipAcode(c.Request.Context())
 
 	// 驗證 acode 是否合法
-	var area model.Area
-	if err := model.DB.WithContext(skipCtx).Where("acode = ?", acode).First(&area).Error; err != nil {
+	var area system.Area
+	if err := db.DB.WithContext(skipCtx).Where("acode = ?", acode).First(&area).Error; err != nil {
 		c.String(http.StatusNotFound, "404")
 		return
 	}
@@ -138,8 +140,8 @@ func (fc *FrontController) sitemapLangHandler(c *gin.Context, acode string) {
 	})
 
 	// 2. 所有欄目頁（status=1）
-	var sorts []model.ContentSort
-	model.DB.WithContext(ctx).Where("status = 1").Order("sorting ASC").Find(&sorts)
+	var sorts []content.ContentSort
+	db.DB.WithContext(ctx).Where("status = 1").Order("sorting ASC").Find(&sorts)
 	for _, s := range sorts {
 		sortURL := buildSortURL(&s)
 		if sortURL != "" {
@@ -152,8 +154,8 @@ func (fc *FrontController) sitemapLangHandler(c *gin.Context, acode string) {
 	}
 
 	// 3. 所有內容頁（status=1）
-	var contents []model.Content
-	model.DB.WithContext(ctx).Where("status = 1").Order("id ASC").Find(&contents)
+	var contents []content.Content
+	db.DB.WithContext(ctx).Where("status = 1").Order("id ASC").Find(&contents)
 	for _, ct := range contents {
 		contentURL := buildSitemapContentURL(ctx, &ct)
 		if contentURL != "" {
@@ -192,7 +194,7 @@ func (fc *FrontController) Robots(c *gin.Context) {
 	skipCtx := acodeplugin.SkipAcode(c.Request.Context())
 
 	// 1. 若後台自定義了 robots_content 則優先使用
-	customRobots := strings.TrimSpace(model.GetConfigValue("robots_content", ""))
+	customRobots := strings.TrimSpace(db.GetConfigValue("robots_content", ""))
 	if customRobots != "" {
 		c.Header("Content-Type", "text/plain; charset=utf-8")
 		c.Header("Cache-Control", "public, max-age=3600")
@@ -210,8 +212,8 @@ func (fc *FrontController) Robots(c *gin.Context) {
 
 	// 添加所有語言的 sitemap 引用（符合 sitemaps.org 規範，嚴格僅聲明 XML 地圖）
 	domain := fc.getDomain(c)
-	var areas []model.Area
-	model.DB.WithContext(skipCtx).Find(&areas)
+	var areas []system.Area
+	db.DB.WithContext(skipCtx).Find(&areas)
 	for _, a := range areas {
 		sb.WriteString(fmt.Sprintf("Sitemap: %s/sitemap-%s.xml\n", domain, a.Acode))
 	}
@@ -237,8 +239,8 @@ func (fc *FrontController) getDomain(c *gin.Context) string {
 
 	// 如果後台配置了生產域名，使用配置的域名（更穩定）
 	skipCtx := acodeplugin.SkipAcode(c.Request.Context())
-	var site model.Site
-	if err := model.DB.WithContext(skipCtx).First(&site).Error; err == nil && site.Domain != "" {
+	var site content.Site
+	if err := db.DB.WithContext(skipCtx).First(&site).Error; err == nil && site.Domain != "" {
 		configuredDomain := site.Domain
 		if !strings.HasPrefix(configuredDomain, "http://") && !strings.HasPrefix(configuredDomain, "https://") {
 			configuredDomain = "https://" + configuredDomain
@@ -252,7 +254,7 @@ func (fc *FrontController) getDomain(c *gin.Context) string {
 }
 
 // buildSortURL 構建欄目 URL（不含域名和語言前綴）
-func buildSortURL(s *model.ContentSort) string {
+func buildSortURL(s *content.ContentSort) string {
 	if s.Filename != "" {
 		return "/" + s.Filename
 	}
@@ -266,13 +268,13 @@ func buildSortURL(s *model.ContentSort) string {
 }
 
 // buildSitemapContentURL 構建內容 URL（不含域名和語言前綴）
-func buildSitemapContentURL(ctx context.Context, c *model.Content) string {
+func buildSitemapContentURL(ctx context.Context, c *content.Content) string {
 	if c.Outlink != "" {
 		return "" // 外鏈不納入 sitemap
 	}
 
 	// 短路徑模式
-	if model.GetConfigValue("url_rule_content_path", "0") == "1" {
+	if db.GetConfigValue("url_rule_content_path", "0") == "1" {
 		if c.Filename != "" {
 			return "/" + c.Filename
 		}
@@ -285,8 +287,8 @@ func buildSitemapContentURL(ctx context.Context, c *model.Content) string {
 	// 帶欄目路徑模式（預設）
 	var sortPath string
 	if c.Scode != "" {
-		var s model.ContentSort
-		if model.DB.WithContext(ctx).Where("scode = ?", c.Scode).First(&s).Error == nil {
+		var s content.ContentSort
+		if db.DB.WithContext(ctx).Where("scode = ?", c.Scode).First(&s).Error == nil {
 			if s.Filename != "" {
 				sortPath = s.Filename
 			} else if s.URLName != "" {

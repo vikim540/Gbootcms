@@ -1,7 +1,8 @@
 package system
 
-import (
-	"gbootcms/apps/admin/model"
+import (	"gbootcms/apps/admin/model/system"
+	"gbootcms/core/db"
+
 	"gbootcms/apps/common"
 	"strconv"
 	"time"
@@ -17,8 +18,8 @@ type MenuController struct {
 
 // Index - Menu list
 func (mc *MenuController) Index(c *gin.Context) {
-	var menus []model.Menu
-	model.DB.WithContext(c.Request.Context()).Order("sorting ASC, id ASC").Find(&menus)
+	var menus []system.Menu
+	db.DB.WithContext(c.Request.Context()).Order("sorting ASC, id ASC").Find(&menus)
 	common.Render(c, "system/menu.html", gin.H{"list": true, "menus": menus})
 }
 
@@ -28,7 +29,7 @@ func (mc *MenuController) Add(c *gin.Context) {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		now := time.Now()
 		username := mc.GetAdminUsername(c)
-		if err := model.DB.WithContext(c.Request.Context()).Create(&model.Menu{
+		if err := db.DB.WithContext(c.Request.Context()).Create(&system.Menu{
 			Mcode:       c.PostForm("mcode"),
 			Pcode:       c.PostForm("pcode"),
 			Name:        c.PostForm("name"),
@@ -48,8 +49,8 @@ func (mc *MenuController) Add(c *gin.Context) {
 		mc.JSONOKMsg(c, common.NoticeAdd)
 		return
 	}
-	var menus []model.Menu
-	model.DB.WithContext(c.Request.Context()).Order("sorting ASC").Find(&menus)
+	var menus []system.Menu
+	db.DB.WithContext(c.Request.Context()).Order("sorting ASC").Find(&menus)
 	common.Render(c, "system/menu.html", gin.H{"menus": menus, "action": "add"})
 }
 
@@ -63,7 +64,7 @@ func (mc *MenuController) Mod(c *gin.Context) {
 
 	// 批量排序：POST submit=sorting
 	if mc.IsBatchSort(c) {
-		mc.BatchSort(c, &model.Menu{}, "sorting", 255)
+		mc.BatchSort(c, &system.Menu{}, "sorting", 255)
 		return
 	}
 
@@ -71,7 +72,7 @@ func (mc *MenuController) Mod(c *gin.Context) {
 		sorting, _ := strconv.Atoi(c.DefaultPostForm("sorting", "255"))
 		status, _ := strconv.Atoi(c.DefaultPostForm("status", "1"))
 		now := time.Now()
-		if err := model.DB.WithContext(c.Request.Context()).Model(&model.Menu{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := db.DB.WithContext(c.Request.Context()).Model(&system.Menu{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"mcode":       c.PostForm("mcode"),
 			"pcode":       c.PostForm("pcode"),
 			"name":        c.PostForm("name"),
@@ -89,17 +90,17 @@ func (mc *MenuController) Mod(c *gin.Context) {
 		return
 	}
 
-	var menu model.Menu
-	model.DB.WithContext(c.Request.Context()).First(&menu, id)
-	var menus []model.Menu
-	model.DB.WithContext(c.Request.Context()).Order("sorting ASC").Find(&menus)
+	var menu system.Menu
+	db.DB.WithContext(c.Request.Context()).First(&menu, id)
+	var menus []system.Menu
+	db.DB.WithContext(c.Request.Context()).Order("sorting ASC").Find(&menus)
 	common.Render(c, "system/menu.html", gin.H{"menu": menu, "menus": menus, "action": "mod"})
 }
 
 // Del - Delete menu
 func (mc *MenuController) Del(c *gin.Context) {
 	idStr := c.Query("id")
-	if err := model.DB.WithContext(c.Request.Context()).Delete(&model.Menu{}, idStr).Error; err != nil {
+	if err := db.DB.WithContext(c.Request.Context()).Delete(&system.Menu{}, idStr).Error; err != nil {
 		mc.JSONFail(c, "刪除失敗："+err.Error())
 		return
 	}

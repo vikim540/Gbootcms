@@ -1,6 +1,8 @@
 package webhook
 
-import (
+import (	"gbootcms/apps/admin/model/system"
+	"gbootcms/core/db"
+
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -10,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"gbootcms/apps/admin/model"
 )
 
 // httpClient 復用 TCP 連接/TLS 會話的 HTTP 客戶端（帶 10s 超時）
@@ -41,7 +42,7 @@ func Send(formName, ip, os, browser string, fields []map[string]string) {
 // SendIf 帶分項開關檢查的推送（category: message/form/comment）
 // 自動根據 category 構造後台管理 URL 作為查看詳情連結
 func SendIf(category, formName, ip, os, browser string, fields []map[string]string) {
-	if model.GetConfigValue("webhook_"+category, "1") != "1" {
+	if db.GetConfigValue("webhook_"+category, "1") != "1" {
 		return
 	}
 	SendWithURL(formName, ip, os, browser, fields, adminURLFor(category))
@@ -49,7 +50,7 @@ func SendIf(category, formName, ip, os, browser string, fields []map[string]stri
 
 // SendWithURL 帶查看詳情 URL 的推送（配備指數退避重試隊列，保證商業線索 100% 抵達）
 func SendWithURL(formName, ip, os, browser string, fields []map[string]string, detailURL string) {
-	webhookURL := model.GetConfigValue("webhook_url", "")
+	webhookURL := db.GetConfigValue("webhook_url", "")
 	if webhookURL == "" {
 		return
 	}
@@ -59,7 +60,7 @@ func SendWithURL(formName, ip, os, browser string, fields []map[string]string, d
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("[Webhook] goroutine panic recovered", "panic", r)
-				model.LogNotify("webhook", "error", fmt.Sprintf("內部異常: %v", r))
+				system.LogNotify("webhook", "error", fmt.Sprintf("內部異常: %v", r))
 			}
 		}()
 
@@ -85,7 +86,7 @@ func SendWithURL(formName, ip, os, browser string, fields []map[string]string, d
 
 		if err != nil {
 			fmt.Printf("[Webhook] JSON 序列化失敗: %v\n", err)
-			model.LogNotify("webhook", "error", "JSON 序列化失敗："+err.Error())
+			system.LogNotify("webhook", "error", "JSON 序列化失敗："+err.Error())
 			return
 		}
 
@@ -141,23 +142,23 @@ func SendWithURL(formName, ip, os, browser string, fields []map[string]string, d
 			// 成功送達
 			lastErr = nil
 			if attempt > 1 {
-				model.LogNotify("webhook", "success", fmt.Sprintf("Webhook 推送成功：%s (第%d次嘗試重試成功)", formName, attempt))
+				system.LogNotify("webhook", "success", fmt.Sprintf("Webhook 推送成功：%s (第%d次嘗試重試成功)", formName, attempt))
 			} else {
-				model.LogNotify("webhook", "success", "Webhook 推送成功："+formName)
+				system.LogNotify("webhook", "success", "Webhook 推送成功："+formName)
 			}
 			return
 		}
 
 		if lastErr != nil {
 			fmt.Printf("[Webhook] 推送最終失敗: %v\n", lastErr)
-			model.LogNotify("webhook", "error", fmt.Sprintf("推送最終失敗(已重試%d次)：%v", maxAttempts, lastErr))
+			system.LogNotify("webhook", "error", fmt.Sprintf("推送最終失敗(已重試%d次)：%v", maxAttempts, lastErr))
 		}
 	}()
 }
 
 // adminURLFor 根據 category 返回後台管理頁面 URL
 func adminURLFor(category string) string {
-	baseURL := model.GetConfigValue("httpurl", "")
+	baseURL := db.GetConfigValue("httpurl", "")
 	if baseURL == "" {
 		baseURL = "http://localhost:8080"
 	}

@@ -1,8 +1,9 @@
 package content
 
-import (
+import (	contentModel "gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"gbootcms/apps/admin/helper"
-	"gbootcms/apps/admin/model"
 	svc "gbootcms/apps/admin/service/content"
 	"gbootcms/apps/common"
 	"strconv"
@@ -18,7 +19,7 @@ type ContentSortController struct {
 }
 
 // sortTemplateData returns the common template data needed by all sort views.
-func (csc *ContentSortController) sortTemplateData(sorts []model.ContentSort) gin.H {
+func (csc *ContentSortController) sortTemplateData(sorts []contentModel.ContentSort) gin.H {
 	return gin.H{
 		"allmodels":   helper.GetAllModelsData(),
 		"models":      helper.GetAllModelsData(),
@@ -59,7 +60,7 @@ func (csc *ContentSortController) Add(c *gin.Context) {
 			urlname = c.PostForm("urlname")
 		}
 
-		sort := model.ContentSort{
+		sort := contentModel.ContentSort{
 			Scode:       c.PostForm("scode"),
 			Pcode:       c.PostForm("pcode"),
 			Name:        c.PostForm("name"),
@@ -144,7 +145,7 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 	}
 
 	if csc.IsBatchSort(c) {
-		csc.BatchSort(c, &model.ContentSort{}, "sorting", 255)
+		csc.BatchSort(c, &contentModel.ContentSort{}, "sorting", 255)
 		return
 	}
 
@@ -208,12 +209,12 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 			contentScode = scode
 		}
 		if stype == 1 && contentScode != "" {
-			var existing model.Content
-			result := model.DB.WithContext(c.Request.Context()).Where("scode = ?", contentScode).First(&existing)
+			var existing contentModel.Content
+			result := db.DB.WithContext(c.Request.Context()).Where("scode = ?", contentScode).First(&existing)
 			if result.Error != nil && c.PostForm("outlink") == "" {
 				now := time.Now()
 				username := csc.GetAdminUsername(c)
-				if err := model.DB.WithContext(c.Request.Context()).Create(&model.Content{
+				if err := db.DB.WithContext(c.Request.Context()).Create(&contentModel.Content{
 					Scode:       contentScode,
 					Title:       c.PostForm("name"),
 					Status:      1,
@@ -240,7 +241,7 @@ func (csc *ContentSortController) Mod(c *gin.Context) {
 		scode = idStr
 		idStr = ""
 	}
-	var sort *model.ContentSort
+	var sort *contentModel.ContentSort
 	var err error
 	if scode != "" {
 		sort, err = csc.svc.GetSortByScode(c.Request.Context(), scode)

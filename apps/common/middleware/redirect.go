@@ -1,27 +1,28 @@
 package middleware
 
-import (
+import (	"gbootcms/apps/admin/model/content"
+	"gbootcms/core/db"
+
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	"gbootcms/apps/admin/model"
 
 	"github.com/gin-gonic/gin"
 )
 
 // 301 重定向規則快取
 var (
-	redirectRules   []model.Redirect
+	redirectRules   []content.Redirect
 	redirectRulesMu sync.RWMutex
 	redirectLoaded  bool
 )
 
 func loadRedirectRules() {
-	var rules []model.Redirect
-	if model.DB != nil {
-		model.DB.Where("status = 1").Order("sorting ASC, id ASC").Find(&rules)
+	var rules []content.Redirect
+	if db.DB != nil {
+		db.DB.Where("status = 1").Order("sorting ASC, id ASC").Find(&rules)
 	}
 	redirectRulesMu.Lock()
 	redirectRules = rules
@@ -34,7 +35,7 @@ func RefreshRedirectRules() {
 	loadRedirectRules()
 }
 
-func getRedirectRules() []model.Redirect {
+func getRedirectRules() []content.Redirect {
 	redirectRulesMu.RLock()
 	if !redirectLoaded {
 		redirectRulesMu.RUnlock()
@@ -65,15 +66,15 @@ func RedirectMiddleware() gin.HandlerFunc {
 		}
 
 		// 1. HTTPS 強制跳轉
-		if c.Request.TLS == nil && model.GetConfigValue("to_https", "0") != "0" {
+		if c.Request.TLS == nil && db.GetConfigValue("to_https", "0") != "0" {
 			c.Redirect(http.StatusMovedPermanently, "https://"+c.Request.Host+c.Request.RequestURI)
 			c.Abort()
 			return
 		}
 
 		// 2. 主域名強制跳轉
-		mainDomain := model.GetConfigValue("main_domain", "")
-		toMainDomain := model.GetConfigValue("to_main_domain", "0")
+		mainDomain := db.GetConfigValue("main_domain", "")
+		toMainDomain := db.GetConfigValue("to_main_domain", "0")
 		if mainDomain != "" && toMainDomain != "0" {
 			host := c.Request.Host
 			if idx := strings.LastIndex(host, ":"); idx != -1 {

@@ -1,6 +1,7 @@
 package common
 
-import (
+import (	"gbootcms/core/db"
+
 	crand "crypto/rand"
 	"encoding/json"
 	"net/url"
@@ -17,7 +18,6 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
-	"gbootcms/apps/admin/model"
 )
 
 // === 統一驗證碼模塊 ===
@@ -93,7 +93,7 @@ func GenerateCaptcha(c *gin.Context) {
 // defaultVal 為配置項不存在時的默認值
 // 通過返回 true（含驗證碼已關閉的情況），失敗返回 false 並已寫入 JSON 響應
 func VerifyCaptcha(c *gin.Context, configName, defaultVal string) bool {
-	if model.GetConfigValue(configName, defaultVal) == "0" {
+	if db.GetConfigValue(configName, defaultVal) == "0" {
 		return true // 驗證碼已關閉
 	}
 	checkcode := strings.ToLower(c.PostForm("checkcode"))
@@ -260,7 +260,7 @@ type turnstileResponse struct {
 // defaultVal 為配置項不存在時的默認值（"0"=關閉，"1"=啟用）
 // 通過返回 true（含已關閉的情況），失敗返回 false 並已寫入 JSON 響應
 func VerifyTurnstile(c *gin.Context, configName, defaultVal string) bool {
-	if model.GetConfigValue(configName, defaultVal) == "0" {
+	if db.GetConfigValue(configName, defaultVal) == "0" {
 		return true // Turnstile 已關閉
 	}
 
@@ -270,7 +270,7 @@ func VerifyTurnstile(c *gin.Context, configName, defaultVal string) bool {
 		return false
 	}
 
-	secret := model.GetConfigValue("turnstile_secret", "")
+	secret := db.GetConfigValue("turnstile_secret", "")
 	if secret == "" {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "Turnstile 密鑰未配置"})
 		return false
