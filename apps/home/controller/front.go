@@ -1258,7 +1258,7 @@ func postRender(html string, ctx context.Context) string {
 
 // injectHreflangTags 動態在 <head> 內注入符合 Google 規範的 hreflang 雙向替代標籤
 func injectHreflangTags(html string, ctx context.Context) string {
-	if !strings.Contains(html, "</head>") {
+	if !strings.Contains(html, "</head>") || strings.Contains(html, "hreflang=") {
 		return html
 	}
 

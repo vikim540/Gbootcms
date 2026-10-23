@@ -566,5 +566,11 @@ func buildProductJSONLD(ctx *Context) interface{} {
 		}
 	}
 
+	// Google Search Console 嚴格規範防禦：Product 必須包含有效的 offers (價格與幣種)
+	// 若無價格數據，直接放棄輸出以避免 GSC 拋出「缺少 offers / 結構化數據不完整」的紅字處罰
+	if product["offers"] == nil {
+		return nil
+	}
+
 	return product
 }

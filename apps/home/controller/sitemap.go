@@ -177,10 +177,20 @@ func (fc *FrontController) sitemapLangHandler(c *gin.Context, acode string) {
 	c.String(http.StatusOK, xml.Header+string(xmlData))
 }
 
-// Robots 生成 robots.txt
+// Robots 生成 robots.txt（符合 RFC 9309 規範）
 func (fc *FrontController) Robots(c *gin.Context) {
 	skipCtx := acodeplugin.SkipAcode(c.Request.Context())
 
+	// 1. 若後台自定義了 robots_content 則優先使用
+	customRobots := strings.TrimSpace(model.GetConfigValue("robots_content", ""))
+	if customRobots != "" {
+		c.Header("Content-Type", "text/plain; charset=utf-8")
+		c.Header("Cache-Control", "public, max-age=3600")
+		c.String(http.StatusOK, customRobots)
+		return
+	}
+
+	// 2. 留空時全自動動態生成
 	var sb strings.Builder
 	sb.WriteString("User-agent: *\n")
 	sb.WriteString("Allow: /\n")
@@ -188,7 +198,7 @@ func (fc *FrontController) Robots(c *gin.Context) {
 	sb.WriteString("Disallow: /api/\n")
 	sb.WriteString("\n")
 
-	// 添加所有語言的 sitemap 引用
+	// 添加所有語言的 sitemap 引用（符合 sitemaps.org 規範，嚴格僅聲明 XML 地圖）
 	domain := fc.getDomain(c)
 	var areas []model.Area
 	model.DB.WithContext(skipCtx).Find(&areas)

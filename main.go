@@ -225,11 +225,9 @@ func main() {
 	// 301 重定向（應用層 URL 重寫規則，補充 Nginx 靜態規則）
 	r.Use(middleware.RedirectMiddleware())
 
-	// IP 黑白名單過濾（對齊 PHP HomeController.__construct，前台生效）
-	r.Use(middleware.IPFilter())
 
 	// 商業獲客營銷歸因：全天候捕捉 Google Ads / Meta / 搜索引擎等投放 UTM 標籤與 GCLID
-	r.Use(middleware.Tracking())
+	r.Use(common.TrackingMiddleware())
 
 	// 手機版切換（對齊 PHP HomeController.__construct 的 open_wap 邏輯）
 	r.Use(middleware.MobileSwitch())
@@ -275,7 +273,7 @@ func main() {
 	r.GET("/tags", fc.Tags)
 	r.GET("/message", fc.Message)
 	r.POST("/message", fc.Message)
-	r.GET("/api/visits", middleware.APIRateLimit(), fc.Visits)
+	r.GET("/api/visits", fc.Visits)
 	r.GET("/api/checkcode", fc.CheckCode)
 
 	// SEO: sitemap 索引 + robots.txt

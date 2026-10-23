@@ -1,285 +1,635 @@
-/*分页样式*/
-.layui-header {
-	height: 50px;
+/* ==========================================================================
+   GBOOTCMS UNIFIED ADMIN STYLESHEET (comm.css)
+   奧卡姆剃刀精簡版：收斂整合全站樣式、極簡現代主題、Emoji圖標庫與實用工具類
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Design Tokens & CSS Variables
+   -------------------------------------------------------------------------- */
+:root {
+  --admin-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --bg-app: #f8fafc;
+  --bg-card: #ffffff;
+  --header-bg: #0f172a;
+  --sidebar-bg: #1e293b;
+  --sidebar-hover: #334155;
+  --sidebar-active: #2563eb;
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --primary-color: #2563eb;
+  --primary-hover: #1d4ed8;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 }
-.layui-body {
-	padding: 10px 15px;
+
+body {
+  font-family: var(--admin-font) !important;
+  background-color: var(--bg-app) !important;
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
-.layui-layout-admin .layui-body {
-	top: 50px;
-	bottom:0;
+
+/* --------------------------------------------------------------------------
+   2. Layout & Shell (Header, Sidebar, Navigation)
+   -------------------------------------------------------------------------- */
+.layui-layout-admin .layui-header {
+  height: 50px;
+  background-color: var(--header-bg) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
 }
+
 .layui-layout-admin .layui-logo {
-	color: #fff;
-	font-size: 20px;
-	line-height: 50px;
-	height: 50px;
-	overflow:hidden;
-	text-align: left;
-	width: 180px;
-	padding-left: 10px;
-}
-.layui-layout-admin .layui-logo .layui-badge{
-	font-size:10px;
-	padding: 3px;
-	height: 12px;
-	line-height: 12px;
-	top:-3px;
-}
-.layui-layout-admin .layui-logo img {
-	vertical-align: middle;
-	margin-top: -3px;
+  font-size: 16px;
+  line-height: 50px;
+  height: 50px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: #f8fafc !important;
+  text-align: left;
+  width: 180px;
+  padding-left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
 }
 .layui-layout-admin .layui-logo a {
-	color: #fff;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+.layui-layout-admin .layui-logo img {
+  vertical-align: middle;
+}
+.layui-layout-admin .layui-logo .layui-badge {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: #94a3b8 !important;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  height: 16px;
+  line-height: 16px;
+}
+
+/* 頂欄導航 */
 .layui-layout-admin .layui-header .layui-nav .layui-nav-item {
-	height: 50px;
-	line-height: 50px;
+  height: 50px;
+  line-height: 50px;
 }
-.layui-layout-admin .layui-side {
-	top: 50px;
+.layui-layout-admin .layui-header .layui-nav > .layui-nav-item > a {
+  color: #cbd5e1 !important;
+  transition: color 0.15s ease;
+  font-size: 13px;
 }
-.layui-layout-admin .layui-side .layui-nav i {
-	margin-right: 10px;
+.layui-layout-admin .layui-header .layui-nav > .layui-nav-item > a:hover {
+  color: #ffffff !important;
 }
-.layui-layout-admin .layui-side .layui-nav-child dd {
-	padding-left: 20px;
+
+/* 頂欄白色下拉選單（白底 + 高對比深黑字色 + 現代微陰影） */
+.layui-layout-admin .layui-header .layui-nav .layui-nav-child {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.08) !important;
+  padding: 6px !important;
+  top: 52px !important;
+  min-width: 140px;
 }
-.layui-form-label {
-	width: 100px;
+.layui-layout-admin .layui-header .layui-nav .layui-nav-child dd a {
+  color: #0f172a !important; /* 濃黑高對比文字 */
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  border-radius: 6px !important;
+  padding: 8px 14px !important;
+  line-height: 20px !important;
+  height: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  transition: all 0.15s ease !important;
 }
-.layui-input-block {
-	margin-left: 130px;
+.layui-layout-admin .layui-header .layui-nav .layui-nav-child dd a:hover {
+  background-color: #f1f5f9 !important;
+  color: #2563eb !important;
 }
-.layui-layout-left {
-	left: 220px;
-}
-.layui-table .layui-btn {
-	margin: 0.5px 0;
-}
-.layui-table .layui-btn + .layui-btn {
-	margin-left: 0px;
-}
-.layui-form-select dl {
-	z-index: 9999;
-	max-height: 250px;
-}
-.layui-text-red{
-	color:red;
-}
-/*菜单显示按钮*/
+
+/* 側邊欄折疊按鈕 */
 .menu {
-	position: absolute !important;
-	left : 200px;
-	top: 10px;
-	line-height: 30px;
-	color: #ccc;
-	text-align: center;
-	z-index: 999;
+  position: absolute !important;
+  left: 190px;
+  top: 10px;
+  line-height: 30px;
+  color: #ccc;
+  text-align: center;
+  z-index: 999;
 }
 .menu li {
-	width: 30px;
-	background: #2F4056;
-}
-.menu a {
-	color: #ccc;
+  width: 30px;
+  background: transparent !important;
 }
 .menu .menu-ico {
-	font-size: 20px;
-	cursor: pointer;
+  font-size: 18px;
+  cursor: pointer;
+  color: #94a3b8;
+  border-radius: var(--radius-md);
+  padding: 4px 8px;
+  transition: all 0.15s ease;
 }
+.menu .menu-ico:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+/* 多語言切換器 */
 .area-select {
-	position: absolute;
-	left : 250px;
-	top: 10px;
+  position: absolute;
+  left: 235px;
+  top: 10px;
 }
 .area-select select {
-	height: 30px;
-	border: 1px solid #fafafa;
-	padding-left: 5px;
-	border-radius: 2px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #f8fafc !important;
+  border-radius: var(--radius-md);
+  padding: 4px 8px;
 }
-.area-select .layui-select-title {
-}
-/*桌面快捷图标*/
-.deskbox {
-	height: 90px;
-	border-radius: 5px;
-	color: #666;
-	text-align: center;
-	background: #f2f2f2;
-	margin: 5px;
-}
-.deskbox:hover {
-	background: #e0e0e0;
-}
-.deskbox dd {
-	font-size: 30px;
-	line-height: 50px;
-	color:#009688;
-}
-.deskbox dt {
-	padding-top:15px;
-	color:#999;
-	font-weight: normal;
-}
-.page {
-	clear: both;
-	margin: 10px 0;
-	text-align: center;
-}
-.page a:hover {
-	color:#009688;
-}
-.page-status{
-	border-radius: 2px 0 0 2px;
-}
-.page-last{
-	border-radius: 0 2px 2px 0;
-}
-.page-status,.page-index,.page-pre,.page-num,.page-next,.page-last{
-	display: inline-block;
-	*display: inline;
-	*zoom: 1;
-	vertical-align: middle;
-	padding: 0 15px;
-	height: 28px;
-	line-height: 28px;
-	margin: 0 -1px 5px 0;
-	background-color: #fff;
-	color: #333;
-	font-size: 12px;
-	border: 1px solid #e2e2e2;
-}
-.page-num-current{
-	background-color: #009688;
-	height:30px;
-	line-height: 30px;
-	border-top:none;
-	border-bottom:none;
-	color:#fff;
-}
-a.page-num-current:hover{
-	color:#fff;
-}
-.readonly {
-	background: #fafafa;
-}
-.table-input {
-	padding: 0px 15px!important;
-}
-.table-input input {
-	height: 30px;
-	max-width: 50px;
-	padding: 0px;
-	text-align: center;
-	color: #666;
-}
-.table-two tbody td {
-	text-align: left;
-}
-.table-two tbody th {
-	text-align: right;
-	width: 110px;
-}
-.fa-toggle-on {
-	font-size: 20px;
-	color: #5FB878;
-}
-.fa-toggle-off {
-	font-size: 20px;
-	color: #d2d2d2;
-}
-.pic {
-	margin-left: 130px;
-}
-.pic dl {
-	float: left;
-	position: relative;
-}
-.pic dl dd {
-	position: absolute;
-	right: 5px;
-	top: 5px;
-	cursor: pointer;
-	background: #666;
-	color: #fff;
-	padding: 2px;
-}
-.pic img {
-	max-height: 100px;
-	margin: 5px 0;
-	margin-right: 5px;
+.area-select select option {
+  background-color: #ffffff;
+  color: #0f172a !important;
 }
 
-@media only screen and (min-width: 450px) {
-.layui-form-item .layui-input-inline {
-	width: 260px;
-}
-}
-
-@media only screen and (max-width: 750px) {
-.layui-body {
-	left: 0px !important;
-}
-.layui-layout-admin .layui-logo {
-	width: 180px;
-	text-align: left;
-	padding-left: 5px;
-}
-.menu {
-	left: 185px;
-}
-.area-select {
-	right: 5px;
-	left: auto;
-}
-.layui-layout-admin .layui-footer {
-	left: 0px !important;
-}
+/* 左側邊欄 Sidebar */
 .layui-layout-admin .layui-side {
-	display: none;
+  top: 50px;
+  background-color: var(--sidebar-bg) !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
 }
+.layui-nav-tree {
+  background-color: transparent !important;
+}
+.layui-nav-tree .layui-nav-item > a {
+  color: #94a3b8 !important;
+  font-size: 13.5px;
+  padding: 0 16px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.layui-nav-tree .layui-nav-item > a:hover {
+  background-color: var(--sidebar-hover) !important;
+  color: #ffffff !important;
+}
+.layui-nav-tree .layui-nav-itemed > a {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+.layui-nav-tree .layui-nav-child {
+  background-color: rgba(0, 0, 0, 0.18) !important;
+  padding: 4px 0;
+}
+.layui-nav-tree .layui-nav-child dd a {
+  color: #94a3b8 !important;
+  font-size: 13px;
+  padding-left: 42px !important;
+  transition: all 0.15s ease;
+}
+.layui-nav-tree .layui-nav-child dd a:hover {
+  background-color: var(--sidebar-hover) !important;
+  color: #ffffff !important;
+}
+.layui-nav-tree .layui-nav-child dd.layui-this a {
+  background-color: var(--primary-color) !important;
+  color: #ffffff !important;
+  font-weight: 500;
+}
+.layui-nav-tree .layui-nav-bar {
+  background-color: var(--primary-color) !important;
+}
+
+/* 內容區主體 */
 .layui-body {
-	overflow-x: auto;
+  padding: 10px 15px;
 }
-.hidden-xs {
-	display: none;
+.layui-layout-admin .layui-body {
+  top: 50px;
+  bottom: 0;
+  background-color: var(--bg-app);
 }
+
+/* --------------------------------------------------------------------------
+   3. Forms, Inputs & High-Contrast Selects (杜絕白底淺字)
+   -------------------------------------------------------------------------- */
 .layui-form-label {
-	width: 80px;
-}
-.pic {
-	margin-left: 110px;
+  width: 100px;
+  color: #475569;
+  font-weight: 500;
+  font-size: 13px;
 }
 .layui-input-block {
-	margin-left: 110px;
-}
-}
-
-@media only screen and (max-width: 450px) {
-.layui-form-item.nospace .layui-input-inline {
-	margin: 0 0 10px 0px;
-}
+  margin-left: 130px;
 }
 
-/* 原生 Unicode 符號替換 layer 關閉按鈕圖標 */
+.layui-input, .layui-textarea, .layui-select {
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-md) !important;
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  padding-left: 10px;
+  font-size: 13px;
+}
+.layui-input:focus, .layui-textarea:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  outline: none;
+}
+
+/* 全局下拉選單（原生 Select 與 Layui Form Select）白底黑字高對比 */
+select, 
+.layui-select, 
+.page-select, 
+.layui-form-select .layui-input {
+  color: #0f172a !important; /* 濃黑高對比文字 */
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  font-weight: 500 !important;
+}
+select option,
+.layui-select option,
+.page-select option {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+}
+
+.layui-form-select .layui-edge {
+  border-top-color: #475569 !important;
+}
+.layui-form-selected .layui-edge {
+  border-bottom-color: #2563eb !important;
+}
+
+.layui-form-select dl {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05) !important;
+  padding: 4px !important;
+  z-index: 9999;
+  max-height: 250px;
+}
+.layui-form-select dl dd {
+  color: #0f172a !important; /* 高對比濃黑字色 */
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  border-radius: 4px !important;
+  padding: 0 12px !important;
+  line-height: 36px !important;
+  transition: all 0.12s ease !important;
+}
+.layui-form-select dl dd:hover {
+  background-color: #eff6ff !important;
+  color: #2563eb !important;
+}
+.layui-form-select dl dd.layui-this {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+.layui-form-select dl dd.layui-select-tips {
+  color: #334155 !important; /* 清晰深灰提示 */
+  font-weight: 500 !important;
+}
+
+/* --------------------------------------------------------------------------
+   4. Tables, Cards & Modals
+   -------------------------------------------------------------------------- */
+.layui-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+  background-color: var(--bg-card);
+}
+.layui-card-header {
+  border-bottom: 1px solid var(--border-subtle);
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.layui-tab-brief > .layui-tab-title .layui-this {
+  color: var(--primary-color) !important;
+}
+.layui-tab-brief > .layui-tab-more li.layui-this:after,
+.layui-tab-brief > .layui-tab-title .layui-this:after {
+  border-bottom: 2px solid var(--primary-color) !important;
+}
+
+.layui-table {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.layui-table thead tr {
+  background-color: #f1f5f9 !important;
+}
+.layui-table th {
+  color: #475569;
+  font-weight: 600;
+  font-size: 13px;
+  border-color: var(--border-subtle) !important;
+  padding: 10px 14px;
+}
+.layui-table td {
+  border-color: var(--border-subtle) !important;
+  padding: 10px 14px;
+  color: #334155;
+  font-size: 13px;
+}
+.layui-table tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+.layui-table .layui-btn {
+  margin: 0.5px 0;
+}
+.layui-table .layui-btn + .layui-btn {
+  margin-left: 0;
+}
+
+/* 按鈕風格 */
+.layui-btn {
+  background-color: var(--primary-color);
+  border-radius: var(--radius-md) !important;
+  font-weight: 500;
+  font-size: 13px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease;
+  border: none;
+}
+.layui-btn:hover {
+  background-color: var(--primary-hover);
+  opacity: 0.95;
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+}
+.layui-btn-primary {
+  background-color: #ffffff !important;
+  border: 1px solid var(--border-strong) !important;
+  color: #334155 !important;
+}
+.layui-btn-primary:hover {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+.layui-btn-danger {
+  background-color: #ef4444 !important;
+}
+.layui-btn-danger:hover {
+  background-color: #dc2626 !important;
+}
+.layui-btn-warm {
+  background-color: #f59e0b !important;
+}
+.layui-btn-warm:hover {
+  background-color: #d97706 !important;
+}
+
+/* 分頁條美化 */
+.page {
+  clear: both;
+  margin: 10px 0;
+  text-align: center;
+}
+.page-status, .page-index, .page-pre, .page-num, .page-next, .page-last {
+  display: inline-block;
+  vertical-align: middle;
+  padding: 0 12px;
+  height: 28px;
+  line-height: 28px;
+  margin: 0 2px 5px 0;
+  background-color: #fff;
+  color: #475569 !important;
+  font-size: 12px;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-md) !important;
+  transition: all 0.15s ease;
+}
+.page-status:hover, .page-index:hover, .page-pre:hover, .page-num:hover, .page-next:hover, .page-last:hover {
+  background-color: #f1f5f9 !important;
+  color: var(--primary-color) !important;
+}
+.page-num-current {
+  background-color: var(--primary-color) !important;
+  color: #ffffff !important;
+  border-color: var(--primary-color) !important;
+  height: 28px;
+  line-height: 28px;
+}
+a.page-num-current:hover {
+  color: #fff !important;
+}
+
+/* Layer 彈窗美化 */
+.layui-layer {
+  border-radius: var(--radius-xl) !important;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.08) !important;
+}
+.layui-layer-title {
+  background-color: #f8fafc !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  font-weight: 600;
+  color: #1e293b !important;
+}
+.layui-layer-btn .layui-layer-btn0 {
+  background-color: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+  border-radius: var(--radius-md) !important;
+}
 .layui-layer-setwin .layui-layer-close1 {
-    background: none !important;
-    font-size: 16px;
-    width: 24px;
-    height: 24px;
-    line-height: 24px;
-    text-align: center;
-    color: #94a3b8;
-    transition: color 0.2s;
+  background: none !important;
+  font-size: 16px;
+  color: #94a3b8 !important;
+  text-decoration: none;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
 }
 .layui-layer-setwin .layui-layer-close1:before {
-    font-family: inherit;
-    content: "✕";
+  content: "✕";
 }
 .layui-layer-setwin .layui-layer-close1:hover {
-    color: #0f172a;
-    opacity: 1;
+  color: #0f172a !important;
+}
+
+/* --------------------------------------------------------------------------
+   5. Admin Specific Components
+   -------------------------------------------------------------------------- */
+.deskbox {
+  height: 90px;
+  border-radius: var(--radius-lg);
+  color: #475569;
+  text-align: center;
+  background: #f1f5f9;
+  margin: 5px;
+  border: 1px solid var(--border-subtle);
+  transition: all 0.15s ease;
+}
+.deskbox:hover {
+  background: #e2e8f0;
+  transform: translateY(-1px);
+}
+.deskbox dd {
+  font-size: 26px;
+  line-height: 46px;
+  color: var(--primary-color);
+}
+.deskbox dt {
+  padding-top: 12px;
+  color: var(--text-muted);
+  font-weight: normal;
+  font-size: 12.5px;
+}
+
+.readonly {
+  background: #f8fafc;
+}
+.layui-text-red {
+  color: #ef4444;
+}
+.table-input {
+  padding: 0 15px !important;
+}
+.table-input input {
+  height: 30px;
+  max-width: 50px;
+  padding: 0;
+  text-align: center;
+  color: #666;
+}
+.pic {
+  margin-left: 130px;
+}
+.pic dl {
+  float: left;
+  position: relative;
+}
+.pic dl dd {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  cursor: pointer;
+  background: rgba(15, 23, 42, 0.7);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+.pic img {
+  max-height: 100px;
+  margin: 5px 5px 5px 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+/* --------------------------------------------------------------------------
+   6. Zero-Network Emoji Icon System (全面替代 FontAwesome 字體庫)
+   -------------------------------------------------------------------------- */
+.fa {
+  display: inline-block;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  text-align: center;
+  vertical-align: -0.1em;
+  margin-right: 6px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+.layui-btn .fa {
+  margin-right: 4px;
+}
+
+/* 導航與業務圖標 */
+.fa-globe::before { content: "🌐"; }
+.fa-sliders::before { content: "⚙️"; }
+.fa-file-text-o::before, .fa-file-o::before, .fa-file::before { content: "📄"; }
+.fa-file-video-o::before { content: "🎬"; }
+.fa-arrows-alt::before { content: "🧩"; }
+.fa-user-o::before, .fa-user-circle-o::before, .fa-user::before { content: "👤"; }
+.fa-users::before { content: "👥"; }
+.fa-cog::before, .fa-cogs::before { content: "🛠️"; }
+.fa-codepen::before { content: "📦"; }
+.fa-external-link::before { content: "🏷️"; }
+.fa-copyright::before { content: "🏢"; }
+.fa-bars::before { content: "☰"; }
+.fa-recycle::before, .fa-trash-o::before, .fa-trash::before { content: "🗑️"; }
+.fa-reply::before, .fa-undo::before { content: "↩️"; }
+.fa-question-circle-o::before, .fa-question-circle::before, .fa-commenting-o::before, .fa-comment::before { content: "💬"; }
+.fa-picture-o::before, .fa-photo::before, .fa-image::before { content: "🖼️"; }
+.fa-link::before { content: "🔗"; }
+.fa-unlink::before { content: "⛓️‍💥"; }
+.fa-plus-square-o::before, .fa-wpforms::before { content: "📋"; }
+.fa-random::before { content: "🔀"; }
+.fa-signal::before { content: "🎖️"; }
+.fa-sitemap::before { content: "🗺️"; }
+.fa-hand-stop-o::before { content: "🛡️"; }
+.fa-history::before, .fa-clock-o::before { content: "📜"; }
+.fa-database::before { content: "💾"; }
+.fa-info-circle::before { content: "ℹ️"; }
+.fa-home::before { content: "🏠"; }
+.fa-sign-out::before { content: "🚪"; }
+.fa-address-card-o::before { content: "🔑"; }
+.fa-pencil-square-o::before, .fa-pencil::before, .fa-magic::before { content: "✏️"; }
+.fa-check::before, .fa-check-circle::before { content: "✅"; }
+.fa-times::before, .fa-close::before { content: "❌"; }
+.fa-refresh::before { content: "🔄"; }
+.fa-download::before, .fa-inbox::before { content: "📥"; }
+.fa-tag::before, .fa-bookmark::before, .fa-bookmark-o::before { content: "🏷️"; }
+.fa-toggle-on::before { content: "🟢"; font-size: 15px; }
+.fa-toggle-off::before { content: "⚪"; font-size: 15px; opacity: 0.55; }
+.fa-exclamation-triangle::before { content: "⚠️"; }
+.fa-folder-o::before { content: "📁"; }
+.fa-folder-open-o::before { content: "📂"; }
+.fa-list::before { content: "📋"; }
+.fa-lg { font-size: 1.25em; }
+.fa-2x { font-size: 2em; }
+.fa-3x { font-size: 3em; }
+.fa-fw { width: 1.28571429em; text-align: center; }
+
+/* --------------------------------------------------------------------------
+   7. Essential Utility Classes (收斂 UnoCSS 工具類)
+   -------------------------------------------------------------------------- */
+.flex { display: flex; }
+.flex-wrap { flex-wrap: wrap; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.hidden { display: none; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.transition { transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* --------------------------------------------------------------------------
+   8. Responsive Media Queries
+   -------------------------------------------------------------------------- */
+@media only screen and (min-width: 450px) {
+  .layui-form-item .layui-input-inline {
+    width: 260px;
+  }
+}
+@media only screen and (max-width: 750px) {
+  .layui-body { left: 0 !important; overflow-x: auto; }
+  .layui-layout-admin .layui-logo { width: 180px; text-align: left; padding-left: 5px; }
+  .menu { left: 185px; }
+  .area-select { right: 5px; left: auto; }
+  .layui-layout-admin .layui-footer { left: 0 !important; }
+  .layui-layout-admin .layui-side { display: none; }
+  .hidden-xs { display: none; }
+  .layui-form-label { width: 80px; }
+  .pic { margin-left: 110px; }
+  .layui-input-block { margin-left: 110px; }
 }

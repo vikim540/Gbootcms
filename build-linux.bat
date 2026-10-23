@@ -14,19 +14,8 @@ echo  Target: linux/amd64  Port: %LINUX_PORT%
 echo ========================================
 echo.
 
-:: ---- Step 0: Build Frontend Assets (UnoCSS) ----
-echo [Step 0/4] Building UnoCSS and modern assets...
-cd /d "%APP_DIR%"
-where npm >nul 2>&1
-if %ERRORLEVEL% equ 0 (
-    call npm run build:uno
-) else (
-    echo [WARN] npm not found, skipping UnoCSS compilation.
-)
-echo.
-
 :: ---- Step 1: Cross-compile ----
-echo [Step 1/4] Cross-compiling for linux/amd64 (stripped)...
+echo [Step 1/3] Cross-compiling for linux/amd64 (stripped)...
 cd /d "%APP_DIR%"
 set GOPROXY=https://goproxy.cn,direct
 set GOOS=linux
@@ -51,7 +40,7 @@ if exist "%APP_DIR%tools\upx.exe" (
 echo.
 
 :: ---- Step 2: Clean old package ----
-echo [Step 2/4] Preparing package directory...
+echo [Step 2/3] Preparing package directory...
 if exist "%PKG_DIR%" rmdir /s /q "%PKG_DIR%"
 mkdir "%PKG_DIR%"
 mkdir "%PKG_DIR%\bin"
@@ -64,7 +53,7 @@ echo [OK] Directory structure created.
 echo.
 
 :: ---- Step 3: Copy files ----
-echo [Step 3/4] Copying files...
+echo [Step 3/3] Copying files...
 
 :: Binary
 copy "%APP_DIR%bin\gbootcms" "%PKG_DIR%\bin\" >nul
@@ -138,7 +127,7 @@ echo [OK] Files copied.
 echo.
 
 :: ---- Step 4: Create tarball ----
-echo [Step 4/4] Creating tarball...
+echo [Step 3/3] Creating tarball...
 if exist "%DIST_DIR%\%PKG_NAME%.tar.gz" del "%DIST_DIR%\%PKG_NAME%.tar.gz"
 cd /d "%DIST_DIR%"
 tar -czf "%PKG_NAME%.tar.gz" "%PKG_NAME%"

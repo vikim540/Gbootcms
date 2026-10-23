@@ -362,6 +362,16 @@
 		                    	Google已棄用sitemap ping端點，推送時將自動發送sitemap通知（最佳努力方式）。建議通過Google Search Console手動提交sitemap。
 		                    </div>
 		               </div>
+
+		               <div class="layui-form-item">
+		                     <label class="layui-form-label">Robots協議</label>
+		                     <div class="layui-input-block">
+		                     	<textarea name="robots_content" placeholder="留空時系統全自動動態生成標準 Robots.txt；自定義填寫時將直接覆蓋生效。" class="layui-textarea" style="height:120px;font-family:monospace;font-size:12px;">{$configs.robots_content.value}</textarea>
+		                     </div>
+		                     <div class="layui-form-mid layui-word-aux" style="margin-left:130px;">
+		                     	遵循 RFC 9309 規範。留空則自動屏蔽 /admin/ 與 /api/，並自動註冊各語言 Sitemap XML。
+		                     </div>
+		               </div>
 		               
 		           
 		                <div class="layui-form-item">
