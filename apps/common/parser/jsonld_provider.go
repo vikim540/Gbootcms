@@ -183,7 +183,18 @@ func buildArticleJSONLD(ctx *Context) interface{} {
 	if ct.Keywords != "" {
 		article["keywords"] = ct.Keywords
 	}
-	if ct.Source != "" {
+	sortSection := ""
+	if ctx.Sort != nil && ctx.Sort.Name != "" {
+		sortSection = ctx.Sort.Name
+	} else if ct.Scode != "" {
+		var s model.ContentSort
+		if err := model.DB.WithContext(ctx.Ctx).Where("scode = ?", ct.Scode).First(&s).Error; err == nil && s.Name != "" {
+			sortSection = s.Name
+		}
+	}
+	if sortSection != "" {
+		article["articleSection"] = sortSection
+	} else if ct.Source != "" {
 		article["articleSection"] = ct.Source
 	}
 	return article

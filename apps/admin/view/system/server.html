@@ -3,41 +3,72 @@
 <div class="layui-body">
 	<div class="layui-tab layui-tab-brief" lay-filter="tab">
 	  <ul class="layui-tab-title">
-	    <li class="layui-this" lay-id="t1">伺服器資訊</li>
+	    <li class="layui-this" lay-id="t1">伺服器與運行時遙測</li>
 	  </ul>
 	  <div class="layui-tab-content">
 	  	   <div class="layui-tab-item layui-show">
 
-			<!-- ─── 應用基本資訊 ─── -->
+			<!-- ─── Go 原生運行時遙測 ─── -->
 			<table class="layui-table table-two">
 			   <thead>
 				    <tr>
-		               <th colspan="2">應用基本資訊</th>
+		               <th colspan="4" style="background:#f8f9fa;color:#009688;font-weight:bold;"><i class="fa fa-dashboard"></i> Go 原生運行時監控 (Runtime Telemetry)</th>
 				    </tr>
 			   </thead>
 			   <tbody>
 					<tr>
-						<th>應用版本</th>
-						<td>{{ CmsName }} V{{ AppVersion }}-{{ ReleaseTime }}</td>
+						<th width="140">進程運行時間</th>
+						<td><span class="layui-badge layui-bg-green">{{ Uptime }}</span></td>
+						<th width="140">當前活躍 Goroutines</th>
+						<td><span class="layui-badge layui-bg-blue">{{ Goroutines }}</span></td>
 					</tr>
 					<tr>
-						<th>Go 版本</th>
-						<td>{{ GoVersion }}</td>
+						<th>記憶體即時佔用 (Alloc)</th>
+						<td>{{ AllocMB }}</td>
+						<th>累計分配記憶體 (Total)</th>
+						<td>{{ TotalAllocMB }}</td>
 					</tr>
 					<tr>
-						<th>Web 框架</th>
+						<th>系統保留記憶體 (Sys)</th>
+						<td>{{ SysMB }}</td>
+						<th>垃圾回收次數 (GC)</th>
+						<td>{{ NumGC }}</td>
+					</tr>
+					<tr>
+						<th>SQLite 數據庫體積</th>
+						<td>{{ DBSize }} (WAL 模式: {{ WalSize }})</td>
+						<th>媒體靜態資源大小</th>
+						<td>{{ UploadSize }} (static/upload/)</td>
+					</tr>
+				</tbody>
+			</table>
+
+			<!-- ─── 應用基礎架構 ─── -->
+			<table class="layui-table table-two" style="margin-top:15px;">
+			   <thead>
+				    <tr>
+		               <th colspan="2">應用基本架構與環境</th>
+				    </tr>
+			   </thead>
+			   <tbody>
+					<tr>
+						<th width="140">應用程式版本</th>
+						<td><strong>{{ CmsName }} {{ AppVersion }}</strong> (Git: {{ BuildVersion }})</td>
+					</tr>
+					<tr>
+						<th>Go 運行時與引擎</th>
 						<td>{{ WebSoftware }}</td>
 					</tr>
 					<tr>
-						<th>主機系統</th>
+						<th>宿主作業系統架構</th>
 						<td>{{ Goos }} / {{ Goarch }}</td>
 					</tr>
 					<tr>
-						<th>資料庫驅動</th>
+						<th>資料庫引擎驅動</th>
 						<td>{{ DBDriver }}</td>
 					</tr>
 					<tr>
-						<th>已註冊路由</th>
+						<th>路由表註冊總量</th>
 						<td>{{ RouteCount }}</td>
 					</tr>
 				</tbody>
@@ -47,13 +78,13 @@
 			<table class="layui-table table-two" style="margin-top:15px;">
 			   <thead>
 				    <tr>
-		               <th colspan="2">已載入技術棧模組</th>
+		               <th colspan="2">技術棧與性能套件 (Modules)</th>
 				    </tr>
 			   </thead>
 			   <tbody>
 				    {% for m in Modules %}
 					<tr>
-						<th>{{ m.Name }}</th>
+						<th width="180">{{ m.Name }}</th>
 						<td>{{ m.Desc }}</td>
 					</tr>
 					{% endfor %}
@@ -64,14 +95,14 @@
 			<table class="layui-table table-two" style="margin-top:15px;">
 			   <thead>
 				    <tr>
-		               <th colspan="2">已載入中介軟體</th>
+		               <th colspan="2">核心中介軟體管線 (Middleware Pipeline)</th>
 				    </tr>
 			   </thead>
 			   <tbody>
 				    {% for mw in Middlewares %}
 					<tr>
 						<th>{{ mw }}</th>
-						<td style="color:#5FB878;"><i class="fa fa-check-circle"></i> 已啟用</td>
+						<td style="color:#009688;"><i class="fa fa-check-circle"></i> 運作中 (Active)</td>
 					</tr>
 					{% endfor %}
 				</tbody>

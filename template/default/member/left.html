@@ -1,28 +1,28 @@
 <div class="col-12 btn-group dropright d-block d-md-none">
   <button type="button" class="btn btn-info dropdown-toggle mb-2" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-	個人中心
+	{i18n:ucenter}
   </button>
   <div class="dropdown-menu">
-		<a class="dropdown-item" href="{gboot:ucenter}">帳號資訊</a>
+		<a class="dropdown-item" href="{gboot:ucenter}">{i18n:account_info}</a>
 		<div class="dropdown-divider"></div>
-		<a class="dropdown-item" href="/comment/my">我的評論</a>
+		<a class="dropdown-item" href="/comment/my">{i18n:my_comments}</a>
 		<div class="dropdown-divider"></div>
-		<a class="dropdown-item" href="{gboot:logout}">退出登入</a>
+		<a class="dropdown-item" href="{gboot:logout}">{i18n:logout}</a>
   </div>
 </div>
 
 <div class="col-12 col-md-2 d-none d-md-block">
 	<div class="list-group">
 		 <a href="{gboot:ucenter}" class="list-group-item">
-			帳號資訊
+			{i18n:account_info}
 		 </a>
 
 		 <a href="/comment/my" class="list-group-item">
-			我的評論
+			{i18n:my_comments}
 		 </a>
 
 		 <a href="{gboot:logout}" class="list-group-item">
-			退出登入
+			{i18n:logout}
 		 </a>
 	</div>
 </div>

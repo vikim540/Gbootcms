@@ -11,6 +11,7 @@ import (
 	"gbootcms/apps/common/watermark"
 	"gbootcms/config"
 	"gbootcms/core/acodeplugin"
+	"gbootcms/core/version"
 	basic "gbootcms/core/basic"
 	"log/slog"
 	"net/http"
@@ -216,43 +217,78 @@ func (ic *IndexController) Home(c *gin.Context) {
 
 	dbsecurity := true
 	dbType := model.GetConfigValue("database.type", "sqlite")
-	if dbType == "" || dbType == "sqlite" {
-		dbPath := model.GetDBName()
-		if strings.Contains(dbPath, "pbootcms") {
-			clientIP := c.ClientIP()
-			if clientIP != "127.0.0.1" && clientIP != "::1" {
-				if ic.modDB(c) {
-					dbsecurity = true
-				} else {
-					dbsecurity = false
-				}
-			}
-		} else {
-			defaultDB := "data/pbootcms.db"
-			if _, err := os.Stat(defaultDB); err == nil {
-				newName := fmt.Sprintf("data/%s.db", fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))))
-				os.Rename(defaultDB, newName)
-			}
-		}
-	} else {
-		defaultDB := "data/pbootcms.db"
-		if _, err := os.Stat(defaultDB); err == nil {
-			newName := fmt.Sprintf("data/%s.db", fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))))
-			os.Rename(defaultDB, newName)
-		}
+	dbPath := model.GetDBName()
+	if _, err := os.Stat("data/pbootcms.db"); err == nil {
+		newName := fmt.Sprintf("data/%s.db", fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))))
+		os.Rename("data/pbootcms.db", newName)
 	}
 
 	ucode, _ := common.GetSession(c, "admin_ucode").(string)
 	var user model.AdminUser
-	// 用戶查詢跳過 acode 隔離（當前用戶可能屬於任何區域）
 	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Where("ucode = ?", ucode).First(&user)
 
-	// 留言計數：按當前區域過濾
+	// 1. 線索與留言統計
 	var msgCount int64
-	model.DB.WithContext(c.Request.Context()).Model(&model.Message{}).Where("status = 0").Count(&msgCount)
+	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Model(&model.Message{}).Count(&msgCount)
+	var pendingMsgCount int64
+	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Model(&model.Message{}).Where("status = 0").Count(&pendingMsgCount)
 
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	var todayMsgCount int64
+	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Model(&model.Message{}).Where("create_time >= ?", todayStart).Count(&todayMsgCount)
+
+	var recentMsgs []model.Message
+	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Order("id DESC").Limit(5).Find(&recentMsgs)
+
+	// 2. 多語言內容矩陣
+	type AreaMatrix struct {
+		Acode       string
+		Name        string
+		TotalCount  int64
+		LinkedCount int64
+		OrphanCount int64
+		HealthRate  string
+	}
+	var areas []model.Area
+	model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Order("id ASC").Find(&areas)
+	var areaMatrix []AreaMatrix
+	var totalContents int64
+	for _, a := range areas {
+		var total, linked int64
+		model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Model(&model.Content{}).Where("acode = ?", a.Acode).Count(&total)
+		model.DB.WithContext(acodeplugin.SkipAcode(c.Request.Context())).Model(&model.Content{}).Where("acode = ? AND rel_id > 0", a.Acode).Count(&linked)
+		totalContents += total
+		orphan := total - linked
+		health := "100%"
+		if total > 0 {
+			rate := float64(linked) / float64(total) * 100
+			health = fmt.Sprintf("%.0f%%", rate)
+		} else {
+			health = "100%"
+		}
+		areaMatrix = append(areaMatrix, AreaMatrix{
+			Acode:       a.Acode,
+			Name:        a.Name,
+			TotalCount:  total,
+			LinkedCount: linked,
+			OrphanCount: orphan,
+			HealthRate:  health,
+		})
+	}
+
+	// 3. 模型內容統計
 	var models []model.ContentModel
 	model.DB.Where("status = 1").Order("sorting ASC").Find(&models)
+
+	// 4. 運行時監控
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+	allocMB := fmt.Sprintf("%.2f MB", float64(mem.Alloc)/1024/1024)
+	dbSizeStr := "未知"
+	if fi, err := os.Stat(dbPath); err == nil {
+		dbSizeStr = fmt.Sprintf("%.2f MB", float64(fi.Size())/1024/1024)
+	}
 
 	serverInfo := gin.H{
 		"PhpOs":             runtime.GOOS,
@@ -260,26 +296,15 @@ func (ic *IndexController) Home(c *gin.Context) {
 		"ServerName":        c.Request.Host,
 		"ServerPort":        c.Request.URL.Port(),
 		"ServerAddr":        c.Request.Host,
-		"ServerSoftware":    "Go/Gin",
+		"ServerSoftware":    "Go " + runtime.Version() + " / Gin",
 		"PhpVersion":        "Go " + runtime.Version(),
 		"DbDriver":          strings.ToUpper(dbType),
 		"UploadMaxFilesize": model.GetConfigValue("upload_max_size", "50") + "M",
 		"PostMaxSize":       model.GetConfigValue("upload_max_size", "50") + "M",
-	}
-
-	branch := model.GetConfigValue("upgrade_branch", "3.X")
-	if branch == "3.X.dev" {
-		branch = "3.X.dev"
-	} else {
-		branch = "3.X"
-	}
-	revise := model.GetConfigValue("revise_version", "0")
-	if revise == "" {
-		revise = "0"
-	}
-	snuser := model.GetConfigValue("sn_user", "0")
-	if snuser == "" {
-		snuser = "0"
+		"Goroutines":        runtime.NumGoroutine(),
+		"AllocMB":           allocMB,
+		"Uptime":            version.Uptime(),
+		"DBSize":            dbSizeStr,
 	}
 
 	scheme := "http"
@@ -288,23 +313,23 @@ func (ic *IndexController) Home(c *gin.Context) {
 	}
 	site := scheme + "://" + c.Request.Host
 
-	// 區域切換數據已由 common.Render 全局注入（Areas/CurrentAcode/OneArea）
-
 	data := gin.H{
-		"C":              "Index",
-		"URL":            "/admin/index/home",
-		"PrimaryMenuURL": "/admin/index/home",
-		"DBSecurity":     dbsecurity,
-		"User":           user,
-		"UserInfo":       user,
-		"SumMsg":         msgCount,
-		"Server":         serverInfo,
-		"Branch":         branch,
-		"Revise":         revise,
-		"Snuser":         snuser,
-		"Site":           site,
-		"ModelMsg":       buildModelMsg(c, models),
-		"ModelCounts":    buildModelCounts(c),
+		"C":               "Index",
+		"URL":             "/admin/index/home",
+		"PrimaryMenuURL":  "/admin/index/home",
+		"DBSecurity":      dbsecurity,
+		"User":            user,
+		"UserInfo":        user,
+		"SumMsg":          msgCount,
+		"PendingMsgCount": pendingMsgCount,
+		"TodayMsgCount":   todayMsgCount,
+		"RecentMsgs":      recentMsgs,
+		"TotalContents":   totalContents,
+		"AreaMatrix":      areaMatrix,
+		"Server":          serverInfo,
+		"Site":            site,
+		"ModelMsg":        buildModelMsg(c, models),
+		"ModelCounts":     buildModelCounts(c),
 	}
 
 	common.Render(c, "system/home.html", data)

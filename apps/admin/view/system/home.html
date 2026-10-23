@@ -1,139 +1,216 @@
 {include file='common/head.html'}
-  
-<div class="layui-body">
-	
+
+<div class="layui-body" style="padding: 15px; background: #f0f2f5;">
+
 	{if(![$dbsecurity]||![$session.pwsecurity])}
-	<blockquote class="layui-elem-quote layui-text-red" id="note">
+	<blockquote class="layui-elem-quote layui-text-red" id="note" style="background:#fff; border-left: 5px solid #FF5722; margin-bottom: 15px;">
         {if(![$dbsecurity])}
-		<p>
-			<i class="fa fa-info-circle" aria-hidden="true"></i>
-			您的数据库文件存在安全隐患，可能被下载，请尽快修改数据库路径！<a class="layui-btn  layui-btn-sm" href="{url./admin/Index/home}&action=moddb">自动修改</a>
+		<p style="margin-bottom: 5px;">
+			<i class="fa fa-warning" aria-hidden="true"></i>
+			您的資料庫檔案路徑需優化以確保最佳安全隔離！<a class="layui-btn layui-btn-xs layui-btn-danger" style="margin-left:10px;" href="{url./admin/Index/home}&action=moddb">自動加固</a>
 		</p>
 		{/if}
-		
 		{if(![$session.pwsecurity])}
 		<p>
-			<i class="fa fa-info-circle" aria-hidden="true"></i>
-			 您的账号密码为初始密码，存在安全隐患，请尽快修改密码！<a class="layui-btn  layui-btn-sm" href="{url./admin/Index/ucenter}">立即修改</a>
+			<i class="fa fa-key" aria-hidden="true"></i>
+			管理員帳號目前為預設初始密碼，為確保營運安全請盡速修改！<a class="layui-btn layui-btn-xs layui-btn-warm" style="margin-left:10px;" href="{url./admin/Index/ucenter}">立即修改</a>
 		</p>
 		{/if}
     </blockquote>
     {/if}
-    
-    <blockquote class="layui-elem-quote">
-    	当前登录用户：{$user_info->username} {$user_info->realname}，登录时间：{$user_info->update_time}，登录IP：{fun=long2ip([$user_info->last_login_ip])}，累计登录次数：{$user_info->login_count}
-    </blockquote>
-	
-	<fieldset class="layui-elem-field">
-		<legend>快捷操作</legend>
-		<div class="layui-field-box">	
-			<div class="layui-row">
-				{foreach $model_msg(key,value)}
-				<div class="layui-col-xs6 layui-col-sm4 layui-col-md3 layui-col-lg2">
-		    		{if($value->type==1)}
-		    		<a href="{url./admin/Single/index/mcode/'.$value->mcode.'}">
-		    		{else}
-		    		<a href="{url./admin/Content/index/mcode/'.$value->mcode.'}">
-		    		{/if}
-			      		<dl class="deskbox center-block">
-			      			 <dt>[value->name]</dt>
-		                     <dd>[value->count]</dd>
-		                 </dl>
-		             </a>
-		   	    </div>
-	   	    	{/foreach}
-	   	    	
-				<div class="layui-col-xs6 layui-col-sm4 layui-col-md3 layui-col-lg2">
-		    		<a href="{url./admin/Message/index}">
-			      		<dl class="deskbox center-block">
-			      			 <dt>留言</dt>
-		                     <dd>{$sum_msg}</dd>
-		                 </dl>
-		             </a>
-		   	    </div>
-	   	    </div>
-		 </div>
-	 </fieldset>
-	 
-	 {if(CMSNAME=='Gbootcms')}
-	 <div class="layui-row layui-col-space10">
-	 	<div class="layui-col-xs12 layui-col-md6">
-			<table class="layui-table table-two">
-				  <thead>
-				  	<tr>
-				  		<th colspan="2">系統資訊</th>
-				  	</tr>
-				  </thead>
-				  <tbody>
-				     <tr>
-				      	<th width="100">應用版本</th>
-				      	<td>{CMSNAME} V{APP_VERSION}-{RELEASE_TIME} [{$build_version}]
-				      	</td>
-				     </tr>
-				     <tr>
-				      	<th>主機系統</th>
-				      	<td>{$server->php_os}</td>
-				     </tr>
-				     <tr>
-				      	<th>主機地址</th>
-				      	<td>{$server->server_name}（{$server->server_addr}:{$server->server_port}）</td>
-				     </tr>
-				     <tr>
-				      	<th>WEB軟體</th>
-				      	<td>{$server->server_software}</td>
-				     </tr>
-				     <tr>
-				      	<th>PHP版</th>
-				      	<td>{$server->php_version}</td>
-				     </tr>
-				     <tr>
-				      	<th>資料庫驅動</th>
-				      	<td>{$server->db_driver}</td>
-				     </tr>
-				     <tr>
-				      	<th>檔案上傳限制</th>
-				      	<td>{$server->upload_max_filesize}</td>
-				     </tr>
-				     <tr>
-				      	<th>表單提交限制</th>
-				      	<td>{$server->post_max_size}</td>
-				     </tr>
-				  </tbody> 
-			</table> 
-	 	</div>
-	 	
-	 	<div class="layui-col-xs12 layui-col-md6">
-			<table class="layui-table table-two">
-				  <thead>
-				  	<tr>
-				  		<th colspan="2">開發資訊</th>
-				  	</tr>
-				  </thead>
-				 
-				  <tbody>
-				  	<tr>
-	                    <th>系統名稱</th>
-	                    <td>{CMSNAME}企業網站開發建設管理系統</td>
-	                </tr>
-	
-	                <tr>
-	                    <th>原始碼</th>
-	                    <td>基於 PbootCMS 3.2.12 移植</td>
-	                </tr>
-	               
-	                <tr>
-	                    <th>技術棧</th>
-	                    <td>Go + Gin + GORM + SQLite</td>
-	                </tr>
-	               
-	                <tr>
-	                    <th>前端框架</th>
-	                    <td>LayUI</td>
-	                </tr>
-				  </tbody>
-			</table>
-	 	</div>
-	 </div>
-	 {/if}
+
+    <!-- ─── 頂部快捷概覽卡片 ─── -->
+    <div class="layui-row layui-col-space15" style="margin-bottom: 15px;">
+        <div class="layui-col-xs12 layui-col-sm6 layui-col-md3">
+            <div style="background:#fff; padding: 18px 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.05); border-left: 4px solid #009688;">
+                <div style="font-size: 13px; color: #666; margin-bottom: 8px;"><i class="fa fa-file-text-o"></i> 站點總發布內容</div>
+                <div style="font-size: 26px; font-weight: bold; color: #333;">{$TotalContents} <span style="font-size: 13px; font-weight: normal; color: #999;">篇</span></div>
+                <div style="font-size: 12px; color: #888; margin-top: 5px;">跨語系全量文章統計</div>
+            </div>
+        </div>
+        <div class="layui-col-xs12 layui-col-sm6 layui-col-md3">
+            <div style="background:#fff; padding: 18px 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.05); border-left: 4px solid #FF5722;">
+                <div style="font-size: 13px; color: #666; margin-bottom: 8px;"><i class="fa fa-envelope-o"></i> 待審核線索 / 今日諮詢</div>
+                <div style="font-size: 26px; font-weight: bold; color: #FF5722;">{$PendingMsgCount} <span style="font-size: 14px; font-weight: normal; color: #666;">/ 今日 {$TodayMsgCount} 條</span></div>
+                <div style="font-size: 12px; color: #888; margin-top: 5px;">總累積線索 {$SumMsg} 條</div>
+            </div>
+        </div>
+        <div class="layui-col-xs12 layui-col-sm6 layui-col-md3">
+            <div style="background:#fff; padding: 18px 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.05); border-left: 4px solid #1E9FFF;">
+                <div style="font-size: 13px; color: #666; margin-bottom: 8px;"><i class="fa fa-language"></i> 多語言矩陣覆蓋</div>
+                <div style="font-size: 26px; font-weight: bold; color: #1E9FFF;">{{ AreaMatrix|length }} <span style="font-size: 13px; font-weight: normal; color: #999;">個語系</span></div>
+                <div style="font-size: 12px; color: #888; margin-top: 5px;">Hreflang 精準對齊映射</div>
+            </div>
+        </div>
+        <div class="layui-col-xs12 layui-col-sm6 layui-col-md3">
+            <div style="background:#fff; padding: 18px 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.05); border-left: 4px solid #2F4056;">
+                <div style="font-size: 13px; color: #666; margin-bottom: 8px;"><i class="fa fa-dashboard"></i> Go 服務連續運行</div>
+                <div style="font-size: 24px; font-weight: bold; color: #2F4056;">{$Server.Uptime}</div>
+                <div style="font-size: 12px; color: #888; margin-top: 5px;">活躍協程: {$Server.Goroutines} | 記憶體: {$Server.AllocMB}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── 多語言發布矩陣 & SEO 健康體系 ─── -->
+    <div class="layui-row layui-col-space15" style="margin-bottom: 15px;">
+        <div class="layui-col-xs12 layui-col-md7">
+            <div style="background:#fff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.05); overflow: hidden;">
+                <div style="padding: 14px 20px; border-bottom: 1px solid #f0f0f0; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size: 15px; font-weight: bold; color: #333;"><i class="fa fa-sitemap" style="color:#009688;"></i> 多語言內容矩陣與 hreflang 健檢</span>
+                    <a href="{url./admin/Area/index}" class="layui-btn layui-btn-xs layui-btn-primary">管理區域</a>
+                </div>
+                <div style="padding: 15px;">
+                    <table class="layui-table">
+                        <thead>
+                            <tr style="background:#fafafa;">
+                                <th>語系代碼</th>
+                                <th>語系名稱</th>
+                                <th>已發布文章</th>
+                                <th>已綁定 hreflang</th>
+                                <th>未關聯孤島數</th>
+                                <th>跨語言健全度</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in AreaMatrix %}
+                            <tr>
+                                <td><code>{{ m.Acode }}</code></td>
+                                <td><strong>{{ m.Name }}</strong></td>
+                                <td>{{ m.TotalCount }} 篇</td>
+                                <td><span style="color:#009688; font-weight:bold;">{{ m.LinkedCount }}</span> 篇</td>
+                                <td>{% if m.OrphanCount > 0 %}<span style="color:#FF5722;">{{ m.OrphanCount }} 篇</span>{% else %}<span style="color:#999;">0 篇</span>{% endif %}</td>
+                                <td><span class="layui-badge {% if m.HealthRate == '100%' %}layui-bg-green{% else %}layui-bg-orange{% endif %}">{{ m.HealthRate }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div style="font-size: 12px; color: #999; margin-top: 8px;">
+                        <i class="fa fa-info-circle"></i> 提示：文章編輯時填寫「跨語言關聯ID（rel_id）」，即可在前端自動生成精準雙向 <code>&lt;link rel="alternate" hreflang="..."&gt;</code> 搜尋引擎宣告。
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="layui-col-xs12 layui-col-md5">
+            <div style="background:#fff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.05); overflow: hidden;">
+                <div style="padding: 14px 20px; border-bottom: 1px solid #f0f0f0;">
+                    <span style="font-size: 15px; font-weight: bold; color: #333;"><i class="fa fa-shield" style="color:#1E9FFF;"></i> SEO & GEO 搜尋引擎基礎配套</span>
+                </div>
+                <div style="padding: 15px;">
+                    <ul style="line-height: 2.2;">
+                        <li style="display:flex; justify-content:space-between; border-bottom: 1px dashed #eee; padding: 4px 0;">
+                            <span><i class="fa fa-check-circle" style="color:#009688;"></i> <strong>Robots.txt</strong> 動態環境隔離</span>
+                            <span class="layui-badge layui-bg-green">動態輸出 (Disallow/Allow)</span>
+                        </li>
+                        <li style="display:flex; justify-content:space-between; border-bottom: 1px dashed #eee; padding: 4px 0;">
+                            <span><i class="fa fa-check-circle" style="color:#009688;"></i> <strong>XML Sitemap</strong> 多語系覆蓋</span>
+                            <span class="layui-badge layui-bg-green">動態生成 100% 覆蓋</span>
+                        </li>
+                        <li style="display:flex; justify-content:space-between; border-bottom: 1px dashed #eee; padding: 4px 0;">
+                            <span><i class="fa fa-check-circle" style="color:#009688;"></i> <strong>LLMs.txt</strong> 大模型標準索引</span>
+                            <span class="layui-badge layui-bg-green">支援 AI Agent 檢索</span>
+                        </li>
+                        <li style="display:flex; justify-content:space-between; border-bottom: 1px dashed #eee; padding: 4px 0;">
+                            <span><i class="fa fa-check-circle" style="color:#009688;"></i> <strong>JSON-LD</strong> 結構化數據標註</span>
+                            <span class="layui-badge layui-bg-green">標準 schema.org 規範</span>
+                        </li>
+                        <li style="display:flex; justify-content:space-between; border-bottom: 1px dashed #eee; padding: 4px 0;">
+                            <span><i class="fa fa-check-circle" style="color:#009688;"></i> <strong>Canvas WebP</strong> 自動圖片壓縮</span>
+                            <span class="layui-badge layui-bg-green">質量80 / 最大1920px</span>
+                        </li>
+                        <li style="display:flex; justify-content:space-between; padding: 4px 0;">
+                            <span><i class="fa fa-check-circle" style="color:#009688;"></i> <strong>Canonical</strong> 規範網址宣告</span>
+                            <span class="layui-badge layui-bg-green">自動消歧 (No Dupes)</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── 最新客戶線索 & 系統開發架構 ─── -->
+    <div class="layui-row layui-col-space15">
+        <div class="layui-col-xs12 layui-col-md7">
+            <div style="background:#fff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.05); overflow: hidden;">
+                <div style="padding: 14px 20px; border-bottom: 1px solid #f0f0f0; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size: 15px; font-weight: bold; color: #333;"><i class="fa fa-comments-o" style="color:#FF5722;"></i> 最新客戶諮詢與線索 (Recent Inquiries)</span>
+                    <a href="{url./admin/Message/index}" class="layui-btn layui-btn-xs layui-btn-primary">查看全部線索</a>
+                </div>
+                <div style="padding: 15px;">
+                    <table class="layui-table">
+                        <thead>
+                            <tr style="background:#fafafa;">
+                                <th width="60">ID</th>
+                                <th width="100">聯繫人</th>
+                                <th width="120">聯繫電話</th>
+                                <th>留言內容</th>
+                                <th width="80">狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for msg in RecentMsgs %}
+                            <tr>
+                                <td>{{ msg.ID }}</td>
+                                <td><strong>{{ msg.Contacts }}</strong></td>
+                                <td>{{ msg.Mobile }}</td>
+                                <td style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ msg.Content }}</td>
+                                <td>{% if msg.Status == 1 %}<span class="layui-badge layui-bg-green">已審</span>{% else %}<span class="layui-badge layui-bg-orange">待審</span>{% endif %}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" style="text-align:center; color:#999; padding: 30px;">暫無最新客戶留言線索</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="layui-col-xs12 layui-col-md5">
+            <div style="background:#fff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.05); overflow: hidden;">
+                <div style="padding: 14px 20px; border-bottom: 1px solid #f0f0f0; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size: 15px; font-weight: bold; color: #333;"><i class="fa fa-server" style="color:#2F4056;"></i> 原生系統規格與版本特性</span>
+                    <a href="{url./admin/Site/server}" class="layui-btn layui-btn-xs layui-btn-primary">詳細遙測</a>
+                </div>
+                <div style="padding: 15px;">
+                    <table class="layui-table table-two">
+                        <tbody>
+                            <tr>
+                                <th width="120">核心架構</th>
+                                <td><strong>GbootCMS {{ AppVersion }}</strong> (Go + Gin + GORM)</td>
+                            </tr>
+                            <tr>
+                                <th>二進制規格</th>
+                                <td>UPX 高壓縮原生 ELF (< 9MB 瘦身版)</td>
+                            </tr>
+                            <tr>
+                                <th>資料庫引擎</th>
+                                <td>Pure-Go SQLite 3 (WAL 高並發日誌模式)</td>
+                            </tr>
+                            <tr>
+                                <th>數據庫體積</th>
+                                <td>{$Server.DBSize}</td>
+                            </tr>
+                            <tr>
+                                <th>宿主環境</th>
+                                <td>{$Server.PhpOs} / {$Server.ServerSoftware}</td>
+                            </tr>
+                            <tr>
+                                <th>版本特性</th>
+                                <td>
+                                    <span class="layui-badge layui-bg-blue">無外部依賴</span>
+                                    <span class="layui-badge layui-bg-green">零位次猜測</span>
+                                    <span class="layui-badge layui-bg-cyan">全站字典化</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
+
 {include file='common/foot.html'}

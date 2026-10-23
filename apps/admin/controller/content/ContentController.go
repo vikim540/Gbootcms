@@ -108,6 +108,8 @@ func (cc *ContentController) Add(c *gin.Context) {
 			}
 		}
 
+		relID, _ := strconv.Atoi(c.DefaultPostForm("rel_id", "0"))
+
 		doc := model.Content{
 			Scode:       c.PostForm("scode"),
 			Subscode:    c.PostForm("subscode"),
@@ -128,6 +130,7 @@ func (cc *ContentController) Add(c *gin.Context) {
 			Sorting:     sorting,
 			Status:      helper.ParseInt(c.DefaultPostForm("status", "1")),
 			Filename:    filename,
+			RelID:       relID,
 			Outlink:     c.PostForm("outlink"),
 			Tags:        strings.ReplaceAll(c.PostForm("tags"), "，", ","),
 			TitleColor:  c.PostForm("titlecolor"),
@@ -339,6 +342,9 @@ func (cc *ContentController) Mod(c *gin.Context) {
 
 		if v, err := strconv.Atoi(c.DefaultPostForm("visits", "0")); err == nil {
 			updates["visits"] = v
+		}
+		if v, err := strconv.Atoi(c.DefaultPostForm("rel_id", "0")); err == nil {
+			updates["rel_id"] = v
 		}
 		// 注意：詳情編輯不改排序值（與 PbootCMS PHP 一致）
 		// 排序僅通過列表頁批量排序修改

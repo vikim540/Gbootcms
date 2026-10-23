@@ -2,13 +2,13 @@
 {gboot:if({page:rows}>0)}
    <nav aria-label="page navigation" class="my-4">
      <div class="pagination justify-content-center">
-     	<a class="page-item page-link" href="{page:index}">首頁</a>
-     	<a class="page-item page-link" href="{page:pre}">上一頁</a>
+     	<a class="page-item page-link" href="{page:index}">{i18n:home_page}</a>
+     	<a class="page-item page-link" href="{page:pre}">{i18n:prev_page}</a>
       	{page:numbar}<!-- 數字條，小屏幕時自動隱藏-->
-      	<a class="page-item page-link" href="{page:next}">下一頁</a>
-      	<a class="page-item page-link" href="{page:last}">尾頁</a>
+      	<a class="page-item page-link" href="{page:next}">{i18n:next_page}</a>
+      	<a class="page-item page-link" href="{page:last}">{i18n:last_page}</a>
      </div>
    </nav>	
 {else}
-   	<div class="text-center my-5 text-secondary">未查詢到任何資料！</div>
+   	<div class="text-center my-5 text-secondary">{i18n:no_data}</div>
 {/gboot:if}

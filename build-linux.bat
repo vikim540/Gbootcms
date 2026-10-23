@@ -21,7 +21,10 @@ set GOPROXY=https://goproxy.cn,direct
 set GOOS=linux
 set GOARCH=amd64
 set CGO_ENABLED=0
-go build -ldflags="-s -w" -trimpath -o "%APP_DIR%bin\gbootcms" .
+for /f "tokens=*" %%i in ('git rev-parse --short HEAD 2^>nul') do set GIT_COMMIT=%%i
+if "%GIT_COMMIT%"=="" set GIT_COMMIT=release
+for /f "tokens=*" %%i in ('powershell -Command "Get-Date -Format 'yyyy-MM-dd HH:mm'"') do set BUILD_TIME=%%i
+go build -ldflags="-s -w -buildid= -X 'gbootcms/core/version.GitCommit=%GIT_COMMIT%' -X 'gbootcms/core/version.BuildTime=%BUILD_TIME%' -X 'gbootcms/core/version.Version=v1.0.0'" -trimpath -o "%APP_DIR%bin\gbootcms" .
 if %ERRORLEVEL% neq 0 (
     echo [FAILED] Build error.
     pause

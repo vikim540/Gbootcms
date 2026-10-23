@@ -13,6 +13,7 @@ import (
 	"gbootcms/apps/admin/model"
 	"gbootcms/core/acodeplugin"
 	"gbootcms/core/basic"
+	"gbootcms/core/version"
 
 	"github.com/flosch/pongo2/v6"
 	"github.com/gin-gonic/gin"
@@ -42,13 +43,13 @@ func Render(c *gin.Context, tpl string, data gin.H) {
 
 	// Inject CMS constants
 	data["CmsName"] = model.GetConfigValue("cmsname", "Gbootcms")
-	data["CoreVersion"] = "1.8.1"
-	data["AppVersion"] = "3.2.12"
-	data["ReleaseTime"] = "2025-04-24"
+	data["CoreVersion"] = version.Version
+	data["AppVersion"] = version.Version
+	data["ReleaseTime"] = version.BuildTime
 	data["SiteDir"] = "/"
 	data["AppThemeDir"] = "/static/admin"
 	data["CoreDir"] = "/static/admin"
-	data["BuildVersion"] = BuildVersion
+	data["BuildVersion"] = version.GitCommit
 	data["License"] = 3
 	// 使用原始 PbootCMS URL（若經 NoRoute 重寫則取請求標頭中的原始路徑，否則取當前路徑）
 	pageURL := c.Request.URL.Path

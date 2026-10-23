@@ -1,12 +1,15 @@
 package content
 
 import (
-	"gbootcms/apps/admin/model"
-	"gbootcms/apps/admin/model/content"
-	"gbootcms/apps/common"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"gbootcms/apps/admin/model"
+	"gbootcms/apps/admin/model/content"
+	"gbootcms/apps/common"
+	"gbootcms/core/version"
 
 	"github.com/gin-gonic/gin"
 )
@@ -105,40 +108,82 @@ func (si *SiteController) Mod(c *gin.Context) {
 // Server - 伺服器資訊頁面
 // 展示應用版本、技術棧模組與中介軟體，讓管理者一目了然專案技術全貌。
 func (si *SiteController) Server(c *gin.Context) {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	allocMB := fmt.Sprintf("%.2f MB", float64(m.Alloc)/1024/1024)
+	totalAllocMB := fmt.Sprintf("%.2f MB", float64(m.TotalAlloc)/1024/1024)
+	sysMB := fmt.Sprintf("%.2f MB", float64(m.Sys)/1024/1024)
+	numGC := fmt.Sprintf("%d 次", m.NumGC)
+	goroutines := fmt.Sprintf("%d 個", runtime.NumGoroutine())
+	uptime := version.Uptime()
+
+	// 資料庫檔案與 WAL 狀態
+	dbPath := model.GetDBName()
+	dbSizeStr := "未知"
+	walSizeStr := "無 / 未開啟"
+	if fi, err := os.Stat(dbPath); err == nil {
+		dbSizeStr = fmt.Sprintf("%.2f MB", float64(fi.Size())/1024/1024)
+	}
+	walPath := dbPath + "-wal"
+	if fi, err := os.Stat(walPath); err == nil {
+		walSizeStr = fmt.Sprintf("%.2f KB (活躍)", float64(fi.Size())/1024)
+	}
+
+	// 上傳目錄大小
+	var uploadSize int64
+	_ = filepath.Walk("static/upload", func(_ string, info os.FileInfo, err error) error {
+		if err == nil && info != nil && !info.IsDir() {
+			uploadSize += info.Size()
+		}
+		return nil
+	})
+	uploadSizeStr := fmt.Sprintf("%.2f MB", float64(uploadSize)/1024/1024)
+
 	// --- 技術棧模組清單 ---
 	type moduleInfo struct {
 		Name string
 		Desc string
 	}
 	modules := []moduleInfo{
-		{"Gin", "HTTP Web 框架 (v" + gin.Version + ")"},
-		{"GORM", "ORM 資料庫框架 (v" + gormVersion + ")"},
-		{"pongo2", "Django 語法模板引擎 (v6)"},
-		{"SQLite", "嵌入式資料庫引擎 (pure Go, glebarez/sqlite)"},
-		{"net/smtp", "標準庫 SMTP 郵件發送"},
-		{"crypto/tls", "標準庫 TLS 加密傳輸"},
-		{"image/*", "標準庫圖片解碼 (JPEG/PNG/GIF/BMP/WebP)"},
-		{"fsnotify", "檔案系統事件監聽 (模板熱更新)"},
-		{"gorilla/sessions", "Session 會話管理"},
-		{"net/http", "標準庫 HTTP 伺服器"},
+		{"Gin Engine", "高並發 HTTP Web 核心 (v" + gin.Version + ")"},
+		{"GORM ORM", "現代化關係型映射層 (v" + gormVersion + ")"},
+		{"Pongo2", "安全語義 AST 視圖渲染器 (v6)"},
+		{"Pure-Go SQLite", "嵌入式高效能資料庫驅動 (glebarez/sqlite WAL 模式)"},
+		{"Native WebP", "自動無損/有損圖片轉換與響應式優化"},
+		{"SEO Provider", "自動化 JSON-LD、hreflang 跨語言多維標註引擎"},
+		{"net/smtp", "標準庫安全郵件傳輸引擎"},
+		{"fsnotify", "核心模板與靜態資源動態熱載入監聽"},
+		{"gorilla/sessions", "全狀態分散式 Session 封裝"},
 	}
 
-	// --- 已載入的中介軟體 ---
 	middlewares := []string{
-		"AdminAuth (後台登入驗證)",
-		"PathRewrite (路徑重寫)",
-		"Session (會話管理)",
+		"AdminAuth (後台管理員認證與 RBAC 權限校驗)",
+		"PathRewrite (多語言 acode 自動分離與 301 重定向引擎)",
+		"Session (全域安全加密會話狀態中介層)",
+		"Gzip / WebP (現代化網路協定傳輸壓縮)",
+		"IPFilter / RateLimit (智慧防爬與安全訪問頻率防禦)",
 	}
 
 	common.Render(c, "system/server.html", gin.H{
-		"go_version":   runtime.Version(),
-		"goos":         runtime.GOOS,
-		"goarch":       runtime.GOARCH,
-		"web_software": "Go " + runtime.Version() + " / Gin v" + gin.Version,
-		"db_driver":    "SQLite (GORM + glebarez/sqlite)",
-		"modules":      modules,
-		"middlewares":  middlewares,
-		"route_count":  "~80 條已註冊路由",
+		"go_version":     runtime.Version(),
+		"goos":           runtime.GOOS,
+		"goarch":         runtime.GOARCH,
+		"web_software":   "Go " + runtime.Version() + " / Gin v" + gin.Version,
+		"db_driver":      "SQLite 3 (GORM + glebarez/sqlite WAL)",
+		"modules":        modules,
+		"middlewares":    middlewares,
+		"route_count":    "~80 條已註冊路由",
+		"uptime":         uptime,
+		"goroutines":     goroutines,
+		"alloc_mb":       allocMB,
+		"total_alloc_mb": totalAllocMB,
+		"sys_mb":         sysMB,
+		"num_gc":         numGC,
+		"db_path":        dbPath,
+		"db_size":        dbSizeStr,
+		"wal_size":       walSizeStr,
+		"upload_size":    uploadSizeStr,
 	})
 }
 

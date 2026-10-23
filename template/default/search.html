@@ -5,8 +5,8 @@
 <!-- 搜索標題 -->
 <div class="jumbotron jumbotron-fluid mb-2" style="background:#e9ecef;background-size:cover;background-repeat:no-repeat">
   <div class="container text-light">
-    <h1 class="fs-18 fs-sm-26 wow fadeInDown">搜索結果</h1>
-    <p class="fs-14 fs-sm-18 wow fadeInDown">關鍵字：{gboot:keyword}</p>
+    <h1 class="fs-18 fs-sm-26 wow fadeInDown">{i18n:search_results}</h1>
+    <p class="fs-14 fs-sm-18 wow fadeInDown">{i18n:keyword_label}：{gboot:keyword}</p>
   </div>
 </div>
 
@@ -34,9 +34,9 @@
      <!-- 搜索-->
      <form class="form-inline mb-5 justify-content-center" action="{gboot:scaction}"  method="get">
 		  <div class="form-group mx-sm-3 mb-2">
-		    <input type="text" name="keyword" class="form-control" placeholder="請輸入關鍵字">
+		    <input type="text" name="keyword" class="form-control" placeholder="{i18n:enter_keyword}">
 		  </div>
-		  <button type="submit" class="btn btn-info mb-2">搜索</button>
+		  <button type="submit" class="btn btn-info mb-2">{i18n:search}</button>
      </form>
 </div>
 

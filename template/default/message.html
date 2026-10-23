@@ -6,7 +6,7 @@
 	{include file=comm/position.html}
 
 	{gboot:if({page:rows}>0)}
-    	<h5 class="border-bottom border-info pb-2"><i class="fa fa-sliders" aria-hidden="true"></i> 留言記錄</h5>
+    	<h5 class="border-bottom border-info pb-2"><i class="fa fa-sliders" aria-hidden="true"></i> {i18n:message_record}</h5>
 	{/gboot:if}
 	 
 	<!-- 留言記錄 -->
@@ -26,7 +26,7 @@
 	    <div class="media mt-3 border-top-dashed pt-3">
 	      <img class="mr-3" src="{gboot:sitetplpath}/images/user.png" height="25">
 	      <div class="media-body">
-	        <h5 class="mt-0">管理員回覆：</h5>
+	        <h5 class="mt-0">{i18n:admin_reply}：</h5>
 	        <p>[message:recontent]</p>
 	        <p><span class="badge badge-light text-secondary font-weight-normal">[message:replydate]</span></p>
 	      </div>
@@ -40,11 +40,11 @@
  	{gboot:if({page:rows}>0)}
 	<nav aria-label="page navigation" class="my-4">
       <div class="pagination justify-content-center">
-      	<a class="page-item page-link" href="{page:index}">首頁</a>
-        <a class="page-item page-link" href="{page:pre}">上一頁</a>
+      	<a class="page-item page-link" href="{page:index}">{i18n:home_page}</a>
+        <a class="page-item page-link" href="{page:pre}">{i18n:prev_page}</a>
         {page:numbar}<!-- 數字條，小屏幕時自動隱藏-->
-        <a class="page-item page-link" href="{page:next}">下一頁</a>
-        <a class="page-item page-link" href="{page:last}">尾頁</a>
+        <a class="page-item page-link" href="{page:next}">{i18n:next_page}</a>
+        <a class="page-item page-link" href="{page:last}">{i18n:last_page}</a>
       </div>
     </nav>
     {/gboot:if}
@@ -56,41 +56,41 @@
         	<form class="my-4" onsubmit="return submsg(this);">
                 <!-- 蜜罐欄位：人類不可見，機器人會自動填充 -->
                 <div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">
-                    <label>請勿填寫此欄位</label>
+                    <label>{i18n:do_not_fill}</label>
                     <input type="text" name="website" tabindex="-1" autocomplete="off">
                 </div>
                 <!-- 時間陷阱：記錄頁面載入時間，提交間隔過短判定為機器人 -->
                 <input type="hidden" name="_loadts" value="{gboot:timestamp}">
                 <div class="form-group">
-                    <label for="contacts">聯繫人</label>
+                    <label for="contacts">{i18n:contacts}</label>
                     <div>
-                        <input type="text" name="contacts" required id="contacts" class="form-control" placeholder="請輸入聯繫人">
+                        <input type="text" name="contacts" required id="contacts" class="form-control" placeholder="{i18n:enter_contacts}">
                     </div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="mobile">手　機</label>
+                    <label for="mobile">{i18n:mobile}</label>
                     <div>
-                        <input type="text" name="mobile" required id="mobile" class="form-control" placeholder="請輸入聯繫人手機">
+                        <input type="text" name="mobile" required id="mobile" class="form-control" placeholder="{i18n:enter_mobile}">
                     </div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="content" >內　容</label>
+                    <label for="content">{i18n:content_label}</label>
                     <div>
-                        <textarea name="content" id="content" class="form-control" placeholder="請輸入留言內容"></textarea>
+                        <textarea name="content" id="content" class="form-control" placeholder="{i18n:enter_content}"></textarea>
                     </div>
                 </div>
                 
                 {gboot:if({gboot:msgcodestatus})}
                 <div class="form-group">
-                    <label for="checkcode">驗證碼</label>
+                    <label for="checkcode">{i18n:checkcode}</label>
                     <div class="row">
                         <div class="col-6">
-                            <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="請輸入驗證碼">
+                            <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="{i18n:enter_checkcode}">
                         </div>
                         <div class="col-6">
-                            <img title="點擊刷新" class="codeimg" style="height:33px;" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
+                            <img title="{i18n:click_refresh}" class="codeimg" style="height:33px;" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
                         </div>
                     </div>
                 </div>
@@ -98,13 +98,13 @@
                 
                 {gboot:if({gboot:msgturnstilestatus})}
                 <div class="form-group">
-                    <label>人機驗證</label>
+                    <label>{i18n:captcha}</label>
                     <div class="cf-turnstile" data-sitekey="{gboot:turnstile_sitekey}" data-theme="light"></div>
                 </div>
                 {/gboot:if}
                 
                 <div class="form-group">
-                   <button type="submit" class="btn btn-info mb-2">提交留言</button>
+                   <button type="submit" class="btn btn-info mb-2">{i18n:submit_message}</button>
                 </div>
             </form>
         </div>

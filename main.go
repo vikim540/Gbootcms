@@ -136,6 +136,9 @@ func main() {
 	// 從 DB 載入活躍 session 到記憶體（SQLite 持久化 session）
 	common.LoadSessionsFromDB()
 
+	// 啟動時清理舊快取
+	os.RemoveAll("runtime/cache")
+
 	basic.InitViewEngine(cfg.App.TemplateDir, cfg.App.AdminTemplateDir)
 
 	tagParser := parser.New()
