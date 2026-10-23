@@ -255,20 +255,7 @@ layui.use(['element','upload','laydate','form'], function(){
 	,choose: function(obj){
 		var item = this.item;  // 當前點擊的上傳按鈕 DOM
 		obj.preview(function(index, file, result){
-			var cfg = (typeof gbootImageConfig !== 'undefined') ? gbootImageConfig : {};
-			var enable = parseInt(cfg.enable) === 1;
-			var warnSize = parseInt(cfg.warnSize) || 1024;
-			var fileSizeKB = file.size / 1024;
-
-			if (enable && fileSizeKB > warnSize && typeof layui.squoosh !== 'undefined') {
-				// 大圖片 → Squoosh 壓縮對比
-				layui.squoosh.open(file, function(compressedFile){
-					doImageUpload(compressedFile, item);
-				});
-			} else {
-				// 小圖片或未啟用 → 直接上傳
-				doImageUpload(file, item);
-			}
+			doImageUpload(file, item);
 		});
 	}
   });

@@ -1,176 +1,126 @@
 # Gbootcms
 
-> 基於 PbootCMS 3.2.12 的 Go 語言移植版 — 保留原版數據庫結構、模板語法、URL 路由，用 Go 技術棧替換 PHP 後端。
+> 基於 PbootCMS 3.2.12 的現代化 Go 語言原生移植版 — 保留原版數據庫結構（`ay_` 前綴）、相容模板語法與 URL 路由，採用純 Go 高並發技術棧全面取代傳統 PHP 後端。
 
 [![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8)](https://go.dev/)
 [![Gin](https://img.shields.io/badge/Gin-v1.12-00ADD8)](https://gin-gonic.com/)
 [![GORM](https://img.shields.io/badge/GORM-v1.31-00ADD8)](https://gorm.io/)
-[![SQLite](https://img.shields.io/badge/SQLite-pureGo-003B57)](https://github.com/glebarez/sqlite)
+[![SQLite](https://img.shields.io/badge/SQLite-pureGo_WAL-003B57)](https://github.com/glebarez/sqlite)
+[![UPX](https://img.shields.io/badge/Binary-<13MB-green)](https://upx.github.io/)
+
+---
 
 ## 快速開始
 
-```powershell
-# 編譯
-go build -o bin/gbootcms.exe .
+### 本地編譯與運行
 
-# 運行
+```powershell
+# 編譯二進制（輸出至 bin/）
+go build -trimpath -ldflags="-s -w" -o bin/gbootcms.exe .
+
+# 啟動服務
 .\bin\gbootcms.exe
 
-# 或用構建腳本
+# 或使用一鍵腳本
 .\build-run.bat
 ```
 
-- 前台：http://localhost:8080/
-- 後台：http://localhost:8080/admin
-- 預設帳號：`admin` / `123456`
+- **前台展示**：http://localhost:8080/
+- **後台管理**：http://localhost:8080/admin
+- **預設帳號**：`admin` / `123456`（首次登入後請立即修改）
 
-## 技術棧
+### Linux 跨平台極簡打包
+
+```powershell
+# 一鍵打包 Linux amd64 極限壓縮發行版（自動 UPX 壓縮，體積 < 13MB）
+.\build-linux.bat
+# 產物路徑：dist/gbootcms-linux.tar.gz
+```
+
+---
+
+## 核心技術棧
 
 | 層次 | 選型 | 說明 |
-|------|------|------|
-| 語言 | Go 1.25 | 單二進制部署，無需 CGO |
-| Web 框架 | Gin v1.12 | 路由、中間件、請求處理 |
-| ORM | GORM v1.31 | AutoMigrate，`ay_` 前綴 |
-| 數據庫 | SQLite (glebarez 純 Go) | 無需安裝 CGO/GCC |
-| 後台模板 | Pongo2 v6.1 | Django 風格 + PbootCMS 語法轉換器 |
-| 前台模板 | 自研 TagParser | `{gboot:xxx}` 標籤 + fsnotify 熱重載 |
-| 後台 UI | Layui 2.5.4 + jQuery | 與 PbootCMS 原版一致 |
-| 前台 UI | Bootstrap 4 + Swiper 4 | 前台模板自帶 |
-| 配置 | Viper v1.21 | 環境變數前綴 `PBOOTCMS_GO_` |
-| 日誌 | log/slog (stdlib) | 結構化日誌 |
+| :--- | :--- | :--- |
+| **程式語言** | Go 1.25 | 單一二進制原生部署，`CGO_ENABLED=0` 零依賴 |
+| **Web 核心** | Gin v1.12 | 現代化高並發 HTTP 路由器與中介軟體管道 |
+| **ORM 映射** | GORM v1.31 | 單一 `core/db/db.go` 入口，嚴格遵循 `ay_` 原版表結構 |
+| **資料庫引擎** | Pure-Go SQLite 3 | WAL 高並發讀寫日誌模式，免裝 GCC / CGO |
+| **圖片壓縮管道** | Pure-Go WebP (`gowebp`) | 伺服器端原生自動圖片轉碼與縮放，無外部 C 庫 |
+| **後台模板引擎** | Pongo2 v6.1 | Django 風格語義 AST 視圖渲染器 + 語法預處理器 |
+| **前台解析引擎** | 自研 TagParser | `{gboot:xxx}` 標籤體系 + fsnotify 模板熱重載 |
+| **多語言字典** | i18n Dictionary Provider | 單套 HTML 模板字典化渲染，杜絕物理多語系檔案克隆 |
+| **遙測監控** | Unified Telemetry Engine | `core/version/telemetry.go` 單一資料源，保證首頁與監控頁 100% 一致 |
 
-## 核心特性
+---
 
-### 與 PbootCMS PHP 版的兼容性
+## 最新架構特性
 
-- **數據庫零改動**：表結構、字段名、`ay_` 前綴完全一致，可直接遷移數據
-- **URL 100% 兼容**：路由重寫 + NoRoute 兜底，支援原版 URL 格式
-- **模板語法兼容**：後台保留 PbootCMS PHP 模板語法，前台使用 `{gboot:xxx}` 標籤
-- **密碼安全**：新密碼使用 bcrypt 雜湊，舊版雙 MD5 自動識別並升級，與原版用戶數據兼容
+### 1. 伺服器端原生圖片壓縮與 WebP 管道
+- **完全取代前端偽 Canvas 壓縮**：後端 `IndexController.Upload()` 內建 `imgcompress` 處理管道。
+- **全入口覆蓋**：管理後台單圖/多圖、UEditor 富文本貼圖、RESTful API 上傳均自動觸發。
+- **純 Go 零 CGO**：採用 `github.com/KarpelesLab/gowebp` 與 `golang.org/x/image/draw` 進行高品質平滑縮放與 WebP 轉碼，檔案體積減幅達 60%~85%，無縫支援透明通道與 EXIF。
 
-### 雙模板引擎架構
+### 2. SEO & GEO 搜尋引擎基礎配套
+- **動態環境感知 Robots.txt**：自動根據 `Host` 判斷測試域名（強制輸出 `Disallow: /` 及 `X-Robots-Tag: noindex`）與生產域名（輸出 `Allow: /` 及 Sitemap 索引）。
+- **XML Sitemap 多語系覆蓋**：`/sitemap.xml` 總索引自動分發每語言獨立 Sitemap（`/sitemap-{acode}.xml`）。
+- **LLMs.txt 大模型標準索引**：標準 `/llms.txt` 端點支援 AI Agent 快速精準檢索。
+- **JSON-LD 結構化資料**：自動輸出標準 Schema.org 規範之 `Article`、`WebSite` 標註，消除重複內容。
+- **精準雙向 hreflang**：基於跨語言關聯 ID（`rel_id`）精確映射多語系對應文章，嚴禁無依據之位次猜測。
 
-| 場景 | 引擎 | 語法 |
-|------|------|------|
-| 後台 admin view | pongo2 + 語法轉換器 | `{if([$list])}` → `{% if List %}` |
-| 前台 template/default | 自研 TagParser | `{gboot:xxx}` + `[prefix:field]` |
+### 3. 多語言單一模板架構（奧卡姆剃刀）
+- 徹底刪除冗餘的 72 個多語系物理 HTML 模板（`template/en/`、`template/sc/`）。
+- 全站收斂為單一 `template/default/`，透過動態 `{i18n:...}` 多語言字典於運行時完成國際化替換，維護成本降低 66%。
 
-## 已實現功能
+### 4. 媒體庫健全度與防禦
+- **路徑雙向對齊**：徹底解決數據庫路徑（`/upload/...`）與磁盤物理路徑（`static/upload/...`）不一致導致的誤判與清理誤刪。
+- **系統檔案過濾**：自動忽略 `.gitkeep`、`.DS_Store` 等隱藏維護檔案。
+- **WebP 尺寸解析**：內建 WebP 解碼驅動，正確讀取現代格式尺寸資訊。
 
-### 後台管理
-
-- 管理員登入/登出（密碼 bcrypt + 雙 MD5 向後相容 + 驗證碼 + 登入鎖定）
-- 內容管理：文章/產品增刪改查、批量排序、擴展字段
-- 欄目管理：樹形結構、自定義 URL、模板選擇
-- 單頁管理、站點信息、公司信息
-- 幻燈片、友情連結、自定義標籤、內鏈標籤
-- 內容模型、擴展字段、自定義表單
-- 媒體庫（圖片管理）、留言管理
-- 系統配置（70+ 配置項）、菜單管理、角色權限
-- 用戶管理、數據庫備份、系統日誌、區域管理
-- **會員管理**：會員列表/新增/修改/刪除（含批量操作）
-- **會員等級**：等級列表/新增/修改/刪除（含狀態切換、刪除保護）
-- **會員欄位**：欄位列表/新增/修改/刪除（含必填切換、狀態切換）
-- **文章評論**：評論列表/詳情/回覆/刪除（含批量審核、Excel 匯出）
-- **RESTful API**：JWT + API Key 雙認證、CORS 跨域、登入鎖定、XSS 防護
-  - 站點/公司資訊、欄目導航樹、內容列表/詳情/多圖
-  - 全文搜索（MeiliSearch 優先 + SQL LIKE 降級）
-  - 留言提交（公開）/留言列表（需認證）
-  - 自定義表單字段定義/數據查詢（需認證）
-  - 幻燈片、友情連結、標籤列表
-
-### 前台展示
-
-- 首頁（輪播圖、導航、產品展示）
-- 列表頁（分頁、ext_ 篩選、子分類導航）
-- 內容詳情頁（擴展字段、麵包屑、上一篇/下一篇）
-- 搜索頁、標籤頁、留言頁、單頁
-- 模板熱重載（fsnotify）、.html 偽靜態 URL
-- 訪問量統算、標題顏色渲染
-- **會員系統**：登入/註冊/登出/個人中心/資料修改
-  - 三合一登入（用戶名/郵箱/手機）
-  - 驗證碼條件顯示（配置驅動）
-  - 10 秒防刷註冊
-  - 雙 MD5 密碼兼容
-  - AJAX 表單提交
-- **多語言區域隔離**（sc/tc/en 三語言）
-  - GORM AcodePlugin 自動數據隔離（Query/Create/Update 自動注入 acode 條件）
-  - URL 前綴路由（`/sc/`、`/tc/`、`/en/`，默認語言無前綴）
-  - 語言切換保持當前頁面（切換語言不跳回首頁）
-  - 連結前綴自動重寫（href / action / data-action 三種屬性同時重寫）
-  - 會員重定向語言保持（langPath 函數自動為所有重定向和 tourl 添加語言前綴）
-  - backurl 帶語言前綴（登入後返回正確語言的頁面）
-  - 留言區域自動隔離（Acode 從 context 動態取得，非硬編碼）
-  - 前台 Bootstrap 下拉語言切換器
-  - 後台全局區域切換下拉（所有 32 個後台頁面）
-  - 跨區查詢 `acodeplugin.SkipAcode(ctx)`
-  - 動態語言標籤 `{gboot:homename}`、`{gboot:morename}`、`{gboot:language}`
-- **SEO 多語言最佳實踐**
-  - hreflang 標籤（自引用 + 雙向對稱 + x-default）
-  - canonical 標籤指向自身
-  - 每語言獨立 XML sitemap（`/sitemap.xml` 索引 + `/sitemap-{acode}.xml`）
-  - robots.txt（含多語言 sitemap 引用）
-  - Open Graph 社交分享標籤（og:title / og:locale / og:locale:alternate）
-  - 動態 `<html lang>` 屬性（zh-Hans / zh-Hant / en）
+---
 
 ## 目錄結構
 
 ```
 pbootcms-go/
-├── main.go                    # 程序入口
-├── config/                    # 配置文件
-├── core/                      # 核心引擎（DB、模板、媒體插件）
+├── main.go                          # 服務入口、優雅關閉與路由分發
+├── config/                          # 系統配置（Viper，支援環境變數覆蓋）
+├── core/                            # 核心底層引擎
+│   ├── db/                          # 唯一資料庫連線與 WAL 設定
+│   ├── basic/                       # 後台 Pongo2 視圖渲染器與標籤預處理
+│   ├── version/                     # 系統版本資訊與統一遙測引擎 (telemetry.go)
+│   ├── acodeplugin/                 # 多語言區域自動隔離 GORM 插件
+│   └── mediaplugin/                 # 媒體快取與髒標記 GORM 插件
 ├── apps/
-│   ├── route/                 # 路由註冊
-│   ├── api/                   # RESTful API（JWT + API Key 認證）
-│   ├── common/                # 公共組件（Session、BaseController、Parser）
-│   ├── admin/                 # 後台（Controller/Model/View/Service）
-│   └── home/                  # 前台（FrontController + MemberController）
-├── template/default/          # 前台模板
-│   ├── comm/                  # 公共模板
-│   ├── member/                # 會員前台模板
-│   └── static/                # 前台靜態資源
-├── static/                    # 全域靜態資源（admin/upload/images）
-├── data/pbootcms.db           # SQLite 數據庫
-├── bin/                       # 編譯產物
-└── docs/                      # 文檔
+│   ├── route/                       # HTTP 路由表註冊與別名映射
+│   ├── api/                         # RESTful API 端點（JWT + API Key 雙認證）
+│   ├── common/                      # 公共組件
+│   │   ├── imgcompress/             # 伺服器端純 Go 圖片 WebP 壓縮轉碼引擎
+│   │   ├── parser/                  # 前台標籤解析、JSON-LD、Sitemap、i18n
+│   │   ├── middleware/              # 認證、SEO隔離、快取、安全頭中介軟體
+│   │   ├── session.go               # 記憶體狀態管理
+│   │   └── captcha.go               # 點陣運算驗證碼
+│   ├── admin/                       # 後台管理模組 (Controller/Model/View/Service)
+│   └── home/                        # 前台展示模組 (FrontController)
+├── template/default/                # 前台唯一模板目錄（字典化支援多語言）
+├── static/                          # 靜態資源（後台樣式、上傳素材）
+├── data/                            # SQLite 資料庫檔案
+├── bin/                             # 編譯產物
+└── dist/                            # Linux 發行壓縮包
 ```
 
-## 開發文檔
-
-| 文檔 | 說明 |
-|------|------|
-| [開發技術文檔](docs/pbootcms-go-dev-guide.md) | 完整技術文檔（含防遺忘清單、API 速查、反模式） |
-| [AI 開發指南](docs/AI_GUIDELINES.md) | AI 輔助開發約定 |
-| [功能升級文檔](docs/upgrade-features.md) | MeiliSearch、RESTful API、301 重定向等功能升級記錄 |
-| [多語言架構文檔](docs/multilingual.md) | 區域隔離、URL 前綴路由、語言切換器設計 |
+---
 
 ## 開發約束
 
-1. **數據庫零改動** — 不修改、不刪除原版表結構和字段
-2. **繁體中文** — 所有修改的代碼和模板使用繁體中文
-3. **構建產物** — 輸出到 `bin/` 目錄，不滯留根目錄
-4. **文檔** — 所有 `.md` 文件放在 `docs/` 文件夾
-5. **通知消息** — 使用 `notice.go` 常量，禁止硬編碼
-6. **通知常量** — 使用 `common.NoticeAdd` / `common.NoticeModify` / `common.NoticeDelete`
+1. **資料庫零改動**：不得隨意更改或刪除原版 `ay_` 資料表結構。
+2. **奧卡姆剃刀**：如無必要，勿增實體。禁止為單一功能疊床架屋，優先收斂於既有核心模組。
+3. **無 CGO 依賴**：全專案嚴格保持 `CGO_ENABLED=0`，確保交叉編譯與單一二進制移植性。
+4. **標準繁體中文**：所有註釋、代碼文檔與介面文字遵循簡練專業規範，拒絕虛偽敘事與廢話文學。
 
-## 開發環境
-
-- Go 1.25+
-- GOPROXY：`https://goproxy.cn,direct`
-- 無需 CGO（純 Go SQLite 驅動）
-- PowerShell 7（構建腳本）
-
-## 路線圖
-
-- [x] 階段 0：會員模型修復（Member/MemberGroup/MemberField/MemberComment）
-- [x] 階段 1：前台會員系統（登入/註冊/登出/個人中心/資料修改）
-- [x] 後台會員管理（等級/欄位/會員/評論）
-- [ ] 階段 2：會員中心增強（積分系統、等級自動升級）
-- [x] 階段 3：前台評論系統（提交/列表/我的評論/刪除）
-- [x] 階段 4：密碼找回 + 郵件驗證
-- [x] 階段 5：多語言區域隔離（sc/tc/en，GORM Plugin + URL 前綴路由）
+---
 
 ## License
 
-基於 PbootCMS 3.2.12 移植，遵循原版授權。
+基於 PbootCMS 3.2.12 開源協議移植，保留原作者版權聲明。

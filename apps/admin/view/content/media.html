@@ -102,11 +102,11 @@
   </div>
 </div>
 
+<script src="{APP_THEME_DIR}/layui/layui.all.js?v=v2.5.4"></script>
 <script>
-var _jq = window.jQuery;
-layui.use(['layer'], function(){
+$(function(){
     var layer = layui.layer;
-    var $ = _jq;
+    var $ = window.jQuery;
 
     // ─── XSS 防護：HTML 轉義函數 ──────────────────────────
     function esc(s) {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"gbootcms/apps/admin/model"
 	"gbootcms/apps/common"
+	"gbootcms/apps/common/imgcompress"
 	"gbootcms/apps/common/storage"
 	"gbootcms/apps/common/watermark"
 	"gbootcms/config"
@@ -813,8 +814,20 @@ func (ic *IndexController) Upload(c *gin.Context) {
 		return
 	}
 
+	// 伺服器端高效圖片壓縮與 WebP 轉碼管道（純 Go 原生支援，零 CGO，覆蓋全站上傳入口）
+	if isImageExt(ext) && model.GetConfigValue("image_compress_enable", "1") == "1" {
+		quality, _ := strconv.Atoi(model.GetConfigValue("image_quality", "80"))
+		maxWidth, _ := strconv.Atoi(model.GetConfigValue("image_max_width", "1920"))
+		if newPath, err := imgcompress.CompressToWebP(savePath, imgcompress.Options{
+			Quality:  quality,
+			MaxWidth: maxWidth,
+		}); err == nil {
+			savePath = newPath
+		}
+	}
+
 	// 對圖片應用水印（對齊 PHP watermark_img，僅圖片格式且水印開啟時生效）
-	if isImageExt(ext) {
+	if isImageExt(filepath.Ext(savePath)) {
 		if err := watermark.ApplyWatermark(savePath); err != nil {
 			// 水印失敗不影響上傳，僅記錄日誌
 			slog.Warn("水印處理失敗", "err", err)
@@ -840,7 +853,7 @@ func (ic *IndexController) Upload(c *gin.Context) {
 // isImageExt 判斷是否為圖片副檔名
 func isImageExt(ext string) bool {
 	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".bmp":
+	case ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".avif":
 		return true
 	}
 	return false

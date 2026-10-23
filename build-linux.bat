@@ -76,11 +76,9 @@ echo. > "%PKG_DIR%\data\.gitkeep"
 :: Templates
 xcopy "%APP_DIR%template" "%PKG_DIR%\template" /E /I /Q /Y >nul
 
-:: Static (Cleaned, excluding user uploads and backups)
+:: Static (Including demo uploads, excluding backups)
 xcopy "%APP_DIR%static" "%PKG_DIR%\static" /E /I /Q /Y >nul
-if exist "%PKG_DIR%\static\upload" rmdir /s /q "%PKG_DIR%\static\upload"
-mkdir "%PKG_DIR%\static\upload"
-echo. > "%PKG_DIR%\static\upload\.gitkeep"
+if not exist "%PKG_DIR%\static\upload" mkdir "%PKG_DIR%\static\upload"
 if exist "%PKG_DIR%\static\backup" rmdir /s /q "%PKG_DIR%\static\backup"
 mkdir "%PKG_DIR%\static\backup"
 echo. > "%PKG_DIR%\static\backup\.gitkeep"
