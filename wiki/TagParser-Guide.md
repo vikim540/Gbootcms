@@ -93,14 +93,3 @@ Gbootcms 前台視圖採用自主研發的高效能標籤引擎 `TagParser`，�
 </article>
 ```
 
----
-
-## 5. 多語言字典替換 (`{i18n:...}`)
-
-在單套 HTML 模板架構下，靜態 UI 文案使用 `{i18n:Key}` 標籤，系統依當前 URL 語言前綴動態注入翻譯：
-
-```html
-<button type="submit" class="btn-submit">{i18n:Submit}</button>
-<input type="text" placeholder="{i18n:SearchPlaceholder}">
-<a href="/member/login.html">{i18n:Login}</a>
-```

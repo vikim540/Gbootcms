@@ -1,32 +1,32 @@
 {gboot:if({gboot:commentstatus})}
 <div class="container">
 	<div class="shadow-sm p-3 my-5 bg-white rounded">
-		<h4>{i18n:post_comment}：</h4>
+		<h4>發表評論：</h4>
 		<form class="my-4" onsubmit="return submitcomment(this);" data-action="{gboot:commentaction}" >
 		        <div class="form-group">
-		            <textarea name="comment" id="comment" class="form-control" placeholder="{i18n:enter_comment}"></textarea>
+		            <textarea name="comment" id="comment" class="form-control" placeholder="請輸入評論內容"></textarea>
 		        </div>
 		        
 		        {gboot:2if({gboot:commentcodestatus})}
 		        <div class="form-group">
 		            <div class="row">
 		                <div class="col-6 col-md-3">
-		                    <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="{i18n:enter_checkcode}">
+		                    <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="請輸入驗證碼">
 		                </div>
 		                <div class="col-6  col-md-3">
-		                    <img title="{i18n:click_refresh}" class="codeimg"  style="height:33px;" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
+		                    <img title="點擊刷新" class="codeimg"  style="height:33px;" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
 		                </div>
 		            </div>
 		        </div>
 		        {/gboot:2if}
 		        
 		        <div class="form-group">
-		           <button type="submit" class="btn btn-info mb-2">{i18n:submit_comment}</button>
+		           <button type="submit" class="btn btn-info mb-2">提交評論</button>
 		        </div>
 		    </form>
 		    
 		    
-		    <h4>{i18n:comment_list}：</h4>
+		    <h4>評論記錄：</h4>
 		      <a name="comment"></a>
 		     {gboot:comment contentid={content:id} num=20}
 		    <div class="media border-bottom pb-3 pt-3">
@@ -37,7 +37,7 @@
 			    	<small style="color:#999">[comment:date]</small>
 			    </h6>
 			    <p>[comment:comment] 
-			    	<span class="badge badge-light text-secondary font-weight-normal replybtn"  data-action="[comment:replyaction]">{i18n:reply}</span>
+			    	<span class="badge badge-light text-secondary font-weight-normal replybtn"  data-action="[comment:replyaction]">回覆</span>
 			    </p>
 			    
 			    {gboot:commentsub} <!-- 呼叫子評論 -->
@@ -47,7 +47,7 @@
 			        <h6 class="mt-0"><strong>[commentsub:nickname]</strong> <small style="color:#999">[commentsub:date]</small></h6>
 			        <p>
 			        	@[commentsub:pnickname] [commentsub:comment] 
-			        	<span class="badge badge-light text-secondary font-weight-normal replybtn"  data-action="[commentsub:replyaction]">{i18n:reply}</span>
+			        	<span class="badge badge-light text-secondary font-weight-normal replybtn"  data-action="[commentsub:replyaction]">回覆</span>
 			        </p>
 			      </div>
 			    </div>
@@ -61,14 +61,14 @@
 			{gboot:2if({page:rows}>0)}
 			   <nav aria-label="page navigation" class="my-4">
 			     <div class="pagination justify-content-center">
-			     	<a class="page-item page-link" href="{page:index}#comment">{i18n:home_page}</a>
-			     	<a class="page-item page-link" href="{page:pre}#comment">{i18n:prev_page}</a>
-			      	<a class="page-item page-link" href="{page:next}#comment">{i18n:next_page}</a>
-			      	<a class="page-item page-link" href="{page:last}#comment">{i18n:last_page}</a>
+			     	<a class="page-item page-link" href="{page:index}#comment">首頁</a>
+			     	<a class="page-item page-link" href="{page:pre}#comment">上一頁</a>
+			      	<a class="page-item page-link" href="{page:next}#comment">下一頁</a>
+			      	<a class="page-item page-link" href="{page:last}#comment">尾頁</a>
 			     </div>
 			   </nav>	
 			{2else}
-			   	<div class="text-center my-5 text-secondary">{i18n:no_data}</div>
+			   	<div class="text-center my-5 text-secondary">未查詢到任何資料！</div>
 			{/gboot:2if}
 	</div>
 </div>
@@ -88,16 +88,16 @@
       <form  onsubmit="return submitcomment(this);" data-action=""  id="replyform">
 	      <div class="modal-body">
 		         <div class="form-group">
-		             <textarea name="comment" id="comment" class="form-control" placeholder="{i18n:enter_comment}"></textarea>
+		             <textarea name="comment" id="comment" class="form-control" placeholder="請輸入評論內容"></textarea>
 		         </div>
 		         {gboot:2if({gboot:commentcodestatus})}
 		         <div class="form-group">
 		             <div class="row">
 		                 <div class="col-6">
-		                     <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="{i18n:enter_checkcode}">
+		                     <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="請輸入驗證碼">
 		                 </div>
 		                 <div class="col-6">
-		                     <img title="{i18n:click_refresh}" class="codeimg" style="height:33px;" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
+		                     <img title="點擊刷新" class="codeimg" style="height:33px;" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
 		                 </div>
 		             </div>
 		         </div>
@@ -105,7 +105,7 @@
 	      </div>
 	      <div class="modal-footer">
 	        <button type="button" class="btn btn-secondary" data-dismiss="modal">關閉</button>
-	        <button type="submit" class="btn btn-info">{i18n:submit_comment}</button>
+	        <button type="submit" class="btn btn-info">提交評論</button>
 	      </div>
        </form>
     </div>

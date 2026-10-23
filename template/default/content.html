@@ -14,9 +14,9 @@
     <article class="content-detail">
         <h1 {gboot:if('{content:titlecolor}'!='')}style="color: {content:titlecolor};"{/gboot:if}>{content:title}</h1>
         <div class="meta">
-            <span>{i18n:author_label}：{content:author}</span>
-            <span>{i18n:date_label}：{content:date style=Y-m-d}</span>
-            <span>{i18n:visits_label}：{content:visits}</span>
+            <span>作者：{content:author}</span>
+            <span>時間：{content:date style=Y-m-d}</span>
+            <span>瀏覽：{content:visits}</span>
         </div>
         <div class="content-body">
             {content:content}

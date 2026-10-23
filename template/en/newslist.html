@@ -1,0 +1,38 @@
+{include file=comm/head.html}
+
+{include file=comm/top.html}
+
+<div class="container pages">    
+
+  	 {include file=comm/position.html}
+  	 
+  	 {include file=comm/sortnav.html}
+
+	 <!-- 列表內容 -->
+     <ul>
+        {gboot:list num=10 order=date}
+        	<li class="lh-3 border-bottom-dashed">
+                <i class="fa fa-gg"></i>
+                <a href="[list:link]">
+                	<span class="d-none d-md-inline">[list:title lencn=30]</span><!-- PC端 -->
+                	<span class="d-inline d-md-none">[list:title lencn=11]</span><!-- 移動端 -->
+                	{gboot:if([list:istop]==1)}
+                		<span class="badge badge-danger">Top</span>
+                	{/gboot:if}
+                	{gboot:if([list:isrecommend]==1)}
+                		<span class="badge badge-warning">Hot</span>
+                	{/gboot:if}
+                	{gboot:if([list:isheadline]==1)}
+                		<span class="badge badge-info">News</span>
+                	{/gboot:if}
+                	<span class="float-right">[list:date style=Y-m-d]</span>
+                </a>
+            </li>
+        {/gboot:list}
+    </ul>
+    
+	{include file=comm/page.html}
+ 	
+</div>
+
+{include file=comm/foot.html}

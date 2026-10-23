@@ -50,7 +50,7 @@ go build -trimpath -ldflags="-s -w" -o bin/gbootcms.exe .
 | **圖片壓縮管道** | Pure-Go WebP (`gowebp`) | 伺服器端原生自動圖片轉碼與縮放，無外部 C 庫 |
 | **後台模板引擎** | Pongo2 v6.1 | Django 風格語義 AST 視圖渲染器 + 語法預處理器 |
 | **前台解析引擎** | 自研 TagParser | `{gboot:xxx}` 標籤體系 + fsnotify 模板熱重載 |
-| **多語言字典** | i18n Dictionary Provider | 單套 HTML 模板字典化渲染，杜絕物理多語系檔案克隆 |
+| **多語言架構** | 路由前綴 + 語言模板 | /、/en/、/sc/ 前綴路徑隔離，標準 CMS 標籤原生解析 |
 | **遙測監控** | Unified Telemetry Engine | `core/version/telemetry.go` 單一資料源，保證首頁與監控頁 100% 一致 |
 
 ---
@@ -97,7 +97,7 @@ gbootcms/
 │   ├── api/                         # RESTful API 端點（JWT + API Key 雙認證）
 │   ├── common/                      # 公共組件
 │   │   ├── imgcompress/             # 伺服器端純 Go 圖片 WebP 壓縮轉碼引擎
-│   │   ├── parser/                  # 前台標籤解析、JSON-LD、Sitemap、i18n
+│   │   ├── parser/                  # 前台標籤解析、JSON-LD、Sitemap
 │   │   ├── middleware/              # 認證、SEO隔離、快取、安全頭中介軟體
 │   │   ├── session.go               # 記憶體狀態管理
 │   │   └── captcha.go               # 點陣運算驗證碼

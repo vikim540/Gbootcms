@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{sort:name} - {gboot:sitetitle}</title>
+    <meta name="keywords" content="{sort:keywords}">
+    <meta name="description" content="{sort:description}">
+</head>
+<body>
+    {include file=head.html}
+
+    <div class="breadcrumb">{gboot:position separator=/}</div>
+
+    <h1>{sort:name}</h1>
+
+    <div class="content-list">
+        {gboot:list scode={sort:scode} num=15 order=date page=1}
+        <div class="list-item">
+            <a href="[list:link]">
+                {gboot:if('[list:ico]'!='')}
+                <img src="[list:ico]" alt="[list:title]">
+                {/gboot:if}
+                <h3 {gboot:if('[list:titlecolor]'!='')}style="color: [list:titlecolor]"{/gboot:if}>[list:title]</h3>
+                <span>[list:date style=Y-m-d]</span>
+            </a>
+        </div>
+        {/gboot:list}
+    </div>
+
+    <div class="pagination">
+        <a href="{page:index}">首页</a>
+        <a href="{page:pre}">上一页</a>
+        <span>{page:current}/{page:count}</span>
+        <a href="{page:next}">下一页</a>
+        <a href="{page:last}">末页</a>
+    </div>
+
+    {include file=foot.html}

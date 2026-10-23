@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{content:title} - {gboot:sitetitle}</title>
+    <meta name="keywords" content="{content:keywords}">
+    <meta name="description" content="{content:description}">
+</head>
+<body>
+    {include file=head.html}
+
+    <div class="breadcrumb">{gboot:position separator=/}</div>
+
+    <article class="content-detail">
+        <h1 {gboot:if('{content:titlecolor}'!='')}style="color: {content:titlecolor};"{/gboot:if}>{content:title}</h1>
+        <div class="meta">
+            <span>Author: {content:author}</span>
+            <span>Date: {content:date style=Y-m-d}</span>
+            <span>Views: {content:visits}</span>
+        </div>
+        <div class="content-body">
+            {content:content}
+        </div>
+    </article>
+
+    {include file=comm/comment.html}
+
+    {include file=foot.html}

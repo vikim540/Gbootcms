@@ -11,7 +11,7 @@
 2. [系統核心架構 (Architecture)](#2-系統核心架構-architecture)
 3. [伺服器端原生圖片 WebP 壓縮 (Image Compression)](#3-伺服器端原生圖片-webp-壓縮-image-compression)
 4. [前台模板標籤語法 (TagParser)](#4-前台模板標籤語法-tagparser)
-5. [單模板多語言字典體系 (Multilingual & i18n)](#5-單模板多語言字典體系-multilingual--i18n)
+5. [多語言與路徑劃分架構 (Multilingual)](#5-多語言與路徑劃分架構-multilingual)
 6. [SEO & GEO 搜尋引擎配套 (SEO & GEO)](#6-seo--geo-搜尋引擎配套-seo--geo)
 7. [生產部署與 1Panel 自動化 (Deployment)](#7-生產部署與-1panel-自動化-deployment)
 8. [開發規範與避坑清單 (Best Practices)](#8-開發規範與避坑清單-best-practices)
@@ -46,7 +46,7 @@ go build -trimpath -ldflags="-s -w" -o bin/gbootcms.exe .
 ## 2. 系統核心架構 (Architecture)
 
 ```
-[客戶端請求] ──► [Gin 高並發路由器] ──┬──► [前台 TagParser 標籤解析 (單模板 + i18n)]
+[客戶端請求] ──► [Gin 高並發路由器] ──┬──► [前台 TagParser 標籤解析 (路徑前綴 + 語言模板)]
                                        └──► [後台 Pongo2 渲染器 (Layui + UnoCSS 統一樣式)]
                                                            │
                                                            ▼
@@ -130,34 +130,19 @@ newPath, err := imgcompress.CompressToWebP(savePath, imgcompress.Options{
 
 ---
 
-## 5. 單模板多語言字典體系 (Multilingual & i18n)
+## 5. 多語言與路徑劃分架構 (Multilingual)
 
-### 5.1 徹底收斂物理模板克隆
-拒絕傳統將 `template/` 複製為 `template/en/`、`template/sc/` 的冗餘做法。全站統一採用單套 `template/default/`，搭配靜態字典進行運行時替換：
+### 5.1 路由路徑前綴劃分
+前台依據 URL 前綴自動匹配與切換當前語言上下文（`acode`）：
+- `/`：默認繁體中文站點 (`tc`)
+- `/en/`：英文站點 (`en`)
+- `/sc/`：簡體中文站點 (`sc`)
 
-```
-template/default/i18n/
-├── en.json      # 英文字典
-├── sc.json      # 簡體中文字典
-└── tc.json      # 繁體中文字典
-```
+由 `acodeplugin` 自動解析路徑前綴並注入 `Request Context`，GORM 查詢自動完成多語言數據過濾。
 
-### 5.2 字典定義與模板調用
-```json
-// template/default/i18n/en.json
-{
-  "Home": "Home",
-  "Search": "Search",
-  "SearchPlaceholder": "Please input keyword...",
-  "ReadMore": "Read More"
-}
-```
-```html
-<!-- HTML 模板中直接使用 {i18n:Key} -->
-<a href="/">{i18n:Home}</a>
-<input type="text" placeholder="{i18n:SearchPlaceholder}">
-<button type="submit">{i18n:Search}</button>
-```
+### 5.2 語言專屬模板目錄
+各語言使用專屬模板目錄（`template/default`、`template/en`、`template/sc`），直接套用標準 `{gboot:xxx}`、`{content:xxx}` 等標籤與原生文案，保持語句自然流暢，杜絕中間層自造標籤。
+公共靜態資源統一由 `template/default/static/` 維護並由後端自動映射。
 
 ---
 

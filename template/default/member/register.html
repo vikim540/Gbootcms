@@ -12,42 +12,42 @@
     	<div class="col-12 col-lg-6">
         	<form class="my-4" onsubmit="return register(this);">
                 <div class="form-group">
-                    <label for="username">{i18n:username}</label>
-                    <input type="text" name="username" required id="username" class="form-control" placeholder="{i18n:enter_reg_username}">
+                    <label for="username">帳　號</label>
+                    <input type="text" name="username" required id="username" class="form-control" placeholder="請輸入登入帳號">
                 </div>
 
                 <div class="form-group">
-                    <label for="nickname">{i18n:nickname}</label>
-                    <input type="text" name="nickname" required id="nickname" class="form-control" placeholder="{i18n:enter_nickname}">
+                    <label for="nickname">暱　稱</label>
+                    <input type="text" name="nickname" required id="nickname" class="form-control" placeholder="請輸入帳號暱稱">
                 </div>
 
                 <div class="form-group">
-                    <label for="password">{i18n:password}</label>
-                    <input type="password" name="password" required id="password" class="form-control" placeholder="{i18n:enter_password}">
+                    <label for="password">密　碼</label>
+                    <input type="password" name="password" required id="password" class="form-control" placeholder="請輸入登入密碼">
                 </div>
 
                 <div class="form-group">
-                    <label for="rpassword">{i18n:confirm_password}</label>
-                    <input type="password" name="rpassword" required id="rpassword" class="form-control" placeholder="{i18n:enter_confirm_password}">
+                    <label for="rpassword">確認密碼</label>
+                    <input type="password" name="rpassword" required id="rpassword" class="form-control" placeholder="請再次輸入登入密碼">
                 </div>
 
                 {gboot:if({gboot:registercodestatus})}
                 <div class="form-group">
-                    <label for="checkcode">{i18n:checkcode}</label>
+                    <label for="checkcode">驗證碼</label>
                     <div class="row">
                         <div class="col-6">
-                            <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="{i18n:enter_checkcode}">
+                            <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="請輸入驗證碼">
                         </div>
                         <div class="col-6">
-                            <img title="{i18n:click_refresh}" style="height:33px;" id="codeimg" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
+                            <img title="點擊刷新" style="height:33px;" id="codeimg" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
                         </div>
                     </div>
                 </div>
                 {/gboot:if}
 
                 <div class="form-group">
-                   <button type="submit" class="btn btn-info mb-2">{i18n:register_now}</button>
-                   <span class="text-secondary ml-3">{i18n:have_account}<a href="{gboot:login}">{i18n:login_now}</a></span>
+                   <button type="submit" class="btn btn-info mb-2">立即註冊</button>
+                   <span class="text-secondary ml-3">已有帳號？<a href="{gboot:login}">馬上登入</a></span>
                 </div>
             </form>
         </div>

@@ -1,0 +1,97 @@
+{include file=comm/head.html}
+
+{include file=comm/top.html}
+
+<div class="container pages">
+
+	{include file=comm/position.html}
+
+    <!-- 會員註冊 -->
+    <div class="row">
+    	<div class="col-lg-3"></div>
+    	<div class="col-12 col-lg-6">
+        	<form class="my-4" onsubmit="return register(this);">
+                <div class="form-group">
+                    <label for="username">账　号</label>
+                    <input type="text" name="username" required id="username" class="form-control" placeholder="请输入登录账号">
+                </div>
+
+                <div class="form-group">
+                    <label for="nickname">昵　称</label>
+                    <input type="text" name="nickname" required id="nickname" class="form-control" placeholder="请输入账号昵称">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">密　码</label>
+                    <input type="password" name="password" required id="password" class="form-control" placeholder="请输入登录密码">
+                </div>
+
+                <div class="form-group">
+                    <label for="rpassword">确认密码</label>
+                    <input type="password" name="rpassword" required id="rpassword" class="form-control" placeholder="请再次输入登录密码">
+                </div>
+
+                {gboot:if({gboot:registercodestatus})}
+                <div class="form-group">
+                    <label for="checkcode">验证码</label>
+                    <div class="row">
+                        <div class="col-6">
+                            <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="请输入验证码">
+                        </div>
+                        <div class="col-6">
+                            <img title="点击刷新" style="height:33px;" id="codeimg" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
+                        </div>
+                    </div>
+                </div>
+                {/gboot:if}
+
+                <div class="form-group">
+                   <button type="submit" class="btn btn-info mb-2">立即注册</button>
+                   <span class="text-secondary ml-3">已有账号？<a href="{gboot:login}">马上登录</a></span>
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-3"></div>
+    </div>
+</div>
+
+<script>
+
+//ajax註冊
+function register(obj){
+  var url='{gboot:register}';
+  var username=$(obj).find("#username").val();
+  var nickname=$(obj).find("#nickname").val();
+  var password=$(obj).find("#password").val();
+  var rpassword=$(obj).find("#rpassword").val();
+  var checkcode=$(obj).find("#checkcode").val();
+
+  $.ajax({
+    type: 'POST',
+    url: url,
+    dataType: 'json',
+    data: {
+    	username: username,
+    	nickname: nickname,
+    	password: password,
+    	rpassword: rpassword,
+    	checkcode: checkcode
+    },
+    success: function (response, status) {
+      if(response.code){
+    	 alert(response.msg);
+		 location.href= response.tourl;
+      }else{
+    	 $('#codeimg').click();
+    	 alert(response.data || response.msg);
+      }
+    },
+    error:function(xhr,status,error){
+      alert('返回数据异常！');
+    }
+  });
+  return false;
+}
+</script>
+
+{include file=comm/foot.html}

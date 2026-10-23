@@ -450,20 +450,6 @@ func registerSingleProviders(p *TagParser, ctx *Context) {
 		return ""
 	})
 
-	p.Register("i18n", func(tagName string, params map[string]string, inner string) string {
-		field := params["_field"]
-		if field == "" {
-			field = params["field"]
-		}
-		if field == "" {
-			return ""
-		}
-		acode := acodeplugin.GetAcode(ctx.Ctx)
-		if acode == "" {
-			acode = "default"
-		}
-		return ResolveI18nText(field, acode)
-	})
 
 	// buildSortChain 從當前欄目向上遞歸到根欄目，返回從根到當前的有序鏈
 	buildSortChain := func(scode string) []content.ContentSort {

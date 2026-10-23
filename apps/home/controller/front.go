@@ -126,19 +126,20 @@ func NewFrontController(store *parser.TemplateStore) *FrontController {
 }
 
 // getStore 根據當前請求的 acode 取得對應的 TemplateStore
-// 邏輯：acode → 查 ay_site.theme（使用快取）→ 如果 theme 目錄有對應 TemplateStore 則用它，否則用 default
 func (fc *FrontController) getStore(c *gin.Context) *parser.TemplateStore {
 	acode := acodeplugin.GetAcode(c.Request.Context())
-	if acode == "" {
-		return fc.Store
+	theme := ""
+
+	if site := getCachedSite(c); site != nil && site.Theme != "" && site.Theme != "default" {
+		theme = site.Theme
 	}
 
-	// 使用快取的 Site 查詢（避免每次請求都查 DB）
-	site := getCachedSite(c)
-	if site == nil {
-		return fc.Store
+	if (theme == "" || theme == "default") && acode != "" && acode != middleware.GetDefaultAcode() {
+		if _, err := os.Stat("template/" + acode); err == nil {
+			theme = acode
+		}
 	}
-	theme := site.Theme
+
 	if theme == "" || theme == "default" {
 		return fc.Store
 	}

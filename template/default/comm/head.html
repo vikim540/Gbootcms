@@ -39,7 +39,7 @@
 	    <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
 	        <ul class="navbar-nav">
 	       	  <li class="nav-item {gboot:if(0=='{sort:scode}')}active{/gboot:if}">
-				 <a class="nav-link" href="/" >{i18n:home}</a>
+				 <a class="nav-link" href="/" >首頁</a>
           </li>
 	          {gboot:nav num=10 parent=0}
 	              <li class="nav-item {gboot:if('[nav:scode]'=='{sort:tcode}')}active{/gboot:if}">
@@ -50,11 +50,11 @@
 	      
 	      <span class="navbar-text">
 	     	 {gboot:if({gboot:islogin}==1)}
-				<a class="text-secondary" href="{gboot:ucenter}" >{i18n:ucenter}</a>
+				<a class="text-secondary" href="{gboot:ucenter}" >個人中心</a>
 		     {else}
 		     
 		     	{gboot:2if({gboot:registerstatus})}
-					<a class="text-secondary" href="{gboot:register}" >{i18n:register}</a>
+					<a class="text-secondary" href="{gboot:register}" >註冊</a>
 				{/gboot:2if}
 				
 				{gboot:2if({gboot:registerstatus} && {gboot:loginstatus})}
@@ -62,7 +62,7 @@
 				{/gboot:2if}
 				
 				{gboot:2if({gboot:loginstatus})}
-					<a class="text-secondary" href="{gboot:login}" >{i18n:login}</a>
+					<a class="text-secondary" href="{gboot:login}" >登入</a>
 				{/gboot:2if}
 				
 		     {/gboot:if}

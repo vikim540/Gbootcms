@@ -5,24 +5,24 @@
             <div class="col-12 col-md-5">
             	<h5>{gboot:companyname}</h5>
                 <ul class="lh-2">
-                	<li>{i18n:license}: {gboot:companyblicense}  </li>
-                    <li>{i18n:icp}: <a href="http://beian.miit.gov.cn/" target="_blank">{gboot:siteicp}</a> </li>
-                    <li>{i18n:address}: {gboot:companyaddress} </li>
+                	<li>營業執照：{gboot:companyblicense}  </li>
+                    <li>備案號碼：<a href="http://beian.miit.gov.cn/" target="_blank">{gboot:siteicp}</a> </li>
+                    <li>地址：{gboot:companyaddress} </li>
                 </ul>
             </div>
             <div class="col-12 col-md-5">
             	<div class="mt-4 d-block d-md-none"></div>
                 
-            	<h5>{i18n:contact_us}</h5>
+            	<h5>聯繫我們</h5>
                 <ul class="lh-2">
-                    <li>{i18n:phone}: {gboot:companyphone} </li>
-                    <li>{i18n:email}: {gboot:companyemail} </li>
+                    <li>電話：{gboot:companyphone} </li>
+                    <li>郵箱：{gboot:companyemail} </li>
                     <li>WhatsApp：{gboot:companyqq} </li>
                 </ul>
             </div>
             <div class="col-12 col-md-2 text-center d-none d-md-block">
             	<p class="code">{gboot:qrcode string={gboot:httpurl}} </p>
-                <p class="small">{i18n:scan_mobile}</p>
+                <p class="small">掃一掃 手機訪問</p>
             </div>
         </div>
 	</div>
@@ -30,7 +30,7 @@
 	<div class="container pt-3 pb-3 border-top">
 		<div class="row">
 			<div class="col-12 col-md-6">
-				<span class="text-secondary small">{i18n:friendly_links}:</span>
+				<span class="text-secondary small">友情鏈接：</span>
 				{gboot:link num=20}
 					<a href="[link:link]" target="_blank" class="text-secondary small me-2">[link:title]</a>
 				{/gboot:link}
@@ -84,21 +84,21 @@
             </p>
         </dt>
 		<dd><i class="fa fa-commenting-o"></i></dd>
-		<dd>{i18n:online_service}</dd>
+		<dd>在線諮詢</dd>
 	</dl>
     
 	<dl>
 		<dt style="width:300px;">
-        	<h3><i class="fa fa-volume-control-phone"></i>{i18n:free_call}<span class="remove"><i class="fa fa-remove"></i></span></h3>
+        	<h3><i class="fa fa-volume-control-phone"></i>免費通話<span class="remove"><i class="fa fa-remove"></i></span></h3>
             <p>24小時免費諮詢</p>
             <p>請輸入您的聯繫電話，座機請加區號</p>
             <form  onsubmit="return subform(this);">
             	<p><input type="text" name="tel" id="tel" autocomplete="off"  placeholder="請輸入您的電話號碼" required maxlength="30"></p>
-                <p><button type="submit">{i18n:free_call}</button></p>
+                <p><button type="submit">免費通話</button></p>
             </form>
         </dt>
 		<dd><i class="fa fa-volume-control-phone" aria-hidden="true"></i></dd>
-		<dd>{i18n:free_call}</dd>
+		<dd>免費通話</dd>
 	</dl>
     
     <dl>
@@ -107,12 +107,12 @@
            	<p><img src="{gboot:companyweixin} " width="100%"></p>
         </dt>
 		<dd><i class="fa fa-weixin" aria-hidden="true"></i></dd>
-		<dd>{i18n:wechat_contact}</dd>
+		<dd>微信聯繫</dd>
 	</dl>
     
 	<dl class="scroll-top">
 		<dd><i class="fa fa-chevron-up"></i></dd>
-		<dd>{i18n:back_to_top}</dd>
+		<dd>返回頂部</dd>
 	</dl>
 </div>
 

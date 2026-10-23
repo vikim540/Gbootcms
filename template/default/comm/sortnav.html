@@ -3,9 +3,9 @@
     {gboot:nav num=10 parent={sort:tcode}}
     	{gboot:if([nav:i]==1)}
             {gboot:2if('{sort:scode}'=='{sort:tcode}')}
-                <a href="{sort:toplink}" class="btn btn-info mb-2">{i18n:all} <span class="badge badge-light">{sort:toprows}</a>
+                <a href="{sort:toplink}" class="btn btn-info mb-2">全部 <span class="badge badge-light">{sort:toprows}</a>
             {2else}
-                <a href="{sort:toplink}" class="btn btn-light mb-2">{i18n:all} <span class="badge btn-info">{sort:toprows}</a>
+                <a href="{sort:toplink}" class="btn btn-light mb-2">全部 <span class="badge btn-info">{sort:toprows}</a>
             {/gboot:2if}
         {/gboot:if}
         

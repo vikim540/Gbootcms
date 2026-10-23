@@ -1,0 +1,43 @@
+{include file=comm/head.html}
+
+{include file=comm/top.html}
+
+<!-- 搜索標題 -->
+<div class="jumbotron jumbotron-fluid mb-2" style="background:#e9ecef;background-size:cover;background-repeat:no-repeat">
+  <div class="container text-light">
+    <h1 class="fs-18 fs-sm-26 wow fadeInDown">Search Results</h1>
+    <p class="fs-14 fs-sm-18 wow fadeInDown">Keywords: {gboot:keyword}</p>
+  </div>
+</div>
+
+<div class="container pages">
+
+	{include file=comm/position.html}
+
+     <div class="row">
+        {gboot:search num=12 order=date page=1}
+            <div class="col-12 col-sm-6 col-lg-3">
+              <div class="card">
+                  <div class="card-img-150"><a href="[search:link]"><img class="card-img-top" src="[search:ico]" alt="[search:title]"></a></div>
+                  <div class="card-body">
+                    <h5 class="card-title"><a href="[search:link]">[search:title len=12 mark=1]</a></h5>
+                    <p class="card-text">[search:content drophtml=1 dropblank=1 len=50 mark=1]</p>
+                  </div>
+               </div>
+         	</div>
+        {/gboot:search}
+    </div>
+
+    <!-- 分頁 -->
+    {include file=comm/page.html}
+
+     <!-- 搜索-->
+     <form class="form-inline mb-5 justify-content-center" action="{gboot:scaction}"  method="get">
+		  <div class="form-group mx-sm-3 mb-2">
+		    <input type="text" name="keyword" class="form-control" placeholder="Please enter keywords">
+		  </div>
+		  <button type="submit" class="btn btn-info mb-2">Search</button>
+     </form>
+</div>
+
+{include file=comm/foot.html}

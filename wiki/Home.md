@@ -15,7 +15,7 @@
 | [系統架構 (Architecture)](Architecture) | 單一 DB 連線池、唯一 Migrate 入口、遙測單一資料源 | `core/db/db.go`, `telemetry.go` |
 | [前台標籤語法 (TagParser)](TagParser-Guide) | `{gboot:xxx}` 標籤語法、欄目與內容解析 | `{gboot:nav}`, `{gboot:list}` |
 | [原生圖片壓縮 (Image Compression)](Image-Compression) | 純 Go 伺服器端 WebP 轉碼與雙三次縮放管道 | `imgcompress.CompressToWebP()` |
-| [單模板多語言 (Multilingual & i18n)](Multilingual-and-i18n) | 單套 HTML 字典化國際化、杜絕 72 個克隆模板 | `{i18n:Search}`, `en.json` |
+| [多語言與路徑劃分 (Multilingual)](Multilingual) | 路徑前綴劃分、語言專屬模板、標準標籤生態 | `/en/`, `template/en/` |
 | [SEO 與 GEO 配套 (SEO & GEO)](SEO-and-GEO) | 動態 Host 感知 Robots、多語系 Sitemap、JSON-LD | `robots.txt`, `llms.txt`, Schema |
 | [生產部署 (Deployment Guide)](Deployment-Guide) | UPX 極限壓縮二進制、1Panel API 自動化熱部署 | `deploy-1panel.ps1`, Docker |
 

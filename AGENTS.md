@@ -97,8 +97,7 @@ pbootcms-go/
 │   │   └── view/                    # 後台 HTML 模板（Layui + UnoCSS）
 │   └── home/
 │       └── controller/              # 前台首頁、列表、詳情、搜索、留言、會員控制器
-├── template/default/                # 前台唯一模板目錄（{gboot:xxx} 標籤 + {i18n:...}）
-│   └── i18n/                        # 多語言字典檔案（en.json, zh-cn.json 等）
+├── template/                        # 前台模板目錄（default/、en/、sc/，標準 {gboot:xxx} 標籤）
 ├── static/                          # 全域靜態資源與上傳目錄 (static/upload/)
 ├── data/                            # SQLite 資料庫檔案
 ├── bin/                             # 編譯產物輸出目錄

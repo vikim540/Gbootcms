@@ -39,25 +39,25 @@
         	<div class="col-12 col-lg-6 mb-3 pr-3">
             	<h2 class="border-bottom pb-2 fs-sm-28 fs-20" {gboot:if('{content:titlecolor}'!='')}style="color: {content:titlecolor};"{/gboot:if}>{content:title}</h2>
                 <div class="text-secondary my-3 border-bottom-dashed lh-3">
-                      	{i18n:release_date}：{content:date style=Y-m-d}
+                      	上架時間：{content:date style=Y-m-d}
                 </div>
                 <div class="text-secondary my-3 border-bottom-dashed lh-3">
-                      	{i18n:visits_label}：{content:visits}
-                </div>
-                
-                <div class="text-secondary my-3 border-bottom-dashed lh-3">
-                      	{i18n:product_type}：{content:ext_type}
+                      	瀏覽次數：{content:visits}
                 </div>
                 
                 <div class="text-secondary my-3 border-bottom-dashed lh-3">
-                     	 {i18n:product_color}：{content:ext_color}
+                      	產品類型：{content:ext_type}
+                </div>
+                
+                <div class="text-secondary my-3 border-bottom-dashed lh-3">
+                     	 產品顏色：{content:ext_color}
                 </div>
                  <div class="text-secondary my-3 border-bottom-dashed lh-3">
-                     	 {i18n:product_price}：￥{content:ext_price}
+                     	 產品價格：￥{content:ext_price}
                 </div>
                 <div class="my-3 lh-3">
                 	{gboot:sort scode=11}
-                     <a href="[sort:link]" class="btn btn-danger">{i18n:inquire_now}</a>
+                     <a href="[sort:link]" class="btn btn-danger">馬上諮詢</a>
                     {/gboot:sort}
                 </div>
             </div>
@@ -67,8 +67,8 @@
       <div class="content md-content">{content:content}</div>
       
       <div class="text-secondary lh-2">
-			<p>{i18n:prev_content}：{content:precontent}</p>
-			<p>{i18n:next_content}：{content:nextcontent}</p>
+			<p>上一篇：{content:precontent}</p>
+			<p>下一篇：{content:nextcontent}</p>
       </div>
 </div>
 

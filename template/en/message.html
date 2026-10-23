@@ -1,0 +1,166 @@
+{include file=comm/head.html}
+
+{include file=comm/top.html}
+
+<div class="container pages">
+	{include file=comm/position.html}
+
+	{gboot:if({page:rows}>0)}
+    	<h5 class="border-bottom border-info pb-2"><i class="fa fa-sliders" aria-hidden="true"></i> Message Records</h5>
+	{/gboot:if}
+	 
+	<!-- 留言記錄 -->
+    {gboot:message num=10}
+    <div class="media border-bottom pb-3 pt-3">
+	  <img class="mr-3" src="[message:headpic]" height="25">
+	  <div class="media-body">
+	    <h5 class="mt-0">[message:nickname]:</h5>
+	    <p>[message:content]</p>
+	    <p>
+	    	<span class="badge badge-light text-secondary font-weight-normal">[message:os]</span>
+	    	<span class="badge badge-light text-secondary font-weight-normal">[message:bs]</span>
+	    	<span class="badge badge-light text-secondary font-weight-normal">[message:askdate]</span>
+	    </p>
+	    
+	    {gboot:if('[message:recontent]'!='')}
+	    <div class="media mt-3 border-top-dashed pt-3">
+	      <img class="mr-3" src="{gboot:sitetplpath}/images/user.png" height="25">
+	      <div class="media-body">
+	        <h5 class="mt-0">Admin Reply:</h5>
+	        <p>[message:recontent]</p>
+	        <p><span class="badge badge-light text-secondary font-weight-normal">[message:replydate]</span></p>
+	      </div>
+	    </div>
+	    {/gboot:if}
+	  </div>
+	</div>
+	{/gboot:message}
+	
+	<!-- 分頁 -->
+ 	{gboot:if({page:rows}>0)}
+	<nav aria-label="page navigation" class="my-4">
+      <div class="pagination justify-content-center">
+      	<a class="page-item page-link" href="{page:index}">First</a>
+        <a class="page-item page-link" href="{page:pre}">Prev</a>
+        {page:numbar}<!-- 數字條，小屏幕時自動隱藏-->
+        <a class="page-item page-link" href="{page:next}">Next</a>
+        <a class="page-item page-link" href="{page:last}">Last</a>
+      </div>
+    </nav>
+    {/gboot:if}
+    
+    <!-- 留言表單 -->
+    <div class="row">
+    	<div class="col-lg-3"></div>
+    	<div class="col-12 col-lg-6">
+        	<form class="my-4" onsubmit="return submsg(this);">
+                <!-- 蜜罐欄位：人類不可見，機器人會自動填充 -->
+                <div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">
+                    <label>Do not fill in this field</label>
+                    <input type="text" name="website" tabindex="-1" autocomplete="off">
+                </div>
+                <!-- 時間陷阱：記錄頁面載入時間，提交間隔過短判定為機器人 -->
+                <input type="hidden" name="_loadts" value="{gboot:timestamp}">
+                <div class="form-group">
+                    <label for="contacts">Contact Person</label>
+                    <div>
+                        <input type="text" name="contacts" required id="contacts" class="form-control" placeholder="Please enter contact person">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="mobile">Phone</label>
+                    <div>
+                        <input type="text" name="mobile" required id="mobile" class="form-control" placeholder="Please enter contact phone">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="content" >Content</label>
+                    <div>
+                        <textarea name="content" id="content" class="form-control" placeholder="Please enter message content"></textarea>
+                    </div>
+                </div>
+                
+                {gboot:if({gboot:msgcodestatus})}
+                <div class="form-group">
+                    <label for="checkcode">Captcha</label>
+                    <div class="row">
+                        <div class="col-6">
+                            <input type="text" name="checkcode" required id="checkcode" class="form-control" placeholder="Please enter captcha">
+                        </div>
+                        <div class="col-6">
+                            <img title="Click to refresh" class="codeimg" style="height:33px;" src="{gboot:checkcode}" onclick="this.src='{gboot:checkcode}?'+Math.round(Math.random()*10);" />
+                        </div>
+                    </div>
+                </div>
+                {/gboot:if}
+                
+                {gboot:if({gboot:msgturnstilestatus})}
+                <div class="form-group">
+                    <label>Human Verification</label>
+                    <div class="cf-turnstile" data-sitekey="{gboot:turnstile_sitekey}" data-theme="light"></div>
+                </div>
+                {/gboot:if}
+                
+                <div class="form-group">
+                   <button type="submit" class="btn btn-info mb-2">Submit Message</button>
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-3"></div>
+    </div> 
+
+</div>
+
+
+<script>
+
+//ajax提交留言
+function submsg(obj){
+  var url='{gboot:msgaction}';
+  var contacts=$(obj).find("#contacts").val();
+  var mobile=$(obj).find("#mobile").val();
+  var content=$(obj).find("#content").val();
+  var checkcode=$(obj).find("#checkcode").val();
+  var website=$(obj).find('input[name="website"]').val();
+  var loadts=$(obj).find('input[name="_loadts"]').val();
+  var turnstileToken=$(obj).find('input[name="cf-turnstile-response"]').val();
+  
+  $.ajax({
+    type: 'POST',
+    url: url,
+    dataType: 'json',
+    data: {
+    	contacts: contacts,
+    	mobile: mobile,
+    	content: content,
+    	checkcode: checkcode,
+    	website: website,
+    	_loadts: loadts,
+    	'cf-turnstile-response': turnstileToken || ''
+    },
+    success: function (response, status) {
+      if(response.code){
+		 alert("Thank you for your feedback, we will contact you soon!");
+		 $(obj)[0].reset(); 
+      }else{ 
+    	 if(response.tourl!=""){
+    		 if(confirm(response.data+' Do you want to log in now?')){
+    			 location.href=response.tourl; 
+   	   	     }
+    	 }
+    	 $('.codeimg').click();//更新驗證碼
+    	 if(typeof turnstile !== 'undefined'){turnstile.reset();}//重置 Turnstile
+      }
+    },
+    error:function(xhr,status,error){
+      alert('Data error!');
+    }
+  });
+  return false;
+}
+</script>
+
+ 
+{include file=comm/foot.html}
