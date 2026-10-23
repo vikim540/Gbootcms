@@ -39,6 +39,19 @@ func InitDB(cfg *config.Config) error {
 		os.MkdirAll(dir, 0777)
 	}
 
+	// 智能糾偏與主庫自愈：
+	// 如果配置的 dsn 不存在或小於 300KB，但 data/ 目錄下存在完整的主數據庫 0f13e78cfb83ebff93064bc3b9b7157d.db，自動切換至主庫
+	dbDir := filepath.Dir(dsn)
+	primaryDB := filepath.Join(dbDir, "0f13e78cfb83ebff93064bc3b9b7157d.db")
+	curFi, curErr := os.Stat(dsn)
+	if (os.IsNotExist(curErr) || (curErr == nil && curFi.Size() < 300000)) && dsn != primaryDB {
+		if pfi, perr := os.Stat(primaryDB); perr == nil && pfi.Size() > 500000 {
+			slog.Info("檢測到目錄下存在完整的主數據庫，自動糾偏並對齊切換", "from", dsn, "to", primaryDB)
+			dsn = primaryDB
+			cfg.Database.DBName = primaryDB
+		}
+	}
+
 	// 智能初始化：如果業務資料庫不存在或為 0 字節空文件，自動從出廠完整範本（data.default.db）拷貝初始化
 	if fi, err := os.Stat(dsn); os.IsNotExist(err) || (err == nil && fi.Size() == 0) {
 		defaultDB := filepath.Join(filepath.Dir(dsn), "data.default.db")

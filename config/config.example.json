@@ -19,7 +19,7 @@
     "port": 3306,
     "user": "root",
     "passwd": "",
-    "dbname": "data/gbootcms.db",
+    "dbname": "data/0f13e78cfb83ebff93064bc3b9b7157d.db",
     "prefix": "ay_"
   }
 }

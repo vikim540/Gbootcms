@@ -59,6 +59,22 @@ func Load(path string) *Config {
 			}
 		}
 
+		// 容錯自動初始化：如果配置文件不存在，自動尋找同目錄下的 config.json.default 或 config.example.json 初始化
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			dir := filepath.Dir(path)
+			candidates := []string{
+				filepath.Join(dir, "config.json.default"),
+				filepath.Join(dir, "config.example.json"),
+			}
+			for _, c := range candidates {
+				if data, rErr := os.ReadFile(c); rErr == nil {
+					_ = os.WriteFile(path, data, 0666)
+					log.Printf("[INFO] 未檢測到主配置文件，已自動從 %s 生成初始化: %s", filepath.Base(c), path)
+					break
+				}
+			}
+		}
+
 		v := viper.New()
 
 		// 預設值
@@ -76,7 +92,7 @@ func Load(path string) *Config {
 		v.SetDefault("app.cache_time", 900)
 		v.SetDefault("app.session_key", "gbootcms-session-key-32byte!!!")
 		v.SetDefault("database.type", "sqlite")
-		v.SetDefault("database.dbname", "data/pbootcms.db")
+		v.SetDefault("database.dbname", "data/0f13e78cfb83ebff93064bc3b9b7157d.db")
 		v.SetDefault("database.prefix", "ay_")
 
 		// 從 JSON 配置檔讀取
